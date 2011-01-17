@@ -1,0 +1,25 @@
+<project default="jar">
+	<property file="build.properties"></property>
+	
+	<target name="jar">
+		<jar basedir="bin" jarfile="${publish_directory}/PspNetParty.jar" includes="pspnetparty/lib/**">
+		</jar>
+		<jar basedir="bin" jarfile="${publish_directory}/ArenaClient.jar" includes="pspnetparty/client/swt/**">
+			<manifest>
+				<attribute name="Main-Class" value="pspnetparty.client.swt.ArenaClientWindow"/>
+				<attribute name="Class-Path" value="ArenaClient.jar PspNetParty.jar jnetpcap.jar swt.jar jface_3.6.1.jar org.eclipse.equinox.common_3.6.0.jar org.eclipse.core.commands_3.6.0.jar"/>
+			</manifest>
+		</jar>
+	</target>
+	
+	<target name="jar-swing">
+		<jar basedir="bin" jarfile="${publish_directory}/ArenaClientSwing.jar"
+			includes="pspnetparty/client/swing/**"
+			excludes="**/*Test.class">
+			<manifest>
+				<attribute name="Main-Class" value="pspnetparty.client.swing.ClientFrame"/>
+				<attribute name="Class-Path" value="ArenaClientSwing.jar"/>
+			</manifest>
+		</jar>
+	</target>
+</project>
