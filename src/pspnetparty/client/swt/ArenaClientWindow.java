@@ -1,4 +1,4 @@
-/*
+ï»¿/*
 Copyright (C) 2011 monte
 
 This file is part of PSP NetParty.
@@ -153,7 +153,7 @@ public class ArenaClientWindow {
 			arenaServerListCount++;
 		}
 
-		arenaServerAddressCombo.add("----------—š—ğ----------");
+		arenaServerAddressCombo.add("----------å±¥æ­´----------");
 
 		serverList = iniSettingSection.get(Constants.Ini.CLIENT_SERVER_HISTORY, "").split(",");
 		for (String s : serverList) {
@@ -165,9 +165,9 @@ public class ArenaClientWindow {
 				break;
 		}
 		
-		String software = String.format("%s ƒAƒŠ[ƒiƒNƒ‰ƒCƒAƒ“ƒg ƒo[ƒWƒ‡ƒ“: %s", Constants.App.APP_NAME, Constants.App.VERSION);
+		String software = String.format("%s ã‚¢ãƒªãƒ¼ãƒŠã‚¯ãƒ©ã‚¤ã‚¢ãƒ³ãƒˆ ãƒãƒ¼ã‚¸ãƒ§ãƒ³: %s", Constants.App.APP_NAME, Constants.App.VERSION);
 		appendLogTo(arenaChatLogText, software, colorAppInfo);
-		appendLogTo(arenaChatLogText, "ƒvƒƒgƒRƒ‹: " + Constants.Protocol.PROTOCOL_NUMBER, colorAppInfo);
+		appendLogTo(arenaChatLogText, "ãƒ—ãƒ­ãƒˆã‚³ãƒ«: " + Constants.Protocol.PROTOCOL_NUMBER, colorAppInfo);
 	}
 
 	private TabFolder mainTabFolder;
@@ -271,7 +271,7 @@ public class ArenaClientWindow {
 		mainTabFolder.setLayoutData(new GridData(SWT.FILL, SWT.FILL, true, true));
 
 		arenaLobbyTab = new TabItem(mainTabFolder, SWT.NONE);
-		arenaLobbyTab.setText("ƒAƒŠ[ƒiƒƒr[");
+		arenaLobbyTab.setText("ã‚¢ãƒªãƒ¼ãƒŠãƒ­ãƒ“ãƒ¼");
 
 		arenaMainSashForm = new SashForm(mainTabFolder, SWT.SMOOTH | SWT.HORIZONTAL);
 		arenaLobbyTab.setControl(arenaMainSashForm);
@@ -287,7 +287,7 @@ public class ArenaClientWindow {
 		arenaInfoContainer.setLayout(gridLayout);
 
 		arenaServerAddressLabel = new Label(arenaInfoContainer, SWT.NONE);
-		arenaServerAddressLabel.setText("ƒAƒhƒŒƒX");
+		arenaServerAddressLabel.setText("ã‚¢ãƒ‰ãƒ¬ã‚¹");
 		arenaServerAddressLabel.setLayoutData(new GridData(SWT.BEGINNING, SWT.CENTER, false, false));
 
 		arenaServerAddressCombo = new Combo(arenaInfoContainer, SWT.NONE);
@@ -298,7 +298,7 @@ public class ArenaClientWindow {
 		arenaServerAddressCombo.setLayoutData(gridData);
 
 		arenaServerLoginButton = new Button(arenaInfoContainer, SWT.PUSH);
-		arenaServerLoginButton.setText("ƒƒOƒCƒ“");
+		arenaServerLoginButton.setText("ãƒ­ã‚°ã‚¤ãƒ³");
 		arenaServerLoginButton.setLayoutData(new GridData(SWT.BEGINNING, SWT.CENTER, false, false));
 		// controlServerLoginButton.setLayoutData(new
 		// RowData(makeAppropriateSize(controlServerLoginButton, 10, 0)));
@@ -309,16 +309,16 @@ public class ArenaClientWindow {
 		playRoomListViewer.getTable().setLayoutData(gridData);
 
 		playRoomMasterNameColumn = new TableColumn(playRoomListViewer.getTable(), SWT.LEFT);
-		playRoomMasterNameColumn.setText("•”‰®å");
+		playRoomMasterNameColumn.setText("éƒ¨å±‹ä¸»");
 		playRoomMasterNameColumn.setWidth(80);
 		playRoomKeyColumn = new TableColumn(playRoomListViewer.getTable(), SWT.CENTER);
-		playRoomKeyColumn.setText("Œ®");
+		playRoomKeyColumn.setText("éµ");
 		playRoomKeyColumn.setWidth(30);
 		playRoomTitleColumn = new TableColumn(playRoomListViewer.getTable(), SWT.LEFT);
-		playRoomTitleColumn.setText("•”‰®–¼");
+		playRoomTitleColumn.setText("éƒ¨å±‹å");
 		playRoomTitleColumn.setWidth(130);
 		playRoomCapacityColumn = new TableColumn(playRoomListViewer.getTable(), SWT.CENTER);
-		playRoomCapacityColumn.setText("’èˆõ");
+		playRoomCapacityColumn.setText("å®šå“¡");
 		playRoomCapacityColumn.setWidth(45);
 
 		playRoomListViewer.setContentProvider(new PlayRoom.PlayRoomListContentProvider());
@@ -331,7 +331,7 @@ public class ArenaClientWindow {
 		arenaChatText = new Text(arenaChatContainer, SWT.BORDER | SWT.SINGLE);
 
 		arenaChatSubmitButton = new Button(arenaChatContainer, SWT.PUSH);
-		arenaChatSubmitButton.setText("”­Œ¾");
+		arenaChatSubmitButton.setText("ç™ºè¨€");
 		formData = new FormData(50, SWT.DEFAULT);
 		formData.bottom = new FormAttachment(100, -2);
 		formData.right = new FormAttachment(100, -1);
@@ -359,7 +359,7 @@ public class ArenaClientWindow {
 		arenaLobbyPlayerListViewer.getTable().setHeaderVisible(true);
 
 		arenaLobbyPlayerNameColumn = new TableColumn(arenaLobbyPlayerListViewer.getTable(), SWT.LEFT);
-		arenaLobbyPlayerNameColumn.setText("–¼‘O");
+		arenaLobbyPlayerNameColumn.setText("åå‰");
 		arenaLobbyPlayerNameColumn.setWidth(100);
 
 		arenaLobbyPlayerListViewer.setContentProvider(new Player.PlayerListContentProvider());
@@ -367,7 +367,7 @@ public class ArenaClientWindow {
 		arenaLobbyPlayerListViewer.setInput(lobbyPlayerMap);
 
 		playRoomTab = new TabItem(mainTabFolder, SWT.NONE);
-		playRoomTab.setText("ƒvƒŒƒCƒ‹[ƒ€");
+		playRoomTab.setText("ãƒ—ãƒ¬ã‚¤ãƒ«ãƒ¼ãƒ ");
 
 		roomMainSashForm = new SashForm(mainTabFolder, SWT.HORIZONTAL | SWT.SMOOTH);
 		playRoomTab.setControl(roomMainSashForm);
@@ -377,13 +377,13 @@ public class ArenaClientWindow {
 		roomInfoContainer.setLayout(new FormLayout());
 
 		roomFormCloseExitButton = new Button(roomInfoContainer, SWT.PUSH);
-		roomFormCloseExitButton.setText("•”‰®‚ğ•Â‚¶‚é");
+		roomFormCloseExitButton.setText("éƒ¨å±‹ã‚’é–‰ã˜ã‚‹");
 		formData = new FormData(100, SWT.DEFAULT);
 		formData.top = new FormAttachment(0, 5);
 		roomFormCloseExitButton.setLayoutData(formData);
 
 		roomFormCreateEditButton = new Button(roomInfoContainer, SWT.PUSH);
-		roomFormCreateEditButton.setText("•”‰®‚ğì¬");
+		roomFormCreateEditButton.setText("éƒ¨å±‹ã‚’ä½œæˆ");
 		formData = new FormData(100, SWT.DEFAULT);
 		formData.top = new FormAttachment(0, 5);
 		formData.right = new FormAttachment(100, -3);
@@ -398,7 +398,7 @@ public class ArenaClientWindow {
 		roomEditFormContainer.setLayoutData(formData);
 
 		roomFormMasterLabel = new Label(roomEditFormContainer, SWT.NONE);
-		roomFormMasterLabel.setText("•”‰®å");
+		roomFormMasterLabel.setText("éƒ¨å±‹ä¸»");
 		roomFormMasterLabel.setLayoutData(new GridData(SWT.CENTER, SWT.CENTER, false, false));
 
 		roomFormMasterText = new Text(roomEditFormContainer, SWT.SINGLE | SWT.BORDER | SWT.READ_ONLY);
@@ -406,7 +406,7 @@ public class ArenaClientWindow {
 		roomFormMasterText.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
 
 		roomFormTitleLabel = new Label(roomEditFormContainer, SWT.NONE);
-		roomFormTitleLabel.setText("•”‰®–¼");
+		roomFormTitleLabel.setText("éƒ¨å±‹å");
 		roomFormTitleLabel.setLayoutData(new GridData(SWT.CENTER, SWT.CENTER, false, false));
 
 		roomFormTitleText = new Text(roomEditFormContainer, SWT.SINGLE | SWT.BORDER);
@@ -414,7 +414,7 @@ public class ArenaClientWindow {
 		roomFormTitleText.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
 
 		roomFormPasswordLabel = new Label(roomEditFormContainer, SWT.NONE);
-		roomFormPasswordLabel.setText("ƒpƒXƒ[ƒh");
+		roomFormPasswordLabel.setText("ãƒ‘ã‚¹ãƒ¯ãƒ¼ãƒ‰");
 		roomFormPasswordLabel.setLayoutData(new GridData(SWT.CENTER, SWT.CENTER, false, false));
 
 		roomFormPasswordText = new Text(roomEditFormContainer, SWT.SINGLE | SWT.BORDER);
@@ -422,7 +422,7 @@ public class ArenaClientWindow {
 		roomFormPasswordText.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
 
 		roomFormMaxPlayersLabel = new Label(roomEditFormContainer, SWT.NONE);
-		roomFormMaxPlayersLabel.setText("§ŒÀl”");
+		roomFormMaxPlayersLabel.setText("åˆ¶é™äººæ•°");
 
 		roomFormMaxPlayersSpiner = new Spinner(roomEditFormContainer, SWT.READ_ONLY | SWT.BORDER);
 		roomFormMaxPlayersSpiner.setBackground(colorWhite);
@@ -432,7 +432,7 @@ public class ArenaClientWindow {
 		roomFormMaxPlayersSpiner.setSelection(4);
 
 		roomFormDescriptionLabel = new Label(roomInfoContainer, SWT.NONE);
-		roomFormDescriptionLabel.setText("•”‰®‚ÌĞ‰îE”õl");
+		roomFormDescriptionLabel.setText("éƒ¨å±‹ã®ç´¹ä»‹ãƒ»å‚™è€ƒ");
 		formData = new FormData();
 		formData.top = new FormAttachment(roomEditFormContainer, 8);
 		formData.left = new FormAttachment(0, 3);
@@ -465,18 +465,18 @@ public class ArenaClientWindow {
 		wlanAdaptorContainer.setLayoutData(formData);
 
 		wlanAdaptorListLabel = new Label(wlanAdaptorContainer, SWT.NONE);
-		wlanAdaptorListLabel.setText("–³üLANƒAƒ_ƒvƒ^");
+		wlanAdaptorListLabel.setText("ç„¡ç·šLANã‚¢ãƒ€ãƒ—ã‚¿");
 
 		wlanAdaptorListCombo = new Combo(wlanAdaptorContainer, SWT.READ_ONLY);
 		wlanAdaptorListCombo.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
 
 		wlanPspCommunicationButton = new Button(wlanAdaptorContainer, SWT.TOGGLE);
-		wlanPspCommunicationButton.setText("PSP‚Æ’ÊMŠJn");
+		wlanPspCommunicationButton.setText("PSPã¨é€šä¿¡é–‹å§‹");
 
 		roomChatText = new Text(roomChatContainer, SWT.BORDER | SWT.SINGLE);
 
 		roomChatSubmitButton = new Button(roomChatContainer, SWT.PUSH);
-		roomChatSubmitButton.setText("”­Œ¾");
+		roomChatSubmitButton.setText("ç™ºè¨€");
 		formData = new FormData(50, SWT.DEFAULT);
 		formData.bottom = new FormAttachment(100, -2);
 		formData.right = new FormAttachment(100, -1);
@@ -508,7 +508,7 @@ public class ArenaClientWindow {
 		packetMonitorIsMineColumn.setWidth(25);
 
 		TableColumn packetMonitorMacAddressColumn = new TableColumn(packetMonitorTableViewer.getTable(), SWT.LEFT);
-		packetMonitorMacAddressColumn.setText("MACƒAƒhƒŒƒX");
+		packetMonitorMacAddressColumn.setText("MACã‚¢ãƒ‰ãƒ¬ã‚¹");
 		packetMonitorMacAddressColumn.setWidth(100);
 
 		TableColumn packetMonitorInSpeedColumn = new TableColumn(packetMonitorTableViewer.getTable(), SWT.RIGHT);
@@ -520,11 +520,11 @@ public class ArenaClientWindow {
 		packetMonitorOutSpeedColumn.setWidth(80);
 
 		TableColumn packetMonitorTotalInBytesColumn = new TableColumn(packetMonitorTableViewer.getTable(), SWT.RIGHT);
-		packetMonitorTotalInBytesColumn.setText("In —İÏƒoƒCƒg");
+		packetMonitorTotalInBytesColumn.setText("In ç´¯ç©ãƒã‚¤ãƒˆ");
 		packetMonitorTotalInBytesColumn.setWidth(100);
 
 		TableColumn packetMonitorTotalOutBytesColumn = new TableColumn(packetMonitorTableViewer.getTable(), SWT.RIGHT);
-		packetMonitorTotalOutBytesColumn.setText("Out —İÏƒoƒCƒg");
+		packetMonitorTotalOutBytesColumn.setText("Out ç´¯ç©ãƒã‚¤ãƒˆ");
 		packetMonitorTotalOutBytesColumn.setWidth(100);
 
 		packetMonitorTableViewer.setContentProvider(new TraficStatistics.ContentProvider());
@@ -539,7 +539,7 @@ public class ArenaClientWindow {
 		roomPlayerListViewer.getTable().setHeaderVisible(true);
 
 		roomPlayerNameColumn = new TableColumn(roomPlayerListViewer.getTable(), SWT.LEFT);
-		roomPlayerNameColumn.setText("–¼‘O");
+		roomPlayerNameColumn.setText("åå‰");
 		roomPlayerNameColumn.setWidth(100);
 
 		roomPlayerPingColumn = new TableColumn(roomPlayerListViewer.getTable(), SWT.RIGHT);
@@ -551,32 +551,32 @@ public class ArenaClientWindow {
 		roomPlayerListViewer.setInput(roomPlayerMap);
 
 		configTab = new TabItem(mainTabFolder, SWT.NONE);
-		configTab.setText("İ’è");
+		configTab.setText("è¨­å®š");
 
 		configContainer = new Composite(mainTabFolder, SWT.NONE);
 		configContainer.setLayout(new GridLayout(3, false));
 		configTab.setControl(configContainer);
 
 		configUserNameLabel = new Label(configContainer, SWT.NONE);
-		configUserNameLabel.setText("ƒ†[ƒU[–¼");
+		configUserNameLabel.setText("ãƒ¦ãƒ¼ã‚¶ãƒ¼å");
 
 		configUserNameText = new Text(configContainer, SWT.SINGLE | SWT.BORDER);
 		configUserNameText.setLayoutData(new GridData(150, SWT.DEFAULT));
 
 		configUserNameAlertLabel = new Label(configContainer, SWT.NONE);
-		configUserNameAlertLabel.setText("ƒ†[ƒU[–¼‚ğ“ü—Í‚µ‚Ä‚­‚¾‚³‚¢");
+		configUserNameAlertLabel.setText("ãƒ¦ãƒ¼ã‚¶ãƒ¼åã‚’å…¥åŠ›ã—ã¦ãã ã•ã„");
 		configUserNameAlertLabel.setForeground(colorLogError);
 		// configUserNameAlertLabel.setVisible(false);
 
 		configLogLobbyEnterExit = new Button(configContainer, SWT.CHECK | SWT.FLAT);
-		configLogLobbyEnterExit.setText("ƒAƒŠ[ƒiƒƒr[‚Ìƒ`ƒƒƒbƒgƒƒO‚É“ü‘ŞºƒƒbƒZ[ƒW‚ğ•\¦‚·‚é");
+		configLogLobbyEnterExit.setText("ã‚¢ãƒªãƒ¼ãƒŠãƒ­ãƒ“ãƒ¼ã®ãƒãƒ£ãƒƒãƒˆãƒ­ã‚°ã«å…¥é€€å®¤ãƒ¡ãƒƒã‚»ãƒ¼ã‚¸ã‚’è¡¨ç¤ºã™ã‚‹");
 		configLogLobbyEnterExit.setSelection(true);
 		gridData = new GridData();
 		gridData.horizontalSpan = 3;
 		configLogLobbyEnterExit.setLayoutData(gridData);
 
 		logTab = new TabItem(mainTabFolder, SWT.NONE);
-		logTab.setText("ƒƒO");
+		logTab.setText("ãƒ­ã‚°");
 
 		logText = new Text(mainTabFolder, SWT.MULTI | SWT.READ_ONLY | SWT.BORDER | SWT.V_SCROLL);
 		logTab.setControl(logText);
@@ -587,7 +587,7 @@ public class ArenaClientWindow {
 		statusBarContainer.setLayout(new FormLayout());
 
 		statusServerAddressLabel = new Label(statusBarContainer, SWT.BORDER);
-		statusServerAddressLabel.setText("ƒT[ƒo[ƒAƒhƒŒƒX");
+		statusServerAddressLabel.setText("ã‚µãƒ¼ãƒãƒ¼ã‚¢ãƒ‰ãƒ¬ã‚¹");
 		formData = new FormData();
 		formData.left = new FormAttachment(0, 0);
 		statusServerAddressLabel.setLayoutData(formData);
@@ -599,13 +599,13 @@ public class ArenaClientWindow {
 		updateTunnelStatus(false);
 
 		statusServerStatusLabel = new Label(statusBarContainer, SWT.BORDER);
-		statusServerStatusLabel.setText("ƒT[ƒo[ƒXƒe[ƒ^ƒX");
+		statusServerStatusLabel.setText("ã‚µãƒ¼ãƒãƒ¼ã‚¹ãƒ†ãƒ¼ã‚¿ã‚¹");
 		formData = new FormData();
 		formData.left = new FormAttachment(statusTunnelConnectionLabel, 5);
 		statusServerStatusLabel.setLayoutData(formData);
 
 		statusTraficStatusLabel = new Label(statusBarContainer, SWT.BORDER);
-		statusTraficStatusLabel.setText("ƒgƒ‰ƒtƒBƒbƒN");
+		statusTraficStatusLabel.setText("ãƒˆãƒ©ãƒ•ã‚£ãƒƒã‚¯");
 		formData = new FormData();
 		formData.right = new FormAttachment(100, -20);
 		statusTraficStatusLabel.setLayoutData(formData);
@@ -620,7 +620,7 @@ public class ArenaClientWindow {
 
 		roomPlayerMenu = new Menu(shell, SWT.POP_UP);
 		roomPlayerKickMenuItem = new MenuItem(roomPlayerMenu, SWT.PUSH);
-		roomPlayerKickMenuItem.setText("ƒLƒbƒN");
+		roomPlayerKickMenuItem.setText("ã‚­ãƒƒã‚¯");
 		roomPlayerKickMenuItem.addSelectionListener(new SelectionListener() {
 			@Override
 			public void widgetSelected(SelectionEvent e) {
@@ -838,7 +838,7 @@ public class ArenaClientWindow {
 				case PlayRoomMaster:
 					String title = roomFormTitleText.getText();
 					if (Utility.isEmpty(title)) {
-						appendLogTo(roomChatLogText, "•”‰®–¼‚ğ“ü—Í‚µ‚Ä‚­‚¾‚³‚¢", colorLogError);
+						appendLogTo(roomChatLogText, "éƒ¨å±‹åã‚’å…¥åŠ›ã—ã¦ãã ã•ã„", colorLogError);
 						roomFormTitleText.setFocus();
 						return;
 					}
@@ -892,7 +892,7 @@ public class ArenaClientWindow {
 			public void handleEvent(Event event) {
 				if (wlanPspCommunicationButton.getSelection()) {
 					if (startPacketCapturing()) {
-						wlanPspCommunicationButton.setText("PSP‚Æ’ÊM’†");
+						wlanPspCommunicationButton.setText("PSPã¨é€šä¿¡ä¸­");
 						wlanAdaptorListCombo.setEnabled(false);
 					} else {
 						wlanPspCommunicationButton.setSelection(false);
@@ -924,13 +924,13 @@ public class ArenaClientWindow {
 
 		String address = arenaServerAddressCombo.getText();
 		if (Utility.isEmpty(address)) {
-			appendLogTo(arenaChatLogText, "ƒT[ƒo[ƒAƒhƒŒƒX‚ğ“ü—Í‚µ‚Ä‚­‚¾‚³‚¢", colorLogError);
+			appendLogTo(arenaChatLogText, "ã‚µãƒ¼ãƒãƒ¼ã‚¢ãƒ‰ãƒ¬ã‚¹ã‚’å…¥åŠ›ã—ã¦ãã ã•ã„", colorLogError);
 			return;
 		}
 
 		String[] tokens = address.split(":");
 		if (tokens.length != 2) {
-			appendLogTo(arenaChatLogText, "ƒT[ƒo[ƒAƒhƒŒƒX‚ª³‚µ‚­‚ ‚è‚Ü‚¹‚ñ", colorLogError);
+			appendLogTo(arenaChatLogText, "ã‚µãƒ¼ãƒãƒ¼ã‚¢ãƒ‰ãƒ¬ã‚¹ãŒæ­£ã—ãã‚ã‚Šã¾ã›ã‚“", colorLogError);
 			return;
 		}
 
@@ -938,7 +938,7 @@ public class ArenaClientWindow {
 		try {
 			port = Integer.parseInt(tokens[1]);
 		} catch (NumberFormatException e) {
-			appendLogTo(arenaChatLogText, "ƒT[ƒo[ƒAƒhƒŒƒX‚ª³‚µ‚­‚ ‚è‚Ü‚¹‚ñ", colorLogError);
+			appendLogTo(arenaChatLogText, "ã‚µãƒ¼ãƒãƒ¼ã‚¢ãƒ‰ãƒ¬ã‚¹ãŒæ­£ã—ãã‚ã‚Šã¾ã›ã‚“", colorLogError);
 			return;
 		}
 
@@ -972,7 +972,7 @@ public class ArenaClientWindow {
 				chat.setText("");
 			}
 		} else {
-			appendLogTo(arenaChatLogText, "ƒT[ƒo[‚ÉƒƒOƒCƒ“‚µ‚Ä‚¢‚Ü‚¹‚ñ", colorRoomInfo);
+			appendLogTo(arenaChatLogText, "ã‚µãƒ¼ãƒãƒ¼ã«ãƒ­ã‚°ã‚¤ãƒ³ã—ã¦ã„ã¾ã›ã‚“", colorRoomInfo);
 		}
 	}
 
@@ -1021,7 +1021,7 @@ public class ArenaClientWindow {
 		Runnable run = new Runnable() {
 			@Override
 			public void run() {
-				String text = String.format("%sƒT[ƒo[  %s", type, arenaServerAddressCombo.getText());
+				String text = String.format("%sã‚µãƒ¼ãƒãƒ¼  %s", type, arenaServerAddressCombo.getText());
 				statusServerAddressLabel.setText(text);
 				statusBarContainer.layout();
 			}
@@ -1035,10 +1035,10 @@ public class ArenaClientWindow {
 			public void run() {
 				if (isConnected) {
 					statusTunnelConnectionLabel.setForeground(colorGreen);
-					statusTunnelConnectionLabel.setText(" UDPƒgƒ“ƒlƒ‹Ú‘±’† ");
+					statusTunnelConnectionLabel.setText(" UDPãƒˆãƒ³ãƒãƒ«æ¥ç¶šä¸­ ");
 				} else {
 					statusTunnelConnectionLabel.setForeground(colorRed);
-					statusTunnelConnectionLabel.setText(" UDPƒgƒ“ƒlƒ‹Ø’f ");
+					statusTunnelConnectionLabel.setText(" UDPãƒˆãƒ³ãƒãƒ«åˆ‡æ–­ ");
 				}
 				statusBarContainer.layout();
 			}
@@ -1236,10 +1236,10 @@ public class ArenaClientWindow {
 				case ArenaLobby:
 					mainTabFolder.setSelection(arenaLobbyTab);
 
-					roomFormCreateEditButton.setText("•”‰®‚ğì¬");
+					roomFormCreateEditButton.setText("éƒ¨å±‹ã‚’ä½œæˆ");
 					roomFormCreateEditButton.setEnabled(true);
 
-					roomFormCloseExitButton.setText("•”‰®‚ğ•Â‚¶‚é");
+					roomFormCloseExitButton.setText("éƒ¨å±‹ã‚’é–‰ã˜ã‚‹");
 					roomFormCloseExitButton.setEnabled(false);
 
 					roomPlayerMap.clear();
@@ -1256,10 +1256,10 @@ public class ArenaClientWindow {
 				case PlayRoomMaster:
 					mainTabFolder.setSelection(playRoomTab);
 
-					roomFormCreateEditButton.setText("•”‰®‚ğC³");
+					roomFormCreateEditButton.setText("éƒ¨å±‹ã‚’ä¿®æ­£");
 					roomFormCreateEditButton.setEnabled(true);
 
-					roomFormCloseExitButton.setText("•”‰®‚ğ•Â‚¶‚é");
+					roomFormCloseExitButton.setText("éƒ¨å±‹ã‚’é–‰ã˜ã‚‹");
 					roomFormCloseExitButton.setEnabled(true);
 
 					setEnableRoomFotmItems(true);
@@ -1270,7 +1270,7 @@ public class ArenaClientWindow {
 
 					roomFormCreateEditButton.setEnabled(false);
 
-					roomFormCloseExitButton.setText("‘Şº‚·‚é");
+					roomFormCloseExitButton.setText("é€€å®¤ã™ã‚‹");
 					roomFormCloseExitButton.setEnabled(true);
 
 					setEnableRoomFotmItems(false);
@@ -1278,12 +1278,12 @@ public class ArenaClientWindow {
 					break;
 				case Offline:
 					arenaServerAddressCombo.setEnabled(true);
-					arenaServerLoginButton.setText("ƒƒOƒCƒ“");
+					arenaServerLoginButton.setText("ãƒ­ã‚°ã‚¤ãƒ³");
 					arenaInfoContainer.layout();
 					arenaServerLoginButton.setEnabled(true);
 
-					statusServerAddressLabel.setText("ƒT[ƒo[ƒAƒhƒŒƒX");
-					statusServerStatusLabel.setText("ƒT[ƒo[ƒXƒe[ƒ^ƒX");
+					statusServerAddressLabel.setText("ã‚µãƒ¼ãƒãƒ¼ã‚¢ãƒ‰ãƒ¬ã‚¹");
+					statusServerStatusLabel.setText("ã‚µãƒ¼ãƒãƒ¼ã‚¹ãƒ†ãƒ¼ã‚¿ã‚¹");
 					statusBarContainer.layout();
 
 					lobbyPlayerMap.clear();
@@ -1305,7 +1305,7 @@ public class ArenaClientWindow {
 
 					break;
 				case ConnectingToServer:
-					arenaServerLoginButton.setText("ƒƒOƒAƒEƒg");
+					arenaServerLoginButton.setText("ãƒ­ã‚°ã‚¢ã‚¦ãƒˆ");
 					arenaInfoContainer.layout();
 					arenaServerLoginButton.setEnabled(true);
 
@@ -1370,7 +1370,7 @@ public class ArenaClientWindow {
 		@Override
 		public void connectCallback(IAsyncClient client) {
 			goTo(OperationMode.ConnectingToServer);
-			appendLogTo(arenaChatLogText, "ƒT[ƒo[‚ÉÚ‘±‚µ‚Ü‚µ‚½", colorServerInfo);
+			appendLogTo(arenaChatLogText, "ã‚µãƒ¼ãƒãƒ¼ã«æ¥ç¶šã—ã¾ã—ãŸ", colorServerInfo);
 
 			display.asyncExec(new Runnable() {
 				@Override
@@ -1431,13 +1431,13 @@ public class ArenaClientWindow {
 		@Override
 		public void disconnectCallback(IAsyncClient client) {
 			goTo(OperationMode.Offline);
-			appendLogTo(arenaChatLogText, "ƒT[ƒo[‚ÆØ’f‚µ‚Ü‚µ‚½", colorServerInfo);
+			appendLogTo(arenaChatLogText, "ã‚µãƒ¼ãƒãƒ¼ã¨åˆ‡æ–­ã—ã¾ã—ãŸ", colorServerInfo);
 		}
 
 		private class ErrorVersionMismatchHandler implements CommandHandler {
 			@Override
 			public void process(String num) {
-				String message = String.format("ƒT[ƒo[‚Æ‚ÌƒvƒƒgƒRƒ‹ƒiƒ“ƒo[‚ªˆê’v‚È‚¢‚Ì‚ÅÚ‘±‚Å‚«‚Ü‚¹‚ñ ƒT[ƒo[:%s ƒNƒ‰ƒCƒAƒ“ƒg:%s", num, Constants.Protocol.PROTOCOL_NUMBER);
+				String message = String.format("ã‚µãƒ¼ãƒãƒ¼ã¨ã®ãƒ—ãƒ­ãƒˆã‚³ãƒ«ãƒŠãƒ³ãƒãƒ¼ãŒä¸€è‡´ãªã„ã®ã§æ¥ç¶šã§ãã¾ã›ã‚“ ã‚µãƒ¼ãƒãƒ¼:%s ã‚¯ãƒ©ã‚¤ã‚¢ãƒ³ãƒˆ:%s", num, Constants.Protocol.PROTOCOL_NUMBER);
 				appendLogTo(arenaChatLogText, message, colorLogError);
 			}
 		}
@@ -1445,14 +1445,14 @@ public class ArenaClientWindow {
 		private class ServerPortalHandler implements CommandHandler {
 			@Override
 			public void process(String message) {
-				// ƒ|[ƒ^ƒ‹ƒT[ƒo[‚Å‚·@ƒGƒ‰[•\¦
+				// ãƒãƒ¼ã‚¿ãƒ«ã‚µãƒ¼ãƒãƒ¼ã§ã™ã€€ã‚¨ãƒ©ãƒ¼è¡¨ç¤º
 			}
 		}
 
 		private class ServerArenaHandler implements CommandHandler {
 			@Override
 			public void process(String message) {
-				updateServerAddress("ƒAƒŠ[ƒi");
+				updateServerAddress("ã‚¢ãƒªãƒ¼ãƒŠ");
 				goTo(OperationMode.ArenaLobby);
 			}
 		}
@@ -1460,7 +1460,7 @@ public class ArenaClientWindow {
 		private class LoginHandler implements CommandHandler {
 			@Override
 			public void process(String args) {
-				appendLogTo(arenaChatLogText, "ƒƒr[‚É“ü‚è‚Ü‚µ‚½", colorRoomInfo);
+				appendLogTo(arenaChatLogText, "ãƒ­ãƒ“ãƒ¼ã«å…¥ã‚Šã¾ã—ãŸ", colorRoomInfo);
 				try {
 					arenaTunnelClient.connect(arenaSocketAddress);
 				} catch (IOException e1) {
@@ -1537,7 +1537,7 @@ public class ArenaClientWindow {
 					@Override
 					public void run() {
 						String[] v = args.split(" ");
-						String text = String.format("Q‰ÁÒ”: %s / %s     •”‰®”: %s / %s", v[0], v[1], v[2], v[3]);
+						String text = String.format("å‚åŠ è€…æ•°: %s / %s     éƒ¨å±‹æ•°: %s / %s", v[0], v[1], v[2], v[3]);
 						statusServerStatusLabel.setText(text);
 						statusBarContainer.layout();
 					}
@@ -1553,12 +1553,12 @@ public class ArenaClientWindow {
 				case ArenaLobby:
 					addPlayer(arenaLobbyPlayerListViewer, name);
 					if (isArenaEntryExitLogEnabled)
-						appendLogTo(arenaChatLogText, name + " ‚ªƒƒr[‚É—ˆ‚Ü‚µ‚½", colorLogInfo);
+						appendLogTo(arenaChatLogText, name + " ãŒãƒ­ãƒ“ãƒ¼ã«æ¥ã¾ã—ãŸ", colorLogInfo);
 					break;
 				case PlayRoomMaster:
 				case PlayRoomParticipant:
 					addPlayer(roomPlayerListViewer, name);
-					appendLogTo(roomChatLogText, name + " ‚ª“üº‚µ‚Ü‚µ‚½", colorLogInfo);
+					appendLogTo(roomChatLogText, name + " ãŒå…¥å®¤ã—ã¾ã—ãŸ", colorLogInfo);
 					break;
 				}
 			}
@@ -1571,12 +1571,12 @@ public class ArenaClientWindow {
 				case ArenaLobby:
 					removePlayer(arenaLobbyPlayerListViewer, name);
 					if (isArenaEntryExitLogEnabled)
-						appendLogTo(arenaChatLogText, name + " ‚ªƒƒr[‚©‚ço‚Ü‚µ‚½", colorLogInfo);
+						appendLogTo(arenaChatLogText, name + " ãŒãƒ­ãƒ“ãƒ¼ã‹ã‚‰å‡ºã¾ã—ãŸ", colorLogInfo);
 					break;
 				case PlayRoomMaster:
 				case PlayRoomParticipant:
 					removePlayer(roomPlayerListViewer, name);
-					appendLogTo(roomChatLogText, name + " ‚ª‘Şº‚µ‚Ü‚µ‚½", colorLogInfo);
+					appendLogTo(roomChatLogText, name + " ãŒé€€å®¤ã—ã¾ã—ãŸ", colorLogInfo);
 					break;
 				}
 			}
@@ -1631,7 +1631,7 @@ public class ArenaClientWindow {
 			@Override
 			public void process(String message) {
 				replacePlayerList(roomPlayerListViewer, new String[] { loginUserName });
-				appendLogTo(roomChatLogText, "•”‰®‚ğì¬‚µ‚Ü‚µ‚½", colorRoomInfo);
+				appendLogTo(roomChatLogText, "éƒ¨å±‹ã‚’ä½œæˆã—ã¾ã—ãŸ", colorRoomInfo);
 				goTo(OperationMode.PlayRoomMaster);
 			}
 		}
@@ -1639,7 +1639,7 @@ public class ArenaClientWindow {
 		private class CommandRoomUpdateHandler implements CommandHandler {
 			@Override
 			public void process(String message) {
-				appendLogTo(roomChatLogText, "•”‰®î•ñ‚ğC³‚µ‚Ü‚µ‚½", colorRoomInfo);
+				appendLogTo(roomChatLogText, "éƒ¨å±‹æƒ…å ±ã‚’ä¿®æ­£ã—ã¾ã—ãŸ", colorRoomInfo);
 			}
 		}
 
@@ -1648,10 +1648,10 @@ public class ArenaClientWindow {
 			public void process(String message) {
 				switch (currentOperationMode) {
 				case PlayRoomMaster:
-					appendLogTo(arenaChatLogText, "•”‰®‚ğ•Â‚¶‚Ü‚µ‚½", colorRoomInfo);
+					appendLogTo(arenaChatLogText, "éƒ¨å±‹ã‚’é–‰ã˜ã¾ã—ãŸ", colorRoomInfo);
 					break;
 				case PlayRoomParticipant:
-					appendLogTo(arenaChatLogText, "•”‰®‚ª•Â‚¶‚ç‚ê‚Ü‚µ‚½", colorRoomInfo);
+					appendLogTo(arenaChatLogText, "éƒ¨å±‹ãŒé–‰ã˜ã‚‰ã‚Œã¾ã—ãŸ", colorRoomInfo);
 					break;
 				}
 
@@ -1665,7 +1665,7 @@ public class ArenaClientWindow {
 				final String[] tokens = args.split(" ");
 				final String masterName = tokens[0];
 
-				appendLogTo(roomChatLogText, masterName + " •”‰®‚É“ü‚è‚Ü‚µ‚½", colorRoomInfo);
+				appendLogTo(roomChatLogText, masterName + " éƒ¨å±‹ã«å…¥ã‚Šã¾ã—ãŸ", colorRoomInfo);
 				goTo(OperationMode.PlayRoomParticipant);
 
 				Runnable run = new Runnable() {
@@ -1687,7 +1687,7 @@ public class ArenaClientWindow {
 			@Override
 			public void process(String message) {
 				goTo(OperationMode.ArenaLobby);
-				appendLogTo(arenaChatLogText, "ƒƒr[‚Éo‚Ü‚µ‚½", colorRoomInfo);
+				appendLogTo(arenaChatLogText, "ãƒ­ãƒ“ãƒ¼ã«å‡ºã¾ã—ãŸ", colorRoomInfo);
 			}
 		}
 
@@ -1696,13 +1696,13 @@ public class ArenaClientWindow {
 			public void process(String kickedPlayer) {
 				if (loginUserName.equals(kickedPlayer)) {
 					goTo(OperationMode.ArenaLobby);
-					appendLogTo(arenaChatLogText, "•”‰®‚©‚ç’Ç‚¢o‚³‚ê‚Ü‚µ‚½", colorRoomInfo);
+					appendLogTo(arenaChatLogText, "éƒ¨å±‹ã‹ã‚‰è¿½ã„å‡ºã•ã‚Œã¾ã—ãŸ", colorRoomInfo);
 				} else {
 					removePlayer(roomPlayerListViewer, kickedPlayer);
 					if (currentOperationMode == OperationMode.PlayRoomMaster) {
-						appendLogTo(roomChatLogText, kickedPlayer + " ‚ğ•”‰®‚©‚ç’Ç‚¢o‚µ‚Ü‚µ‚½", colorRoomInfo);
+						appendLogTo(roomChatLogText, kickedPlayer + " ã‚’éƒ¨å±‹ã‹ã‚‰è¿½ã„å‡ºã—ã¾ã—ãŸ", colorRoomInfo);
 					} else {
-						appendLogTo(roomChatLogText, kickedPlayer + " ‚Í•”‰®‚©‚ç’Ç‚¢o‚³‚ê‚Ü‚µ‚½", colorRoomInfo);
+						appendLogTo(roomChatLogText, kickedPlayer + " ã¯éƒ¨å±‹ã‹ã‚‰è¿½ã„å‡ºã•ã‚Œã¾ã—ãŸ", colorRoomInfo);
 					}
 				}
 			}
@@ -1713,7 +1713,7 @@ public class ArenaClientWindow {
 			public void process(String message) {
 				tunnelIsLinked = true;
 				updateTunnelStatus(true);
-				appendLogTo(logText, "ƒgƒ“ƒlƒ‹’ÊM‚ÌÚ‘±‚ªŠJn‚µ‚Ü‚µ‚½");
+				appendLogTo(logText, "ãƒˆãƒ³ãƒãƒ«é€šä¿¡ã®æ¥ç¶šãŒé–‹å§‹ã—ã¾ã—ãŸ");
 
 				Thread natTableMaintainingThread = new Thread(new Runnable() {
 					@Override
@@ -1736,14 +1736,14 @@ public class ArenaClientWindow {
 		private class ErrorLoginDuplicatedNameHandler implements CommandHandler {
 			@Override
 			public void process(String message) {
-				appendLogTo(arenaChatLogText, "“¯–¼‚Ìƒ†[ƒU[‚ªŠù‚ÉƒƒOƒCƒ“‚µ‚Ä‚¢‚é‚Ì‚ÅƒƒOƒCƒ“‚Å‚«‚Ü‚¹‚ñ", colorLogError);
+				appendLogTo(arenaChatLogText, "åŒåã®ãƒ¦ãƒ¼ã‚¶ãƒ¼ãŒæ—¢ã«ãƒ­ã‚°ã‚¤ãƒ³ã—ã¦ã„ã‚‹ã®ã§ãƒ­ã‚°ã‚¤ãƒ³ã§ãã¾ã›ã‚“", colorLogError);
 			}
 		}
 
 		private class ErrorLoginBeyondCapacityHandler implements CommandHandler {
 			@Override
 			public void process(String message) {
-				appendLogTo(arenaChatLogText, "ƒT[ƒo[‚ÌÅ‘ål”‚ğ’´‚¦‚½‚Ì‚ÅƒƒOƒCƒ“‚Å‚«‚Ü‚¹‚ñ", colorLogError);
+				appendLogTo(arenaChatLogText, "ã‚µãƒ¼ãƒãƒ¼ã®æœ€å¤§äººæ•°ã‚’è¶…ãˆãŸã®ã§ãƒ­ã‚°ã‚¤ãƒ³ã§ãã¾ã›ã‚“", colorLogError);
 			}
 		}
 
@@ -1764,7 +1764,7 @@ public class ArenaClientWindow {
 							arenaSessionClient.send(message);
 							break;
 						case IDialogConstants.CANCEL_ID:
-							appendLogTo(arenaChatLogText, "“üº‚ğƒLƒƒƒ“ƒZƒ‹‚µ‚Ü‚µ‚½", colorRoomInfo);
+							appendLogTo(arenaChatLogText, "å…¥å®¤ã‚’ã‚­ãƒ£ãƒ³ã‚»ãƒ«ã—ã¾ã—ãŸ", colorRoomInfo);
 							break;
 						}
 					}
@@ -1776,21 +1776,21 @@ public class ArenaClientWindow {
 		private class ErrorRoomEnterPasswordFailHandler implements CommandHandler {
 			@Override
 			public void process(String message) {
-				appendLogTo(arenaChatLogText, "•”‰®ƒpƒXƒ[ƒh‚ªˆê’v‚µ‚È‚¢‚Ì‚Å“üº‚Å‚«‚Ü‚¹‚ñ", colorRoomInfo);
+				appendLogTo(arenaChatLogText, "éƒ¨å±‹ãƒ‘ã‚¹ãƒ¯ãƒ¼ãƒ‰ãŒä¸€è‡´ã—ãªã„ã®ã§å…¥å®¤ã§ãã¾ã›ã‚“", colorRoomInfo);
 			}
 		}
 
 		private class ErrorRoomEnterBeyondCapacityHandler implements CommandHandler {
 			@Override
 			public void process(String message) {
-				appendLogTo(arenaChatLogText, "•”‰®‚ª–º‚È‚Ì‚Å“ü‚ê‚Ü‚¹‚ñ", colorRoomInfo);
+				appendLogTo(arenaChatLogText, "éƒ¨å±‹ãŒæº€å®¤ãªã®ã§å…¥ã‚Œã¾ã›ã‚“", colorRoomInfo);
 			}
 		}
 
 		private class ErrorRoomCreateBeyondLimitHandler implements CommandHandler {
 			@Override
 			public void process(String message) {
-				appendLogTo(arenaChatLogText, "•”‰®”‚ªãŒÀ‚É’B‚µ‚Ü‚µ‚½‚Ì‚Å•”‰®‚ğì¬‚Å‚«‚Ü‚¹‚ñ", colorRoomInfo);
+				appendLogTo(arenaChatLogText, "éƒ¨å±‹æ•°ãŒä¸Šé™ã«é”ã—ã¾ã—ãŸã®ã§éƒ¨å±‹ã‚’ä½œæˆã§ãã¾ã›ã‚“", colorRoomInfo);
 			}
 		}
 	}
@@ -1854,7 +1854,7 @@ public class ArenaClientWindow {
 		public void disconnectCallback(IAsyncClient client) {
 			tunnelIsLinked = false;
 			updateTunnelStatus(false);
-			appendLogTo(logText, "ƒgƒ“ƒlƒ‹’ÊM‚ÌÚ‘±‚ªI—¹‚µ‚Ü‚µ‚½");
+			appendLogTo(logText, "ãƒˆãƒ³ãƒãƒ«é€šä¿¡ã®æ¥ç¶šãŒçµ‚äº†ã—ã¾ã—ãŸ");
 		}
 
 		@Override
@@ -1864,7 +1864,7 @@ public class ArenaClientWindow {
 
 	private void refreshLanAdaptorList() {
 		wlanAdaptorListCombo.removeAll();
-		wlanAdaptorListCombo.add("‘I‘ğ‚³‚ê‚Ä‚¢‚Ü‚¹‚ñ");
+		wlanAdaptorListCombo.add("é¸æŠã•ã‚Œã¦ã„ã¾ã›ã‚“");
 		wlanAdaptorListCombo.select(0);
 		wlanPspCommunicationButton.setEnabled(false);
 
@@ -1942,7 +1942,7 @@ public class ArenaClientWindow {
 					srcStats = new TraficStatistics(true);
 					traficStatsMap.put(srcMac, srcStats);
 				} else if (!srcStats.isMine) {
-					// ƒT[ƒo[‚©‚ç‘—‚ç‚ê‚Ä‚«‚½‘¼PSP‚©‚ç‚ÌƒpƒPƒbƒg‚ÌÄƒLƒƒƒvƒ`ƒƒ‚È‚Ì‚ÅƒXƒ‹[
+					// ã‚µãƒ¼ãƒãƒ¼ã‹ã‚‰é€ã‚‰ã‚Œã¦ããŸä»–PSPã‹ã‚‰ã®ãƒ‘ã‚±ãƒƒãƒˆã®å†ã‚­ãƒ£ãƒ—ãƒãƒ£ãªã®ã§ã‚¹ãƒ«ãƒ¼
 					return;
 				}
 
@@ -1950,7 +1950,7 @@ public class ArenaClientWindow {
 					destStats = new TraficStatistics(false);
 					traficStatsMap.put(destMac, destStats);
 				} else if (destStats.isMine) {
-					// èŒ³‚ÌPSP“¯m‚Ì’ÊM‚È‚Ì‚ÅƒXƒ‹[
+					// æ‰‹å…ƒã®PSPåŒå£«ã®é€šä¿¡ãªã®ã§ã‚¹ãƒ«ãƒ¼
 					return;
 				}
 			}
@@ -2030,7 +2030,7 @@ public class ArenaClientWindow {
 					@Override
 					public void run() {
 						wlanAdaptorListCombo.setEnabled(true);
-						wlanPspCommunicationButton.setText("PSP‚Æ’ÊMŠJn");
+						wlanPspCommunicationButton.setText("PSPã¨é€šä¿¡é–‹å§‹");
 						wlanPspCommunicationButton.setEnabled(true);
 					}
 				};

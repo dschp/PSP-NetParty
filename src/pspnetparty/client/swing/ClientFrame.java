@@ -1,4 +1,4 @@
-/*
+ï»¿/*
 Copyright (C) 2011 monte
 
 This file is part of PSP NetParty.
@@ -82,17 +82,17 @@ public class ClientFrame extends JFrame {
 		JPanel arenaMainLeftServerPanel = new JPanel();
 		arenaMainLeftServerPanel.setLayout(new BorderLayout(5, 0));
 		arenaMainLeftServerPanel.setBorder(new EmptyBorder(5, 3, 3, 3));
-		arenaMainLeftServerPanel.add(new JLabel("ƒAƒhƒŒƒX"), BorderLayout.WEST);
+		arenaMainLeftServerPanel.add(new JLabel("ã‚¢ãƒ‰ãƒ¬ã‚¹"), BorderLayout.WEST);
 
 		JComboBox serverAddressComboBox = new JComboBox();
 		serverAddressComboBox.setMinimumSize(new Dimension(100, serverAddressComboBox.getSize().height));
 		arenaMainLeftServerPanel.add(serverAddressComboBox, BorderLayout.CENTER);
 
-		arenaMainLeftServerPanel.add(new JButton("ƒƒOƒCƒ“"), BorderLayout.EAST);
+		arenaMainLeftServerPanel.add(new JButton("ãƒ­ã‚°ã‚¤ãƒ³"), BorderLayout.EAST);
 
 		arenaMainLeftPanel.add(arenaMainLeftServerPanel, BorderLayout.NORTH);
 
-		String[] roomListColumns = { "•”‰®å", "Œ®", "•”‰®–¼", "’èˆõ" };
+		String[] roomListColumns = { "éƒ¨å±‹ä¸»", "éµ", "éƒ¨å±‹å", "å®šå“¡" };
 
 		TableModel tableModel = new TableModel() {
 			@Override
@@ -160,17 +160,17 @@ public class ClientFrame extends JFrame {
 		arenaChatLogScrollPane.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_ALWAYS);
 		arenaMainViewPane.setLeftComponent(arenaChatLogScrollPane);
 
-		JTable arenaPlayerListTable = new JTable(new String[][] {}, new String[] { "–¼‘O" });
+		JTable arenaPlayerListTable = new JTable(new String[][] {}, new String[] { "åå‰" });
 		JScrollPane arenaPlayerListPane = new JScrollPane(arenaPlayerListTable);
 		arenaMainViewPane.setRightComponent(arenaPlayerListPane);
 
 		JPanel arenaChatPanel = new JPanel(new BorderLayout());
 		arenaChatPanel.add(new JTextField(), BorderLayout.CENTER);
-		arenaChatPanel.add(new JButton("”­Œ¾"), BorderLayout.EAST);
+		arenaChatPanel.add(new JButton("ç™ºè¨€"), BorderLayout.EAST);
 
 		arenaMainRightPanel.add(arenaChatPanel, BorderLayout.SOUTH);
 
-		mainTabPane.add("ƒAƒŠ[ƒiƒƒr[", arenaMainPane);
+		mainTabPane.add("ã‚¢ãƒªãƒ¼ãƒŠãƒ­ãƒ“ãƒ¼", arenaMainPane);
 
 		JSplitPane roomMainPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, true);
 		roomMainPane.setDividerLocation(200);
@@ -182,12 +182,12 @@ public class ClientFrame extends JFrame {
 		roomMainLeftPanel.setMinimumSize(new Dimension(200, 100));
 		roomMainLeftPanel.setBorder(new EmptyBorder(5, 5, 5, 5));
 
-		JButton roomInfoExitButton = new JButton("•”‰®‚ğ•Â‚¶‚é");
+		JButton roomInfoExitButton = new JButton("éƒ¨å±‹ã‚’é–‰ã˜ã‚‹");
 		springLayout.putConstraint(SpringLayout.NORTH, roomInfoExitButton, 1, SpringLayout.NORTH, roomMainLeftPanel);
 		springLayout.putConstraint(SpringLayout.WEST, roomInfoExitButton, 0, SpringLayout.WEST, roomMainLeftPanel);
 		roomMainLeftPanel.add(roomInfoExitButton);
 
-		JButton roomInfoMakeButton = new JButton("•”‰®‚ğì¬");
+		JButton roomInfoMakeButton = new JButton("éƒ¨å±‹ã‚’ä½œæˆ");
 		springLayout.putConstraint(SpringLayout.NORTH, roomInfoMakeButton, 1, SpringLayout.NORTH, roomMainLeftPanel);
 		springLayout.putConstraint(SpringLayout.EAST, roomInfoMakeButton, 0, SpringLayout.EAST, roomMainLeftPanel);
 		roomMainLeftPanel.add(roomInfoMakeButton);
@@ -202,7 +202,7 @@ public class ClientFrame extends JFrame {
 
 		insets = new Insets(1, 1, 1, 1);
 
-		JLabel roomInfoFormMasterLabel = new JLabel("•”‰®å");
+		JLabel roomInfoFormMasterLabel = new JLabel("éƒ¨å±‹ä¸»");
 		gbc = new GridBagConstraints();
 		gbc.gridx = 0;
 		gbc.gridy = 0;
@@ -220,7 +220,7 @@ public class ClientFrame extends JFrame {
 		gridBagLayout.setConstraints(roomInfoFormMasterText, gbc);
 		roomInfoFormPanel.add(roomInfoFormMasterText);
 
-		JLabel roomInfoFormTitleLabel = new JLabel("•”‰®–¼");
+		JLabel roomInfoFormTitleLabel = new JLabel("éƒ¨å±‹å");
 		gbc = new GridBagConstraints();
 		gbc.gridx = 0;
 		gbc.gridy = 1;
@@ -238,7 +238,7 @@ public class ClientFrame extends JFrame {
 		gridBagLayout.setConstraints(roomInfoFormTitleText, gbc);
 		roomInfoFormPanel.add(roomInfoFormTitleText);
 
-		JLabel roomInfoFormPasswordLabel = new JLabel("ƒpƒXƒ[ƒh");
+		JLabel roomInfoFormPasswordLabel = new JLabel("ãƒ‘ã‚¹ãƒ¯ãƒ¼ãƒ‰");
 		gbc = new GridBagConstraints();
 		gbc.gridx = 0;
 		gbc.gridy = 2;
@@ -256,7 +256,7 @@ public class ClientFrame extends JFrame {
 		gridBagLayout.setConstraints(roomInfoFormPasswordText, gbc);
 		roomInfoFormPanel.add(roomInfoFormPasswordText);
 
-		JLabel roomInfoFormMaxPlayersLabel = new JLabel("§ŒÀl”");
+		JLabel roomInfoFormMaxPlayersLabel = new JLabel("åˆ¶é™äººæ•°");
 		gbc = new GridBagConstraints();
 		gbc.gridx = 0;
 		gbc.gridy = 3;
@@ -273,7 +273,7 @@ public class ClientFrame extends JFrame {
 		gridBagLayout.setConstraints(roomInfoFormMaxPlayersSpiner, gbc);
 		roomInfoFormPanel.add(roomInfoFormMaxPlayersSpiner);
 
-		JLabel roomInfoDescriptionLabel = new JLabel("•”‰®‚ÌĞ‰îE”õl");
+		JLabel roomInfoDescriptionLabel = new JLabel("éƒ¨å±‹ã®ç´¹ä»‹ãƒ»å‚™è€ƒ");
 		springLayout.putConstraint(SpringLayout.NORTH, roomInfoDescriptionLabel, 10, SpringLayout.SOUTH, roomInfoFormPanel);
 		springLayout.putConstraint(SpringLayout.WEST, roomInfoDescriptionLabel, 5, SpringLayout.WEST, roomInfoFormPanel);
 		roomMainLeftPanel.add(roomInfoDescriptionLabel);
@@ -292,9 +292,9 @@ public class ClientFrame extends JFrame {
 
 		JPanel roomWlanAdaptorPanel = new JPanel(new BorderLayout(4, 0));
 		roomWlanAdaptorPanel.setBorder(new EmptyBorder(3, 3, 2, 3));
-		roomWlanAdaptorPanel.add(new JLabel("–³üLANƒAƒ_ƒvƒ^"), BorderLayout.WEST);
+		roomWlanAdaptorPanel.add(new JLabel("ç„¡ç·šLANã‚¢ãƒ€ãƒ—ã‚¿"), BorderLayout.WEST);
 		roomWlanAdaptorPanel.add(new JComboBox(), BorderLayout.CENTER);
-		roomWlanAdaptorPanel.add(new JButton("PSP‚Æ’ÊMŠJn"), BorderLayout.EAST);
+		roomWlanAdaptorPanel.add(new JButton("PSPã¨é€šä¿¡é–‹å§‹"), BorderLayout.EAST);
 
 		roomMainRightPanel.add(roomWlanAdaptorPanel, BorderLayout.NORTH);
 
@@ -312,7 +312,7 @@ public class ClientFrame extends JFrame {
 		roomPlayerViewPane.setDividerLocation(140);
 		roomChatViewPane.setRightComponent(roomPlayerViewPane);
 
-		JTable roomPlayerListTable = new JTable(new String[][] {}, new String[] { "–¼‘O", "PING" });
+		JTable roomPlayerListTable = new JTable(new String[][] {}, new String[] { "åå‰", "PING" });
 		JScrollPane roomPlayerListPane = new JScrollPane(roomPlayerListTable);
 		roomPlayerViewPane.setLeftComponent(roomPlayerListPane);
 
@@ -325,8 +325,8 @@ public class ClientFrame extends JFrame {
 
 		JPanel myPspMonitorHeaderPanel = new JPanel(new BorderLayout());
 		myPspMonitorHeaderPanel.setBorder(new EmptyBorder(0, 3, 0, 1));
-		myPspMonitorHeaderPanel.add(new JLabel("©•ª‚ÌPSP"), BorderLayout.WEST);
-		JButton myPspMonitorClearButton = new JButton("ƒNƒŠƒA");
+		myPspMonitorHeaderPanel.add(new JLabel("è‡ªåˆ†ã®PSP"), BorderLayout.WEST);
+		JButton myPspMonitorClearButton = new JButton("ã‚¯ãƒªã‚¢");
 		myPspMonitorClearButton.setPreferredSize(new Dimension(70, 18));
 		myPspMonitorHeaderPanel.add(myPspMonitorClearButton, BorderLayout.EAST);
 		myPspMonitorPanel.add(myPspMonitorHeaderPanel, BorderLayout.NORTH);
@@ -341,8 +341,8 @@ public class ClientFrame extends JFrame {
 
 		JPanel remotePspMonitorHeaderPanel = new JPanel(new BorderLayout());
 		remotePspMonitorHeaderPanel.setBorder(new EmptyBorder(0, 3, 0, 1));
-		remotePspMonitorHeaderPanel.add(new JLabel("‘Šè‚ÌPSP"), BorderLayout.WEST);
-		JButton remotePspMonitorClearButton = new JButton("ƒNƒŠƒA");
+		remotePspMonitorHeaderPanel.add(new JLabel("ç›¸æ‰‹ã®PSP"), BorderLayout.WEST);
+		JButton remotePspMonitorClearButton = new JButton("ã‚¯ãƒªã‚¢");
 		remotePspMonitorClearButton.setPreferredSize(new Dimension(70, 18));
 		remotePspMonitorHeaderPanel.add(remotePspMonitorClearButton, BorderLayout.EAST);
 		remotePspMonitorPanel.add(remotePspMonitorHeaderPanel, BorderLayout.NORTH);
@@ -355,16 +355,16 @@ public class ClientFrame extends JFrame {
 
 		JPanel roomChatPanel = new JPanel(new BorderLayout());
 		roomChatPanel.add(new JTextField(), BorderLayout.CENTER);
-		roomChatPanel.add(new JButton("”­Œ¾"), BorderLayout.EAST);
+		roomChatPanel.add(new JButton("ç™ºè¨€"), BorderLayout.EAST);
 
 		roomMainRightPanel.add(roomChatPanel, BorderLayout.SOUTH);
 
-		mainTabPane.add("ƒvƒŒƒCƒ‹[ƒ€", roomMainPane);
+		mainTabPane.add("ãƒ—ãƒ¬ã‚¤ãƒ«ãƒ¼ãƒ ", roomMainPane);
 
 		springLayout = new SpringLayout();
 		JPanel configPanel = new JPanel(springLayout);
 
-		JLabel configUserNameLabel = new JLabel("ƒ†[ƒU[–¼");
+		JLabel configUserNameLabel = new JLabel("ãƒ¦ãƒ¼ã‚¶ãƒ¼å");
 		springLayout.putConstraint(SpringLayout.NORTH, configUserNameLabel, 10, SpringLayout.NORTH, configPanel);
 		springLayout.putConstraint(SpringLayout.WEST, configUserNameLabel, 5, SpringLayout.WEST, configPanel);
 		configPanel.add(configUserNameLabel);
@@ -376,7 +376,7 @@ public class ClientFrame extends JFrame {
 
 		configPanel.add(configUserNameTextField);
 
-		JCheckBox configNotShowRoomEnterExitLogCheck = new JCheckBox("ƒ`ƒƒƒbƒgƒƒO‚É“ü‘ŞºƒƒO‚ğ•\¦‚µ‚È‚¢");
+		JCheckBox configNotShowRoomEnterExitLogCheck = new JCheckBox("ãƒãƒ£ãƒƒãƒˆãƒ­ã‚°ã«å…¥é€€å®¤ãƒ­ã‚°ã‚’è¡¨ç¤ºã—ãªã„");
 		springLayout.putConstraint(SpringLayout.NORTH, configNotShowRoomEnterExitLogCheck, 3, SpringLayout.SOUTH, configUserNameTextField);
 		configPanel.add(configNotShowRoomEnterExitLogCheck);
 
@@ -405,22 +405,22 @@ public class ClientFrame extends JFrame {
 			configThemeSelectorPanel.add(button);
 		}
 
-		mainTabPane.add("İ’è", configPanel);
+		mainTabPane.add("è¨­å®š", configPanel);
 
 		JTextPane logTextPane = new JTextPane();
 		logTextPane.setEditable(false);
 		JScrollPane logTextScrollPane = new JScrollPane(logTextPane);
 		logTextScrollPane.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_ALWAYS);
 
-		mainTabPane.add("ƒƒO", logTextScrollPane);
+		mainTabPane.add("ãƒ­ã‚°", logTextScrollPane);
 
 		add(mainTabPane, BorderLayout.CENTER);
 
 		JPanel statusBarPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
 		add(statusBarPanel, BorderLayout.SOUTH);
-		statusBarPanel.add(new JLabel("ƒT[ƒo[ƒAƒhƒŒƒX"));
-		statusBarPanel.add(new JLabel("ƒT[ƒo[ƒXƒe[ƒ^ƒX"));
-		statusBarPanel.add(new JLabel("ƒgƒ‰ƒtƒBƒbƒN"));
+		statusBarPanel.add(new JLabel("ã‚µãƒ¼ãƒãƒ¼ã‚¢ãƒ‰ãƒ¬ã‚¹"));
+		statusBarPanel.add(new JLabel("ã‚µãƒ¼ãƒãƒ¼ã‚¹ãƒ†ãƒ¼ã‚¿ã‚¹"));
+		statusBarPanel.add(new JLabel("ãƒˆãƒ©ãƒ•ã‚£ãƒƒã‚¯"));
 
 		setSize(750, 500);
 		setMinimumSize(new Dimension(400, 300));
