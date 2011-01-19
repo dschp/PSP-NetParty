@@ -23,7 +23,6 @@ import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 
 public interface IAsyncClient {
-	
 	public void connect(InetSocketAddress address) throws IOException;
 	public void send(byte[] data);
 	public void send(ByteBuffer buffer);
