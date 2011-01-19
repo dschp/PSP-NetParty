@@ -85,7 +85,10 @@ public class AsyncUdpClient implements IAsyncClient {
 					handler.log(AsyncUdpClient.this, Utility.makeStackTrace(e));
 				} finally {
 					isConnected = false;
-					handler.disconnectCallback(AsyncUdpClient.this);
+					try {
+						handler.disconnectCallback(AsyncUdpClient.this);
+					} catch (RuntimeException re) {
+					}
 					if (channel != null && channel.isOpen()) {
 						try {
 							channel.close();

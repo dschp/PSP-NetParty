@@ -102,7 +102,10 @@ public class AsyncTcpClient implements IAsyncClient {
 					handler.log(AsyncTcpClient.this, Utility.makeStackTrace(e));
 				} finally {
 					isConnected = false;
-					handler.disconnectCallback(AsyncTcpClient.this);
+					try {
+						handler.disconnectCallback(AsyncTcpClient.this);
+					} catch (RuntimeException re) {
+					}
 					if (channel != null && channel.isOpen()) {
 						try {
 							channel.close();

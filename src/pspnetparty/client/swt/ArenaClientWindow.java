@@ -437,7 +437,7 @@ public class ArenaClientWindow {
 		formData.left = new FormAttachment(0, 3);
 		roomFormDescriptionLabel.setLayoutData(formData);
 
-		roomFormDesctiptionText = new Text(roomInfoContainer, SWT.MULTI | SWT.V_SCROLL | SWT.BORDER);
+		roomFormDesctiptionText = new Text(roomInfoContainer, SWT.MULTI | SWT.V_SCROLL | SWT.BORDER | SWT.WRAP);
 		roomFormDesctiptionText.setBackground(colorWhite);
 		formData = new FormData();
 		formData.top = new FormAttachment(roomFormDescriptionLabel, 4);
@@ -1424,7 +1424,10 @@ public class ArenaClientWindow {
 					}
 				}
 			} catch (Exception e) {
-				appendLogTo(logText, Utility.makeStackTrace(e));
+				try {
+					appendLogTo(logText, Utility.makeStackTrace(e));
+				} catch (RuntimeException re) {
+				}
 			}
 		}
 
