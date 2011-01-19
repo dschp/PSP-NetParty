@@ -1,4 +1,4 @@
-/*
+ï»¿/*
 Copyright (C) 2011 monte
 
 This file is part of PSP NetParty.
@@ -99,7 +99,7 @@ public class TraficStatistics {
 			
 			switch (index) {
 			case 0:
-				return entry.getValue().isMine ? "Ž©" : "";
+				return entry.getValue().isMine ? "è‡ª" : "";
 			case 1:
 				return entry.getKey();
 			case 2:

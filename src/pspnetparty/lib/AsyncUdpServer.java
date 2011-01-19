@@ -1,4 +1,4 @@
-/*
+﻿/*
 Copyright (C) 2011 monte
 
 This file is part of PSP NetParty.
@@ -15,90 +15,181 @@ GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
-*/
+ */
 package pspnetparty.lib;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
+import java.net.SocketException;
 import java.nio.ByteBuffer;
 import java.nio.channels.DatagramChannel;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
+import java.util.HashMap;
 import java.util.Iterator;
 
-public class AsyncUdpServer {
+public class AsyncUdpServer<Type extends IClientState> implements IServer<Type> {
 
-	private static final int BUF_SIZE = 1000;
+	private static final int READ_BUFFER_SIZE = 1000;
 
 	private Selector selector;
-	private int port;
+	private IServerHandler<Type> handler;
 
-	private ByteBuffer readBuffer = ByteBuffer.allocate(BUF_SIZE);
-	
-	public AsyncUdpServer(int port) {
-		this.port = port;
+	private DatagramChannel serverChannel;
+
+	private HashMap<InetSocketAddress, Type> establishedStates = new HashMap<InetSocketAddress, Type>();
+
+	public AsyncUdpServer() {
 	}
 
-	public void run() {
-		DatagramChannel serverChannel = null;
-		InetSocketAddress socketAddress = new InetSocketAddress(port);
-		try {
-			selector = Selector.open();
-			
-			serverChannel = DatagramChannel.open();
-			serverChannel.configureBlocking(false);
-			serverChannel.socket().bind(socketAddress);
-			serverChannel.register(selector, SelectionKey.OP_READ);
+	private static class Connection implements IServerConnection {
+		private DatagramChannel channel;
+		private InetSocketAddress remoteAddress;
 
-			//ServerSocket socket = serverChannel.socket();
-			System.out.println("UDP: Listening on " + socketAddress);
+		public Connection(DatagramChannel channel, InetSocketAddress remoteAddress) {
+			this.channel = channel;
+			this.remoteAddress = remoteAddress;
+		}
 
-			while (selector.select() > 0) {
-				for (Iterator<SelectionKey> it = selector.selectedKeys().iterator(); it.hasNext();) {
-					SelectionKey key = it.next();
-					it.remove();
+		@Override
+		public InetSocketAddress getRemoteAddress() {
+			return remoteAddress;
+		}
 
-					if (key.isReadable()) {
-						DatagramChannel channel = (DatagramChannel) key.channel();
-						try {
-							doRead(channel);
-						} catch (IOException e) {
-							// Disconnected
-							System.out.println(channel.socket().getRemoteSocketAddress() + "[�ؒf����܂���]");
-							channel.close();
-							key.cancel();
-							//e.printStackTrace();
-						}
-					}
-				}
+		@Override
+		public void send(String message) {
+			ByteBuffer buffer = Constants.CHARSET.encode(message + Constants.Protocol.MESSAGE_SEPARATOR);
+			send(buffer);
+		}
+
+		@Override
+		public void send(ByteBuffer buffer) {
+			try {
+				channel.send(buffer, remoteAddress);
+			} catch (IOException e) {
 			}
-		} catch (IOException e) {
-			e.printStackTrace();
-		} finally {
-			if (serverChannel != null && serverChannel.isOpen()) {
+		}
+	}
+
+	@Override
+	public void startListening(InetSocketAddress bindAddress, IServerHandler<Type> handler) throws IOException {
+		stopListening();
+		this.handler = handler;
+
+		selector = Selector.open();
+
+		serverChannel = DatagramChannel.open();
+		serverChannel.configureBlocking(false);
+		serverChannel.socket().bind(bindAddress);
+		serverChannel.register(selector, SelectionKey.OP_READ);
+
+		System.out.println("UDP: Listening on " + bindAddress);
+
+		Runnable run = new Runnable() {
+			private ByteBuffer readBuffer = ByteBuffer.allocateDirect(READ_BUFFER_SIZE);
+			private PacketData data = new PacketData(readBuffer);
+
+			@Override
+			public void run() {
 				try {
-					System.out.println("Now shuting down...");
-					serverChannel.close();
+					while (serverChannel.isOpen())
+						while (selector.select(2000) > 0) {
+							for (Iterator<SelectionKey> it = selector.selectedKeys().iterator(); it.hasNext();) {
+								SelectionKey key = it.next();
+								it.remove();
+
+								if (key.isReadable()) {
+									DatagramChannel channel = (DatagramChannel) key.channel();
+									Type state = null;
+
+									try {
+										readBuffer.clear();
+										InetSocketAddress remoteAddress = (InetSocketAddress) channel.receive(readBuffer);
+										if (remoteAddress == null) {
+											throw new IOException("Client has disconnected.");
+										}
+										readBuffer.flip();
+
+										state = establishedStates.get(remoteAddress);
+										if (state == null) {
+											Connection conn = new Connection(channel, remoteAddress);
+											state = AsyncUdpServer.this.handler.createState(conn);
+
+											establishedStates.put(remoteAddress, state);
+										}
+
+										AsyncUdpServer.this.handler.processIncomingData(state, data);
+
+									} catch (IOException e) {
+										// Disconnected
+										if (state != null)
+											AsyncUdpServer.this.handler.disposeState(state);
+										channel.close();
+										key.cancel();
+										// e.printStackTrace();
+									}
+								}
+							}
+						}
 				} catch (IOException e) {
+					e.printStackTrace();
 				}
+			}
+		};
+
+		Thread asyncLoopThread = new Thread(run);
+		asyncLoopThread.setName(AsyncUdpServer.class.getName());
+		asyncLoopThread.start();
+	}
+
+	@Override
+	public void stopListening() {
+		if (serverChannel != null && serverChannel.isOpen()) {
+			try {
+				System.out.println("Now shuting down...");
+				serverChannel.close();
+			} catch (IOException e) {
 			}
 		}
 	}
 
-	private void doRead(DatagramChannel channel) throws IOException {
-		readBuffer.clear();
-		SocketAddress remoteAddress = channel.receive(readBuffer);
-		if (remoteAddress == null) {
-			throw new IOException("Client has disconnected.");
+	public static void main(String[] args) throws IOException {
+		InetSocketAddress address = new InetSocketAddress(30000);
+		AsyncUdpServer<IClientState> server = new AsyncUdpServer<IClientState>();
+		server.startListening(address, new IServerHandler<IClientState>() {
+			@Override
+			public boolean processIncomingData(IClientState state, PacketData data) {
+				String remoteAddress = state.getConnection().getRemoteAddress().toString();
+				String message = data.getMessage();
+
+				System.out.println(remoteAddress + ">" + message);
+				state.getConnection().send(message);
+
+				return true;
+			}
+
+			@Override
+			public void disposeState(IClientState state) {
+				System.out.println(state.getConnection().getRemoteAddress() + "[切断されました]");
+			}
+
+			@Override
+			public IClientState createState(final IServerConnection connection) {
+				System.out.println(connection.getRemoteAddress() + "[接続されました]");
+
+				return new IClientState() {
+					@Override
+					public IServerConnection getConnection() {
+						return connection;
+					}
+				};
+			}
+		});
+
+		while (System.in.read() != '\n') {
 		}
-		readBuffer.flip();
-		System.out.println(remoteAddress + ">" + Utility.decode(readBuffer));
-		readBuffer.flip();
-		channel.send(readBuffer, remoteAddress);
-	}
-	
-	public static void main(String[] args) {
-		new AsyncUdpServer(30000).run();
+
+		server.stopListening();
 	}
 }

@@ -1,4 +1,4 @@
-/*
+ï»¿/*
 Copyright (C) 2011 monte
 
 This file is part of PSP NetParty.
@@ -15,7 +15,7 @@ GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
-*/
+ */
 package pspnetparty.lib;
 
 import java.io.IOException;
@@ -57,7 +57,7 @@ public class AsyncUdpClient implements IAsyncClient {
 		channel.connect(address);
 
 		isConnected = true;
-		
+
 		Runnable run = new Runnable() {
 			private ByteBuffer readBuffer = ByteBuffer.allocateDirect(BUFFER_SIZE);
 			private PacketData packetData = new PacketData(readBuffer);
@@ -95,10 +95,10 @@ public class AsyncUdpClient implements IAsyncClient {
 				}
 			}
 		};
-		
+
 		handler.connectCallback(AsyncUdpClient.this);
 		Thread dispatchThread = new Thread(run, AsyncUdpClient.class.getName());
-		dispatchThread.setDaemon(true);
+		// dispatchThread.setDaemon(true);
 		dispatchThread.start();
 	}
 
@@ -121,7 +121,7 @@ public class AsyncUdpClient implements IAsyncClient {
 	public void send(ByteBuffer buffer) {
 		if (!isConnected)
 			return;
-		
+
 		try {
 			channel.send(buffer, remoteAddress);
 		} catch (IOException e) {
@@ -137,14 +137,13 @@ public class AsyncUdpClient implements IAsyncClient {
 
 	@Override
 	public void send(String data) {
-		ByteBuffer buffer = Constants.CHARSET.encode(data);// + Constants.Protocol.MESSAGE_SEPARATOR);
+		ByteBuffer buffer = Constants.CHARSET.encode(data);// +
+															// Constants.Protocol.MESSAGE_SEPARATOR);
 		send(buffer);
 	}
-	
+
 	public static void main(String[] args) throws IOException {
 		IAsyncClientHandler handler = new IAsyncClientHandler() {
-			int count = 0;
-
 			@Override
 			public void log(IAsyncClient client, String message) {
 				System.out.println(message);
@@ -153,32 +152,38 @@ public class AsyncUdpClient implements IAsyncClient {
 			@Override
 			public void readCallback(IAsyncClient client, PacketData data) {
 				for (String msg : data.getMessages()) {
-					System.out.println("óMF" + msg);
+					System.out.println("å—ä¿¡ï¼š" + msg);
 				}
-
-				if (count++ > 10)
-					client.disconnect();
-				else
-					try {
-						Thread.sleep(1000);
-						client.send("TEST " + count);
-					} catch (InterruptedException e) {
-					}
 			}
 
 			@Override
 			public void disconnectCallback(IAsyncClient client) {
-				System.out.println("Ø’f‚µ‚Ü‚µ‚½");
+				System.out.println("åˆ‡æ–­ã—ã¾ã—ãŸ");
 			}
 
 			@Override
 			public void connectCallback(IAsyncClient client) {
-				System.out.println("Ú‘±‚µ‚Ü‚µ‚½: " + client.getSocketAddress());
+				System.out.println("æ¥ç¶šã—ã¾ã—ãŸ: " + client.getSocketAddress());
 				client.send("TEST");
 			}
 		};
-		
-		AsyncUdpClient client = new AsyncUdpClient(handler);
+
+		final AsyncUdpClient client = new AsyncUdpClient(handler);
 		client.connect(new InetSocketAddress("localhost", 30000));
+
+		Thread sendThread = new Thread(new Runnable() {
+			@Override
+			public void run() {
+				for (int i = 0; i < 10; i++)
+					try {
+						Thread.sleep(1000);
+						client.send("TEST " + i);
+					} catch (InterruptedException e) {
+					}
+					
+				client.disconnect();
+			}
+		});
+		sendThread.start();
 	}
 }

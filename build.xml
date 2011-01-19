@@ -1,9 +1,15 @@
 <project default="jar">
 	<property file="build.properties"></property>
 	
-	<target name="jar">
+	<target name="jar" depends="jar-lib, jar-swt">
+	</target>
+	
+	<target name="jar-lib">
 		<jar basedir="bin" jarfile="${publish_directory}/PspNetParty.jar" includes="pspnetparty/lib/**">
 		</jar>
+	</target>
+	
+	<target name="jar-swt">
 		<jar basedir="bin" jarfile="${publish_directory}/ArenaClient.jar" includes="pspnetparty/client/swt/**">
 			<manifest>
 				<attribute name="Main-Class" value="pspnetparty.client.swt.ArenaClientWindow"/>

@@ -18,32 +18,10 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 package pspnetparty.lib;
 
-import java.nio.ByteBuffer;
+import java.io.IOException;
+import java.net.InetSocketAddress;
 
-public class PacketData {
-	
-	private ByteBuffer buffer;
-	
-	public PacketData(ByteBuffer b) {
-		buffer = b;
-	}
-	
-	public String getMessage() {
-		return Utility.decode(buffer);
-	}
-	
-	public String[] getMessages() {
-		String data = Utility.decode(buffer);
-		return data.split(Constants.Protocol.MESSAGE_SEPARATOR);
-	}
-	
-	public ByteBuffer getBuffer() {
-		return buffer;
-	}
-	
-	public ByteBuffer swapBuffer(ByteBuffer buffer) {
-		ByteBuffer orig = this.buffer;
-		this.buffer = buffer;
-		return orig;
-	}
+public interface IServer<Type extends IClientState> {
+	public void startListening(InetSocketAddress bindAddress, IServerHandler<Type> handler) throws IOException;
+	public void stopListening();
 }

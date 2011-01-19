@@ -1,4 +1,4 @@
-/*
+ï»¿/*
 Copyright (C) 2011 monte
 
 This file is part of PSP NetParty.
@@ -51,7 +51,7 @@ public class PasswordDialog extends Dialog {
 
 	protected void configureShell(Shell newShell) {
 		super.configureShell(newShell);
-		newShell.setText("ƒpƒXƒ[ƒh‚ğ“ü—Í‚µ‚Ä‚­‚¾‚³‚¢");
+		newShell.setText("ãƒ‘ã‚¹ãƒ¯ãƒ¼ãƒ‰ã‚’å…¥åŠ›ã—ã¦ãã ã•ã„");
 	}
 
 	protected Control createDialogArea(Composite parent) {
@@ -61,7 +61,7 @@ public class PasswordDialog extends Dialog {
 		GridData gridData;
 
 		Label label = new Label(composite, SWT.NONE);
-		label.setText("•”‰®‚ÉƒpƒXƒ[ƒh‚ªİ’è‚³‚ê‚Ä‚¢‚Ü‚·");
+		label.setText("éƒ¨å±‹ã«ãƒ‘ã‚¹ãƒ¯ãƒ¼ãƒ‰ãŒè¨­å®šã•ã‚Œã¦ã„ã¾ã™");
 
 		final Text passwordText = new Text(composite, SWT.BORDER | SWT.SINGLE);
 		gridData = new GridData(GridData.FILL, GridData.CENTER, true, false);

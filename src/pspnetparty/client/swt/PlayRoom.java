@@ -1,4 +1,4 @@
-/*
+﻿/*
 Copyright (C) 2011 monte
 
 This file is part of PSP NetParty.
@@ -132,7 +132,7 @@ public class PlayRoom {
 				result = room.masterName;
 				break;
 			case 1:
-				result = room.hasPassword ? "�L" : "";
+				result = room.hasPassword ? "有" : "";
 				break;
 			case 2:
 				result = room.title;

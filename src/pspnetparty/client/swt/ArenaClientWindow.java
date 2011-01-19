@@ -1052,6 +1052,7 @@ public class ArenaClientWindow {
 				viewer.getTable().clearAll();
 				@SuppressWarnings("unchecked")
 				HashMap<String, Player> map = (HashMap<String, Player>) viewer.getInput();
+				map.clear();
 				for (String name : players) {
 					// System.out.println(name);
 					Player player = new Player(name);

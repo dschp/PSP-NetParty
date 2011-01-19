@@ -1,4 +1,4 @@
-/*
+Ôªø/*
 Copyright (C) 2011 monte
 
 This file is part of PSP NetParty.
@@ -15,106 +15,193 @@ GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
-*/
+ */
 package pspnetparty.lib;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.nio.ByteBuffer;
+import java.nio.channels.CancelledKeyException;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
-import java.nio.charset.Charset;
 import java.util.Iterator;
 
-public class AsyncTcpServer {
+public class AsyncTcpServer<Type extends IClientState> implements IServer<Type> {
 
-	private static final int BUF_SIZE = 1000;
+	private static final int READ_BUFFER_SIZE = 2000;
 
 	private Selector selector;
-	private int port;
+	private IServerHandler<Type> handler;
 
-	private ByteBuffer readBuffer = ByteBuffer.allocate(BUF_SIZE);
-	
-	public AsyncTcpServer(int port) {
-		this.port = port;
+	private ServerSocketChannel serverChannel;
+
+	public AsyncTcpServer() {
 	}
 
-	public void run() {
-		ServerSocketChannel serverChannel = null;
-		try {
-			selector = Selector.open();
-			serverChannel = ServerSocketChannel.open();
-			serverChannel.configureBlocking(false);
-			serverChannel.socket().bind(new InetSocketAddress(port));
-			serverChannel.register(selector, SelectionKey.OP_ACCEPT);
+	@Override
+	public void startListening(InetSocketAddress bindAddress, IServerHandler<Type> handler) throws IOException {
+		stopListening();
+		this.handler = handler;
 
-			ServerSocket socket = serverChannel.socket();
-			System.out.println("TCP: Listening on " + socket.getLocalSocketAddress());
+		selector = Selector.open();
+		serverChannel = ServerSocketChannel.open();
+		serverChannel.configureBlocking(false);
+		serverChannel.socket().bind(bindAddress);
+		serverChannel.register(selector, SelectionKey.OP_ACCEPT);
+		
+		ServerSocket socket = serverChannel.socket();
+		System.out.println("TCP: Listening on " + socket.getLocalSocketAddress());
+		
+		Runnable run = new Runnable() {
+			private ByteBuffer readBuffer = ByteBuffer.allocateDirect(READ_BUFFER_SIZE);
+			private PacketData data = new PacketData(readBuffer);
+			
+			@Override
+			public void run() {
+				try {
+					while (selector.select() > 0) {
+						for (Iterator<SelectionKey> it = selector.selectedKeys().iterator(); it.hasNext();) {
+							SelectionKey key = it.next();
+							it.remove();
 
-			while (selector.select() > 0) {
-				for (Iterator<SelectionKey> it = selector.selectedKeys().iterator(); it.hasNext();) {
-					SelectionKey key = it.next();
-					it.remove();
+							if (key.isAcceptable()) {
+								ServerSocketChannel channel = (ServerSocketChannel) key.channel();
+								try {
+									doAccept(channel);
+								} catch (IOException e) {
+									key.cancel();
+									e.printStackTrace();
+								}
+							} else if (key.isReadable()) {
+								@SuppressWarnings("unchecked")
+								Session<Type> session = (Session<Type>) key.attachment();
+								try {
+									readBuffer.clear();
+									if (session.channel.read(readBuffer) < 0) {
+										throw new IOException("Client has disconnected.");
+									}
+									readBuffer.flip();
 
-					if (key.isAcceptable()) {
-						ServerSocketChannel channel = (ServerSocketChannel) key.channel();
-						try {
-							doAccept(channel);
-						} catch (IOException e) {
-							key.cancel();
-							e.printStackTrace();
-						}
-					} else if (key.isReadable()) {
-						SocketChannel channel = (SocketChannel) key.channel();
-						try {
-							doRead(channel);
-						} catch (IOException e) {
-							// Disconnected
-							System.out.println(channel.socket().getRemoteSocketAddress() + "[êÿífÇ≥ÇÍÇ‹ÇµÇΩ]");
-							channel.close();
-							key.cancel();
-							//e.printStackTrace();
+									AsyncTcpServer.this.handler.processIncomingData(session.state, data);
+									
+								} catch (IOException e) {
+									// Disconnected
+									AsyncTcpServer.this.handler.disposeState(session.state);
+									session.channel.close();
+									key.cancel();
+									// e.printStackTrace();
+								}
+							}
 						}
 					}
+				} catch (IOException e) {
+					e.printStackTrace();
+				} catch (CancelledKeyException e) {
 				}
 			}
-		} catch (IOException e) {
-			e.printStackTrace();
-		} finally {
-			if (serverChannel != null && serverChannel.isOpen()) {
-				try {
-					System.out.println("Now shuting down...");
-					serverChannel.close();
-				} catch (IOException e) {
-				}
+		};
+		
+		Thread asyncLoopThread = new Thread(run);
+		asyncLoopThread.setName(AsyncTcpServer.class.getName());
+		asyncLoopThread.start();
+	}
+
+	@Override
+	public void stopListening() {
+		if (serverChannel != null && serverChannel.isOpen()) {
+			try {
+				System.out.println("Now shuting down...");
+				serverChannel.close();
+			} catch (IOException e) {
 			}
 		}
+	}
+
+	private static class Connection implements IServerConnection {
+		private SocketChannel channel;
+
+		Connection(SocketChannel channel) {
+			this.channel = channel;
+		}
+
+		@Override
+		public InetSocketAddress getRemoteAddress() {
+			return (InetSocketAddress) channel.socket().getRemoteSocketAddress();
+		}
+
+		@Override
+		public void send(ByteBuffer buffer) {
+			try {
+				channel.write(buffer);
+			} catch (IOException e) {
+			}
+		}
+
+		@Override
+		public void send(String message) {
+			ByteBuffer buffer = Constants.CHARSET.encode(message + Constants.Protocol.MESSAGE_SEPARATOR);
+			send(buffer);
+		}
+	}
+
+	private static class Session<Type extends IClientState> {
+		Type state;
+		SocketChannel channel;
 	}
 
 	private void doAccept(ServerSocketChannel serverChannel) throws IOException {
 		SocketChannel channel = serverChannel.accept();
-		String remoteAddress = channel.socket().getRemoteSocketAddress().toString();
-		System.out.println(remoteAddress + "[ê⁄ë±Ç≥ÇÍÇ‹ÇµÇΩ]");
+
+		IServerConnection conn = new Connection(channel);
+		Type state = handler.createState(conn);
+
+		Session<Type> session = new Session<Type>();
+		session.channel = channel;
+		session.state = state;
+
 		channel.configureBlocking(false);
-		channel.register(selector, SelectionKey.OP_READ);
+		channel.register(selector, SelectionKey.OP_READ, session);
 	}
 
-	private void doRead(SocketChannel channel) throws IOException {
-		String remoteAddress = channel.socket().getRemoteSocketAddress().toString();
-		readBuffer.clear();
-		if (channel.read(readBuffer) < 0) {
-			throw new IOException("Client has disconnected.");
+	public static void main(String[] args) throws IOException {
+		InetSocketAddress address = new InetSocketAddress(30000);
+		AsyncTcpServer<IClientState> server = new AsyncTcpServer<IClientState>();
+		server.startListening(address, new IServerHandler<IClientState>() {
+			@Override
+			public boolean processIncomingData(IClientState state, PacketData data) {
+				String remoteAddress = state.getConnection().getRemoteAddress().toString();
+				String message = data.getMessage();
+
+				System.out.println(remoteAddress + ">" + message);
+				state.getConnection().send(message);
+
+				return true;
+			}
+
+			@Override
+			public void disposeState(IClientState state) {
+				System.out.println(state.getConnection().getRemoteAddress() + "[ÂàáÊñ≠„Åï„Çå„Åæ„Åó„Åü]");
+			}
+
+			@Override
+			public IClientState createState(final IServerConnection connection) {
+				System.out.println(connection.getRemoteAddress() + "[Êé•Á∂ö„Åï„Çå„Åæ„Åó„Åü]");
+
+				return new IClientState() {
+					@Override
+					public IServerConnection getConnection() {
+						return connection;
+					}
+				};
+			}
+		});
+		
+		while (System.in.read() != '\n') {
 		}
-		readBuffer.flip();
-		System.out.println(remoteAddress + ">" + Utility.decode(readBuffer));
-		readBuffer.flip();
-		channel.write(readBuffer);
-	}
-	
-	public static void main(String[] args) {
-		new AsyncTcpServer(30000).run();
+		
+		server.stopListening();
 	}
 }

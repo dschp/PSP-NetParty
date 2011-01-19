@@ -1,4 +1,4 @@
-/*
+ï»¿/*
 Copyright (C) 2011 monte
 
 This file is part of PSP NetParty.
@@ -114,7 +114,7 @@ public class AsyncTcpClient implements IAsyncClient {
 		};
 
 		Thread dispatchThread = new Thread(run, AsyncTcpClient.class.getName());
-		dispatchThread.setDaemon(true);
+		//dispatchThread.setDaemon(true);
 		dispatchThread.start();
 	}
 
@@ -170,8 +170,6 @@ public class AsyncTcpClient implements IAsyncClient {
 
 	public static void main(String[] args) throws Exception {
 		IAsyncClientHandler handler = new IAsyncClientHandler() {
-			int count = 0;
-
 			@Override
 			public void log(IAsyncClient client, String message) {
 				System.out.println(message);
@@ -179,33 +177,39 @@ public class AsyncTcpClient implements IAsyncClient {
 
 			@Override
 			public void connectCallback(IAsyncClient client) {
-				System.out.println("Ú‘±‚µ‚Ü‚µ‚½: " + client.getSocketAddress());
+				System.out.println("æ¥ç¶šã—ã¾ã—ãŸ: " + client.getSocketAddress());
 				client.send("TEST");
 			}
 
 			@Override
 			public void readCallback(IAsyncClient client, PacketData data) {
 				for (String msg : data.getMessages()) {
-					System.out.println("óMF" + msg);
+					System.out.println("å—ä¿¡ï¼š" + msg);
 				}
-
-				if (count++ > 10)
-					client.disconnect();
-				else
-					try {
-						Thread.sleep(1000);
-						client.send("TEST " + count);
-					} catch (InterruptedException e) {
-					}
 			}
 
 			@Override
 			public void disconnectCallback(IAsyncClient client) {
-				System.out.println("Ø’f‚µ‚Ü‚µ‚½");
+				System.out.println("åˆ‡æ–­ã—ã¾ã—ãŸ");
 			}
 		};
 
-		AsyncTcpClient client = new AsyncTcpClient(handler);
+		final AsyncTcpClient client = new AsyncTcpClient(handler);
 		client.connect(new InetSocketAddress("localhost", 30000));
+		
+		Thread sendThread = new Thread(new Runnable() {
+			@Override
+			public void run() {
+				for (int i = 0; i < 10; i++)
+					try {
+						Thread.sleep(1000);
+						client.send("TEST " + i);
+					} catch (InterruptedException e) {
+					}
+					
+				client.disconnect();
+			}
+		});
+		sendThread.start();
 	}
 }
