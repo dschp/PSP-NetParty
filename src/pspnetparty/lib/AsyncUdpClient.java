@@ -28,7 +28,7 @@ import java.util.Iterator;
 
 public class AsyncUdpClient implements IAsyncClient {
 
-	private static final int BUFFER_SIZE = 2000;
+	private static final int BUFFER_SIZE = 20000;
 
 	private IAsyncClientHandler handler;
 
@@ -66,7 +66,7 @@ public class AsyncUdpClient implements IAsyncClient {
 			public void run() {
 				try {
 					while (isConnected) {
-						if (selector.select(1000) > 0) {
+						if (selector.select(2000) > 0) {
 							for (Iterator<SelectionKey> it = selector.selectedKeys().iterator(); it.hasNext();) {
 								SelectionKey key = it.next();
 								it.remove();
@@ -140,8 +140,7 @@ public class AsyncUdpClient implements IAsyncClient {
 
 	@Override
 	public void send(String data) {
-		ByteBuffer buffer = Constants.CHARSET.encode(data);// +
-															// Constants.Protocol.MESSAGE_SEPARATOR);
+		ByteBuffer buffer = Constants.CHARSET.encode(data);
 		send(buffer);
 	}
 
@@ -155,7 +154,7 @@ public class AsyncUdpClient implements IAsyncClient {
 			@Override
 			public void readCallback(IAsyncClient client, PacketData data) {
 				for (String msg : data.getMessages()) {
-					System.out.println("受信：" + msg);
+					System.out.println("受信("+ msg.length() + ")： " + msg);
 				}
 			}
 
@@ -167,7 +166,6 @@ public class AsyncUdpClient implements IAsyncClient {
 			@Override
 			public void connectCallback(IAsyncClient client) {
 				System.out.println("接続しました: " + client.getSocketAddress());
-				client.send("TEST");
 			}
 		};
 
@@ -177,7 +175,7 @@ public class AsyncUdpClient implements IAsyncClient {
 		Thread sendThread = new Thread(new Runnable() {
 			@Override
 			public void run() {
-				for (int i = 0; i < 10; i++)
+				for (int i = 0; i < 3; i++)
 					try {
 						Thread.sleep(1000);
 						client.send("TEST " + i);

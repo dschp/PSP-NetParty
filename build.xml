@@ -10,10 +10,10 @@
 	</target>
 	
 	<target name="jar-swt">
-		<jar basedir="bin" jarfile="${publish_directory}/ArenaClient.jar" includes="pspnetparty/client/swt/**">
+		<jar basedir="bin" jarfile="${publish_directory}/PlayClient.jar" includes="pspnetparty/client/swt/**">
 			<manifest>
-				<attribute name="Main-Class" value="pspnetparty.client.swt.ArenaClientWindow"/>
-				<attribute name="Class-Path" value="ArenaClient.jar PspNetParty.jar jnetpcap.jar swt.jar jface_3.6.1.jar org.eclipse.equinox.common_3.6.0.jar org.eclipse.core.commands_3.6.0.jar"/>
+				<attribute name="Main-Class" value="pspnetparty.client.swt.PlayClientWindow"/>
+				<attribute name="Class-Path" value="PlayClient.jar PspNetParty.jar jnetpcap.jar swt.jar jface_3.6.1.jar org.eclipse.equinox.common_3.6.0.jar org.eclipse.core.commands_3.6.0.jar"/>
 			</manifest>
 		</jar>
 	</target>

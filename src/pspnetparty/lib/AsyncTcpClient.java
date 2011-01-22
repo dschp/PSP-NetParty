@@ -15,10 +15,11 @@ GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
-*/
+ */
 package pspnetparty.lib;
 
 import java.io.IOException;
+import java.net.ConnectException;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.channels.SelectionKey;
@@ -28,7 +29,8 @@ import java.util.Iterator;
 
 public class AsyncTcpClient implements IAsyncClient {
 
-	private static final int BUFFER_SIZE = 2000;
+	private static final int INITIAL_READ_BUFFER_SIZE = 2000;
+	private static final int MAX_PACKET_SIZE = 100000;
 
 	private IAsyncClientHandler handler;
 
@@ -38,10 +40,13 @@ public class AsyncTcpClient implements IAsyncClient {
 
 	private InetSocketAddress remoteAddress;
 
+	// private ByteBuffer sendHeaderBuffer =
+	// ByteBuffer.allocate(Constants.Protocol.INTEGER_BYTE_SIZE);
+
 	public AsyncTcpClient(IAsyncClientHandler handler) {
 		this.handler = handler;
 	}
-	
+
 	@Override
 	protected void finalize() throws Throwable {
 		super.finalize();
@@ -59,23 +64,25 @@ public class AsyncTcpClient implements IAsyncClient {
 		channel.configureBlocking(false);
 
 		selector = Selector.open();
-		channel.register(selector, SelectionKey.OP_CONNECT);// | SelectionKey.OP_READ);
+		channel.register(selector, SelectionKey.OP_CONNECT);
 
 		channel.connect(address);
 
 		isConnected = true;
 
 		Runnable run = new Runnable() {
-			private ByteBuffer readBuffer = ByteBuffer.allocateDirect(BUFFER_SIZE);
-			private PacketData packetData = new PacketData(readBuffer);
+			private ByteBuffer readDataBuffer = ByteBuffer.allocateDirect(INITIAL_READ_BUFFER_SIZE);
+			private PacketData packetData = new PacketData(readDataBuffer);
+
+			private ByteBuffer readHeaderBuffer = ByteBuffer.allocateDirect(Constants.Protocol.INTEGER_BYTE_SIZE);
 
 			@Override
 			public void run() {
 				try {
 					while (isConnected) {
-						//System.out.println("LOOP");
-						if (selector.select() > 0) {
-							//System.out.println("SELECT");
+						// System.out.println("LOOP");
+						if (selector.select(1000) > 0) {
+							// System.out.println("SELECT");
 							for (Iterator<SelectionKey> it = selector.selectedKeys().iterator(); it.hasNext();) {
 								SelectionKey key = it.next();
 								it.remove();
@@ -86,18 +93,43 @@ public class AsyncTcpClient implements IAsyncClient {
 
 									handler.connectCallback(AsyncTcpClient.this);
 								} else if (key.isReadable()) {
-									readBuffer.clear();
-									if (channel.read(readBuffer) > 0) {
-										readBuffer.flip();
+									if (readDataBuffer.position() == 0) {
+										readHeaderBuffer.clear();
+										if (channel.read(readHeaderBuffer) < 0) {
+											throw new IOException("Server has disconnected.");
+										}
+										readHeaderBuffer.flip();
+
+										int dataSize = readHeaderBuffer.getInt();
+										//System.out.println("Data size=" + dataSize);
+										if (dataSize < 1 || dataSize > MAX_PACKET_SIZE) {
+											readHeaderBuffer.position(0);
+											System.out.println(Utility.decode(readHeaderBuffer));
+											throw new IOException("Too big data size: " + dataSize);
+										}
+
+										if (dataSize > readDataBuffer.capacity()) {
+											readDataBuffer = ByteBuffer.allocateDirect(dataSize);
+											packetData.replaceBuffer(readDataBuffer);
+										} else {
+											readDataBuffer.limit(dataSize);
+										}
+									}
+
+									if (channel.read(readDataBuffer) < 0) {
+										throw new IOException("Server has disconnected.");
+									}
+
+									if (readDataBuffer.remaining() == 0) {
+										readDataBuffer.position(0);
 										handler.readCallback(AsyncTcpClient.this, packetData);
-									} else {
-										isConnected = false;
-										break;
+										readDataBuffer.clear();
 									}
 								}
 							}
 						}
 					}
+				} catch (ConnectException e) {
 				} catch (IOException e) {
 					handler.log(AsyncTcpClient.this, Utility.makeStackTrace(e));
 				} finally {
@@ -117,7 +149,7 @@ public class AsyncTcpClient implements IAsyncClient {
 		};
 
 		Thread dispatchThread = new Thread(run, AsyncTcpClient.class.getName());
-		//dispatchThread.setDaemon(true);
+		// dispatchThread.setDaemon(true);
 		dispatchThread.start();
 	}
 
@@ -138,35 +170,28 @@ public class AsyncTcpClient implements IAsyncClient {
 
 	@Override
 	public void send(String data) {
-		if (!isConnected)
-			return;
+		ByteBuffer buffer = Constants.CHARSET.encode(data);
+		send(buffer);
+	}
 
-		ByteBuffer b = Constants.CHARSET.encode(data + Constants.Protocol.MESSAGE_SEPARATOR);
-		try {
-			channel.write(b);
-		} catch (IOException e) {
-		}
+	@Override
+	public void send(byte[] data) {
+		ByteBuffer buffer = ByteBuffer.wrap(data);
+		send(buffer);
 	}
 
 	@Override
 	public void send(ByteBuffer buffer) {
 		if (!isConnected)
 			return;
-		
-		try {
-			channel.write(buffer);
-		} catch (IOException e) {
-		}
-	}
 
-	@Override
-	public void send(byte[] data) {
-		if (!isConnected)
-			return;
-
-		ByteBuffer buffer = ByteBuffer.wrap(data);
 		try {
-			channel.write(buffer);
+			ByteBuffer headerData = ByteBuffer.allocate(Constants.Protocol.INTEGER_BYTE_SIZE);
+			headerData.putInt(buffer.limit());
+			headerData.flip();
+
+			ByteBuffer[] array = new ByteBuffer[] { headerData, buffer };
+			channel.write(array);
 		} catch (IOException e) {
 		}
 	}
@@ -181,13 +206,12 @@ public class AsyncTcpClient implements IAsyncClient {
 			@Override
 			public void connectCallback(IAsyncClient client) {
 				System.out.println("接続しました: " + client.getSocketAddress());
-				client.send("TEST");
 			}
 
 			@Override
 			public void readCallback(IAsyncClient client, PacketData data) {
 				for (String msg : data.getMessages()) {
-					System.out.println("受信：" + msg);
+					System.out.println("受信(" + msg.length() + ")");
 				}
 			}
 
@@ -199,17 +223,30 @@ public class AsyncTcpClient implements IAsyncClient {
 
 		final AsyncTcpClient client = new AsyncTcpClient(handler);
 		client.connect(new InetSocketAddress("localhost", 30000));
-		
+
 		Thread sendThread = new Thread(new Runnable() {
+			private String makeLongString(char c, int length) {
+				StringBuilder sb = new StringBuilder();
+				for (int i = 0; i < length; i++) {
+					sb.append(c);
+				}
+				return sb.toString();
+			}
+
 			@Override
 			public void run() {
-				for (int i = 0; i < 10; i++)
-					try {
-						Thread.sleep(1000);
-						client.send("TEST " + i);
-					} catch (InterruptedException e) {
+				String text = "S" + makeLongString('T', 39998) + "E";
+				System.out.println("length: " + text.length());
+				try {
+					Thread.sleep(500);
+					for (int i = 0; i < 10; i++) {
+						client.send(text);
+						Thread.sleep(1500);
 					}
-					
+					Thread.sleep(100);
+				} catch (InterruptedException e) {
+				}
+
 				client.disconnect();
 			}
 		});

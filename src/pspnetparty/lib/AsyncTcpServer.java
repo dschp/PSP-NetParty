@@ -27,22 +27,27 @@ import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
+import java.util.HashSet;
 import java.util.Iterator;
 
 public class AsyncTcpServer<Type extends IClientState> implements IServer<Type> {
 
-	private static final int READ_BUFFER_SIZE = 2000;
+	private static final int INITIAL_READ_BUFFER_SIZE = 2000;
+	private static final int MAX_PACKET_SIZE = 40000;
 
 	private Selector selector;
 	private IServerHandler<Type> handler;
 
 	private ServerSocketChannel serverChannel;
+	private ByteBuffer headerBuffer = ByteBuffer.allocateDirect(Integer.SIZE / 8);
+
+	private HashSet<Connection> establishedConnections = new HashSet<AsyncTcpServer.Connection>();
 
 	public AsyncTcpServer() {
 	}
 
 	@Override
-	public void startListening(InetSocketAddress bindAddress, IServerHandler<Type> handler) throws IOException {
+	public void startListening(InetSocketAddress bindAddress, final IServerHandler<Type> handler) throws IOException {
 		stopListening();
 		this.handler = handler;
 
@@ -51,59 +56,56 @@ public class AsyncTcpServer<Type extends IClientState> implements IServer<Type> 
 		serverChannel.configureBlocking(false);
 		serverChannel.socket().bind(bindAddress);
 		serverChannel.register(selector, SelectionKey.OP_ACCEPT);
-		
+
 		ServerSocket socket = serverChannel.socket();
-		System.out.println("TCP: Listening on " + socket.getLocalSocketAddress());
-		
+		handler.log("TCP: Listening on " + socket.getLocalSocketAddress());
+
 		Runnable run = new Runnable() {
-			private ByteBuffer readBuffer = ByteBuffer.allocateDirect(READ_BUFFER_SIZE);
-			private PacketData data = new PacketData(readBuffer);
-			
 			@Override
 			public void run() {
+				AsyncTcpServer.this.handler.serverStartupFinished();
 				try {
-					while (selector.select() > 0) {
-						for (Iterator<SelectionKey> it = selector.selectedKeys().iterator(); it.hasNext();) {
-							SelectionKey key = it.next();
-							it.remove();
+					while (serverChannel.isOpen())
+						while (selector.select(2000) > 0) {
+							for (Iterator<SelectionKey> it = selector.selectedKeys().iterator(); it.hasNext();) {
+								SelectionKey key = it.next();
+								it.remove();
 
-							if (key.isAcceptable()) {
-								ServerSocketChannel channel = (ServerSocketChannel) key.channel();
-								try {
-									doAccept(channel);
-								} catch (IOException e) {
-									key.cancel();
-									e.printStackTrace();
-								}
-							} else if (key.isReadable()) {
-								@SuppressWarnings("unchecked")
-								Session<Type> session = (Session<Type>) key.attachment();
-								try {
-									readBuffer.clear();
-									if (session.channel.read(readBuffer) < 0) {
-										throw new IOException("Client has disconnected.");
+								if (key.isAcceptable()) {
+									ServerSocketChannel channel = (ServerSocketChannel) key.channel();
+									try {
+										doAccept(channel);
+									} catch (IOException e) {
+										// e.printStackTrace();
+										key.cancel();
 									}
-									readBuffer.flip();
+								} else if (key.isReadable()) {
+									@SuppressWarnings("unchecked")
+									Connection<Type> conn = (Connection<Type>) key.attachment();
+									try {
+										doRead(conn);
+									} catch (IOException e) {
+										// Disconnected
+										// e.printStackTrace();
+										handler.disposeState(conn.state);
+										conn.channel.close();
+										key.cancel();
 
-									AsyncTcpServer.this.handler.processIncomingData(session.state, data);
-									
-								} catch (IOException e) {
-									// Disconnected
-									AsyncTcpServer.this.handler.disposeState(session.state);
-									session.channel.close();
-									key.cancel();
-									// e.printStackTrace();
+										establishedConnections.remove(conn);
+									}
 								}
 							}
 						}
-					}
 				} catch (IOException e) {
 					e.printStackTrace();
 				} catch (CancelledKeyException e) {
 				}
+
+				AsyncTcpServer.this.handler.log("TCP: Now shuting down...");
+				AsyncTcpServer.this.handler.serverShutdownFinished();
 			}
 		};
-		
+
 		Thread asyncLoopThread = new Thread(run);
 		asyncLoopThread.setName(AsyncTcpServer.class.getName());
 		asyncLoopThread.start();
@@ -113,15 +115,27 @@ public class AsyncTcpServer<Type extends IClientState> implements IServer<Type> 
 	public void stopListening() {
 		if (serverChannel != null && serverChannel.isOpen()) {
 			try {
-				System.out.println("Now shuting down...");
 				serverChannel.close();
 			} catch (IOException e) {
 			}
 		}
+		for (Connection<Type> conn : establishedConnections) {
+			try {
+				conn.channel.close();
+			} catch (IOException e) {
+			}
+		}
+		establishedConnections.clear();
 	}
 
-	private static class Connection implements IServerConnection {
+	private class Connection<Type> implements IServerConnection {
 		private SocketChannel channel;
+		// private ByteBuffer headerData = ByteBuffer.allocate(Integer.SIZE /
+		// 8);
+
+		Type state;
+		ByteBuffer readBuffer = ByteBuffer.allocate(INITIAL_READ_BUFFER_SIZE);
+		PacketData packetData = new PacketData(readBuffer);
 
 		Connection(SocketChannel channel) {
 			this.channel = channel;
@@ -134,36 +148,85 @@ public class AsyncTcpServer<Type extends IClientState> implements IServer<Type> 
 
 		@Override
 		public void send(ByteBuffer buffer) {
+			if (!channel.isConnected())
+				return;
+
 			try {
-				channel.write(buffer);
+				ByteBuffer headerData = ByteBuffer.allocate(Constants.Protocol.INTEGER_BYTE_SIZE);
+				headerData.putInt(buffer.limit());
+				headerData.flip();
+
+				ByteBuffer[] array = new ByteBuffer[] { headerData, buffer };
+				channel.write(array);
 			} catch (IOException e) {
 			}
 		}
 
 		@Override
 		public void send(String message) {
-			ByteBuffer buffer = Constants.CHARSET.encode(message + Constants.Protocol.MESSAGE_SEPARATOR);
+			ByteBuffer buffer = Constants.CHARSET.encode(message);
 			send(buffer);
 		}
-	}
 
-	private static class Session<Type extends IClientState> {
-		Type state;
-		SocketChannel channel;
+		@Override
+		public void disconnect() {
+			establishedConnections.remove(this);
+			try {
+				channel.close();
+			} catch (IOException e) {
+			}
+		}
 	}
 
 	private void doAccept(ServerSocketChannel serverChannel) throws IOException {
 		SocketChannel channel = serverChannel.accept();
 
-		IServerConnection conn = new Connection(channel);
-		Type state = handler.createState(conn);
-
-		Session<Type> session = new Session<Type>();
-		session.channel = channel;
-		session.state = state;
+		Connection<Type> conn = new Connection<Type>(channel);
+		conn.state = handler.createState(conn);
 
 		channel.configureBlocking(false);
-		channel.register(selector, SelectionKey.OP_READ, session);
+		channel.register(selector, SelectionKey.OP_READ, conn);
+
+		establishedConnections.add(conn);
+	}
+
+	private void doRead(Connection<Type> conn) throws IOException {
+		if (conn.readBuffer.position() == 0) {
+			headerBuffer.clear();
+			if (conn.channel.read(headerBuffer) < 0) {
+				throw new IOException("Client has disconnected.");
+			}
+			headerBuffer.flip();
+
+			int dataSize = headerBuffer.getInt();
+			// System.out.println("Data size=" + dataSize);
+			if (dataSize < 1 || dataSize > MAX_PACKET_SIZE) {
+				headerBuffer.position(0);
+				System.out.println(Utility.decode(headerBuffer));
+				throw new IOException("Too big data size: " + dataSize);
+			}
+
+			if (dataSize > conn.readBuffer.capacity()) {
+				conn.readBuffer = ByteBuffer.allocate(dataSize);
+				conn.packetData.replaceBuffer(conn.readBuffer);
+			} else {
+				conn.readBuffer.limit(dataSize);
+			}
+		}
+
+		int readBytes = conn.channel.read(conn.readBuffer);
+		if (readBytes < 0) {
+			throw new IOException("Client has disconnected.");
+		}
+
+		if (conn.readBuffer.remaining() == 0) {
+			conn.readBuffer.position(0);
+			if (handler.processIncomingData(conn.state, conn.packetData)) {
+				conn.readBuffer.clear();
+			} else {
+				throw new IOException("Session is invalidated.");
+			}
+		}
 	}
 
 	public static void main(String[] args) throws IOException {
@@ -175,7 +238,7 @@ public class AsyncTcpServer<Type extends IClientState> implements IServer<Type> 
 				String remoteAddress = state.getConnection().getRemoteAddress().toString();
 				String message = data.getMessage();
 
-				System.out.println(remoteAddress + ">" + message);
+				System.out.println(remoteAddress + "(" + message.length() + ")");
 				state.getConnection().send(message);
 
 				return true;
@@ -197,11 +260,27 @@ public class AsyncTcpServer<Type extends IClientState> implements IServer<Type> 
 					}
 				};
 			}
+			
+			@Override
+			public void serverStartupFinished() {
+			}
+
+			@Override
+			public void serverShutdownFinished() {
+			}
+
+			@Override
+			public void log(String message) {
+				System.out.println(message);
+			}
 		});
-		
+
 		while (System.in.read() != '\n') {
 		}
-		
+
 		server.stopListening();
+
+		while (System.in.read() != '\n') {
+		}
 	}
 }

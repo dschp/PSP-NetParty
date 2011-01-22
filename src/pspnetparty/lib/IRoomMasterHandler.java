@@ -15,14 +15,18 @@ GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
-*/
+ */
 package pspnetparty.lib;
 
-public interface IServerHandler<Type extends IClientState> {
-	public Type createState(IServerConnection connection);
-	public void disposeState(Type state);
-	public boolean processIncomingData(Type state, PacketData data);
-	public void serverStartupFinished();
-	public void serverShutdownFinished();
+import java.nio.ByteBuffer;
+
+public interface IRoomMasterHandler {
 	public void log(String message);
+	public void chatReceived(String message);
+	public void playerEntered(String player);
+	public void playerExited(String player);
+	public void pingInformed(String player, int ping);
+	public void tunnelPacketReceived(ByteBuffer packet);
+	public void roomOpened();
+	public void roomClosed();
 }

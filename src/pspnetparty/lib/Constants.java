@@ -30,7 +30,7 @@ public class Constants {
 		}
 
 		public static final String APP_NAME = "PSP NetParty";
-		public static final String VERSION = "0.2";
+		public static final String VERSION = "0.3";
 	}
 
 	public class Ini {
@@ -64,31 +64,32 @@ public class Constants {
 		}
 		
 		public static final String MESSAGE_SEPARATOR = "\t";
+		public static final int INTEGER_BYTE_SIZE = Integer.SIZE / 8;
 
+		public static final String SERVER_ROOM = "SERVER_ROOM";
         public static final String SERVER_ARENA = "SERVER_ARENA";
         public static final String SERVER_PORTAL = "SERVER_PORTAL";
         public static final String COMMAND_VERSION = "VERSION";
-        public static final String PROTOCOL_NUMBER = "3";
+        public static final String PROTOCOL_NUMBER = "4";
 
         public static final String COMMAND_LOGIN = "LI";
         public static final String COMMAND_LOGOUT = "LO";
         public static final String COMMAND_CHAT = "CH"; //"CHAT ";
-        public static final String COMMAND_USER_UPDATE = "UU"; //"USER_UPDATE ";
         public static final String COMMAND_ROOM_CREATE = "RC"; //"ROOM_CREATE ";
         public static final String COMMAND_ROOM_UPDATE = "RU"; // "ROOM_UPDATE ";
         public static final String COMMAND_ROOM_DELETE = "RD"; //"ROOM_DELETE ";
         public static final String COMMAND_ROOM_ENTER = "RE"; //"ROOM_ENTER ";
         public static final String COMMAND_ROOM_EXIT = "RX"; //"ROOM_EXIT ";
         public static final String COMMAND_ROOM_KICK_PLAYER = "RK"; //"ROOM_KICK ";
-        public static final String COMMAND_SERVER_STATUS = "SS";
         public static final String COMMAND_ADMIN_NOTIFY = "AN";
 
         public static final String COMMAND_INFORM_TUNNEL_UDP_PORT = "IU";
 
         public static final String COMMAND_PING = "PG";
-        public static final String COMMAND_PINGBACK = "PGBK";
+        public static final String COMMAND_PINGBACK = "PB";
         public static final String COMMAND_INFORM_PING = "IP";
 
+        public static final String NOTIFY_SERVER_STATUS = "SS";
         public static final String NOTIFY_USER_ENTERED = "NUE";
         public static final String NOTIFY_USER_EXITED = "NUX";
         public static final String NOTIFY_USER_LIST = "NUL";
@@ -96,7 +97,7 @@ public class Constants {
         public static final String NOTIFY_ROOM_DELETED = "NRD";
         public static final String NOTIFY_ROOM_LIST = "NRL";
         public static final String NOTIFY_ROOM_UPDATED = "NRU";
-        //public static final String NOTIFY_ROOM_PLAYER_KICKED = "NRK";
+        public static final String NOTIFY_ROOM_PLAYER_KICKED = "NRK";
 
         public static final String NOTIFY_ROOM_PASSWORD_REQUIRED = "NRPR";
 

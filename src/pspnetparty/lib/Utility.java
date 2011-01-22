@@ -21,6 +21,8 @@ package pspnetparty.lib;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.nio.ByteBuffer;
+import org.jnetpcap.packet.PcapPacket;
+import org.jnetpcap.protocol.lan.Ethernet;
 
 public class Utility {
 
@@ -56,7 +58,10 @@ public class Utility {
 
 	public static boolean isPspPacket(ByteBuffer packet) {
 		return packet.limit() > 14 && packet.get(12) == -120 && packet.get(13) == -56;
-//		return packet.limit() > 14 && packet.get(12) == 136 && packet.get(13) == 200;
+	}
+	
+	public static boolean isPspPacket(Ethernet ethernet) {
+		return ethernet.type() == 35016;//0x88c8;
 	}
 
 	public static String makeMacAddressString(ByteBuffer packet, int offset, boolean needHyphen) {
@@ -79,11 +84,14 @@ public class Utility {
 				packet[offset + 5]);
 	}
 	
+	public static boolean isMacBroadCastAddress(String macAddress) {
+		return "FFFFFFFFFFFF".equals(macAddress);
+	}
+	
 	public static void main(String[] args) {
 		byte[] data = new byte[] { (byte) 255, (byte) 255, (byte) 255, (byte) 255, (byte) 255, (byte) 255 };
 		ByteBuffer mac = ByteBuffer.wrap(data);
-		// String text = String.format("%X%X%X%X%X%X", (byte) 255, (byte) 255,
-		// (byte) 255, (byte) 255, (byte) 255, (byte) 255);
+		
 		System.out.println(makeMacAddressString(mac, 0, true));
 		System.out.println(makeMacAddressString(mac, 0, false));
 

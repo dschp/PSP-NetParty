@@ -18,11 +18,17 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 package pspnetparty.lib;
 
-public interface IServerHandler<Type extends IClientState> {
-	public Type createState(IServerConnection connection);
-	public void disposeState(Type state);
-	public boolean processIncomingData(Type state, PacketData data);
-	public void serverStartupFinished();
-	public void serverShutdownFinished();
-	public void log(String message);
+public class TunnelState implements IClientState {
+	
+	private IServerConnection connection;
+	
+	public TunnelState(IServerConnection connection) {
+		this.connection = connection;
+	}
+
+	@Override
+	public IServerConnection getConnection() {
+		return connection;
+	}
+
 }

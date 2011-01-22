@@ -25,4 +25,5 @@ public interface IServerConnection {
 	public InetSocketAddress getRemoteAddress();
 	public void send(String message);
 	public void send(ByteBuffer buffer);
+	public void disconnect();
 }

@@ -41,7 +41,7 @@ public class PacketData {
 		return buffer;
 	}
 	
-	public ByteBuffer swapBuffer(ByteBuffer buffer) {
+	public ByteBuffer replaceBuffer(ByteBuffer buffer) {
 		ByteBuffer orig = this.buffer;
 		this.buffer = buffer;
 		return orig;

@@ -18,11 +18,26 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 package pspnetparty.lib;
 
-public interface IServerHandler<Type extends IClientState> {
-	public Type createState(IServerConnection connection);
-	public void disposeState(Type state);
-	public boolean processIncomingData(Type state, PacketData data);
-	public void serverStartupFinished();
-	public void serverShutdownFinished();
-	public void log(String message);
+import java.net.InetSocketAddress;
+import java.util.HashMap;
+
+import pspnetparty.lib.RoomEngine.MessageHandler;
+
+public class PlayerState implements IClientState {
+	
+	private IServerConnection connection;
+	
+	public HashMap<String, MessageHandler> messageHandlers;
+	public String name;
+	public TunnelState tunnelState;
+	
+	public PlayerState(IServerConnection conn) {
+		connection = conn;
+	}
+
+	@Override
+	public IServerConnection getConnection() {
+		return connection;
+	}
+
 }
