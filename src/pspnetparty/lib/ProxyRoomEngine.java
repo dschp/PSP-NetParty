@@ -326,7 +326,7 @@ public class ProxyRoomEngine {
 
 				Room newRoom = null;
 				synchronized (masterNameRoomMap) {
-					if (masterNameRoomMap.size() < maxRooms - 1 && !masterNameRoomMap.containsKey(name)) {
+					if (masterNameRoomMap.size() < maxRooms && !masterNameRoomMap.containsKey(name)) {
 						newRoom = new Room();
 						masterNameRoomMap.put(name, newRoom);
 					}
