@@ -23,16 +23,19 @@ import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.Map.Entry;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class RoomEngine {
 
 	private HashMap<String, PlayerState> playersByName = new LinkedHashMap<String, PlayerState>();
-	private HashMap<InetSocketAddress, TunnelState> notYetLinkedTunnels = new HashMap<InetSocketAddress, TunnelState>();
 
 	private HashMap<String, TunnelState> tunnelsByMacAddress = new HashMap<String, TunnelState>();
 	private HashMap<String, Long> masterMacAddresses = new HashMap<String, Long>();
 
+	private Map<InetSocketAddress, TunnelState> notYetLinkedTunnels = new ConcurrentHashMap<InetSocketAddress, TunnelState>();
+	
 	private String masterName;
 	private IRoomMasterHandler roomMasterHandler;
 
@@ -41,8 +44,8 @@ public class RoomEngine {
 	private String description = "";
 	private String password = "";
 
-	private IServer<PlayerState> sessionServer;
-	private SessionHandler sessionHandler;
+	private IServer<PlayerState> roomServer;
+	private RoomHandler roomHandler;
 
 	private IServer<TunnelState> tunnelServer;
 	private TunnelHandler tunnelHandler;
@@ -53,8 +56,8 @@ public class RoomEngine {
 	public RoomEngine(IRoomMasterHandler masterHandler) {
 		this.roomMasterHandler = masterHandler;
 
-		sessionHandler = new SessionHandler();
-		sessionServer = new AsyncTcpServer<PlayerState>();
+		roomHandler = new RoomHandler();
+		roomServer = new AsyncTcpServer<PlayerState>();
 
 		tunnelHandler = new TunnelHandler();
 		tunnelServer = new AsyncUdpServer<TunnelState>();
@@ -77,7 +80,7 @@ public class RoomEngine {
 		masterMacAddresses.clear();
 
 		InetSocketAddress bindAddress = new InetSocketAddress(port);
-		sessionServer.startListening(bindAddress, sessionHandler);
+		roomServer.startListening(bindAddress, roomHandler);
 		tunnelServer.startListening(bindAddress, tunnelHandler);
 	}
 
@@ -85,7 +88,7 @@ public class RoomEngine {
 		if (!isStarted())
 			return;
 
-		sessionServer.stopListening();
+		roomServer.stopListening();
 		tunnelServer.stopListening();
 	}
 
@@ -124,10 +127,6 @@ public class RoomEngine {
 		}
 	}
 
-	interface PlayerStateAction {
-		public void action(PlayerState p);
-	}
-
 	private void forEachParticipant(PlayerStateAction action) {
 		synchronized (playersByName) {
 			for (Entry<String, PlayerState> entry : playersByName.entrySet()) {
@@ -153,23 +152,24 @@ public class RoomEngine {
 	}
 
 	public void kickPlayer(String name) {
-		final PlayerState kickedPlayer = playersByName.get(name);
+		PlayerState kickedPlayer;
 		synchronized (playersByName) {
-			playersByName.remove(name);
+			kickedPlayer = playersByName.remove(name);
+			if (kickedPlayer == null)
+				return;
 		}
 		final String notify = Constants.Protocol.NOTIFY_ROOM_PLAYER_KICKED + " " + name;
 
 		forEachParticipant(new PlayerStateAction() {
 			@Override
 			public void action(PlayerState p) {
-				if (p != kickedPlayer)
-					p.getConnection().send(notify);
+				p.getConnection().send(notify);
 			}
 		});
 
 		if (kickedPlayer.tunnelState != null)
 			notYetLinkedTunnels.remove(kickedPlayer.tunnelState.getConnection().getRemoteAddress());
-		
+
 		kickedPlayer.getConnection().send(Constants.Protocol.NOTIFY_ROOM_PLAYER_KICKED + " " + name);
 		kickedPlayer.getConnection().disconnect();
 	}
@@ -230,17 +230,13 @@ public class RoomEngine {
 		this.password = password;
 	}
 
-	interface MessageHandler {
-		public boolean process(PlayerState state, String argument);
-	}
+	class RoomHandler implements IServerHandler<PlayerState> {
 
-	class SessionHandler implements IServerHandler<PlayerState> {
+		private HashMap<String, PlayerMessageHandler> firstStageHandler = new HashMap<String, PlayerMessageHandler>();
+		private HashMap<String, PlayerMessageHandler> secondStageHandler = new HashMap<String, PlayerMessageHandler>();
+		private HashMap<String, PlayerMessageHandler> thirdStageHandler = new HashMap<String, PlayerMessageHandler>();
 
-		private HashMap<String, MessageHandler> firstStageHandler = new HashMap<String, RoomEngine.MessageHandler>();
-		private HashMap<String, MessageHandler> secondStageHandler = new HashMap<String, RoomEngine.MessageHandler>();
-		private HashMap<String, MessageHandler> thirdStageHandler = new HashMap<String, RoomEngine.MessageHandler>();
-
-		SessionHandler() {
+		RoomHandler() {
 			firstStageHandler.put(Constants.Protocol.COMMAND_VERSION, new VersionMatchHandler());
 
 			secondStageHandler.put(Constants.Protocol.COMMAND_LOGIN, new LoginHandler());
@@ -279,10 +275,11 @@ public class RoomEngine {
 		public void disposeState(PlayerState state) {
 			if (state.tunnelState != null)
 				notYetLinkedTunnels.remove(state.tunnelState.getConnection().getRemoteAddress());
-			state.getConnection().disconnect();
 
 			if (!Utility.isEmpty(state.name)) {
-				playersByName.remove(state.name);
+				synchronized (playersByName) {
+					playersByName.remove(state.name);
+				}
 
 				final String notify = Constants.Protocol.NOTIFY_USER_EXITED + " " + state.name;
 				forEachParticipant(new PlayerStateAction() {
@@ -310,7 +307,7 @@ public class RoomEngine {
 					argument = "";
 				}
 
-				MessageHandler handler = state.messageHandlers.get(command);
+				PlayerMessageHandler handler = state.messageHandlers.get(command);
 				if (handler != null) {
 					sessionContinue = handler.process(state, argument);
 				}
@@ -322,7 +319,7 @@ public class RoomEngine {
 			return sessionContinue;
 		}
 
-		class VersionMatchHandler implements MessageHandler {
+		class VersionMatchHandler implements PlayerMessageHandler {
 			String errorMessage = Constants.Protocol.ERROR_VERSION_MISMATCH + " " + Constants.Protocol.PROTOCOL_NUMBER;
 
 			@Override
@@ -338,15 +335,17 @@ public class RoomEngine {
 			}
 		}
 
-		class LoginHandler implements MessageHandler {
+		class LoginHandler implements PlayerMessageHandler {
 			@Override
 			public boolean process(final PlayerState state, String argument) {
+				// LI "" loginName password
 				String[] tokens = argument.split(" ");
 
-				String name = tokens[0];
-				String sentPassword = tokens.length == 1 ? null : tokens[1];
+				String loginRoomMasterName = Utility.removeQuotations(tokens[0]);
+				String loginName = tokens[1];
+				String sentPassword = tokens.length == 2 ? null : tokens[1];
 
-				if (name.length() == 0) {
+				if (loginRoomMasterName.length() != 0 || loginName.length() == 0) {
 					return false;
 				}
 
@@ -361,7 +360,7 @@ public class RoomEngine {
 					}
 				}
 
-				if (masterName.equals(name) || playersByName.containsKey(name)) {
+				if (masterName.equals(loginName) || playersByName.containsKey(loginName)) {
 					// 同名のユーザーが存在するので接続を拒否します
 					state.getConnection().send(Constants.Protocol.ERROR_LOGIN_DUPLICATED_NAME);
 					return false;
@@ -369,10 +368,10 @@ public class RoomEngine {
 
 				synchronized (playersByName) {
 					if (playersByName.size() < maxPlayers - 1) {
-						playersByName.put(name, state);
+						playersByName.put(loginName, state);
 						state.messageHandlers = thirdStageHandler;
 
-						state.name = name;
+						state.name = loginName;
 					} else {
 						// 最大人数を超えたので接続を拒否します
 						state.getConnection().send(Constants.Protocol.ERROR_LOGIN_BEYOND_CAPACITY);
@@ -380,7 +379,7 @@ public class RoomEngine {
 					}
 				}
 
-				final String notify = Constants.Protocol.NOTIFY_USER_ENTERED + " " + name;
+				final String notify = Constants.Protocol.NOTIFY_USER_ENTERED + " " + loginName;
 				forEachParticipant(new PlayerStateAction() {
 					@Override
 					public void action(PlayerState p) {
@@ -388,7 +387,7 @@ public class RoomEngine {
 							p.getConnection().send(notify);
 					}
 				});
-				roomMasterHandler.playerEntered(name);
+				roomMasterHandler.playerEntered(loginName);
 
 				StringBuilder sb = new StringBuilder();
 
@@ -404,14 +403,14 @@ public class RoomEngine {
 			}
 		}
 
-		class LogoutHandler implements MessageHandler {
+		class LogoutHandler implements PlayerMessageHandler {
 			@Override
 			public boolean process(PlayerState state, String argument) {
 				return false;
 			}
 		}
 
-		class ChatHandler implements MessageHandler {
+		class ChatHandler implements PlayerMessageHandler {
 			@Override
 			public boolean process(PlayerState state, String argument) {
 				processChat(state.name, argument);
@@ -419,7 +418,7 @@ public class RoomEngine {
 			}
 		}
 
-		class PingHandler implements MessageHandler {
+		class PingHandler implements PlayerMessageHandler {
 			@Override
 			public boolean process(PlayerState state, String argument) {
 				state.getConnection().send(Constants.Protocol.COMMAND_PINGBACK + " " + argument);
@@ -427,7 +426,7 @@ public class RoomEngine {
 			}
 		}
 
-		class InformPingHandler implements MessageHandler {
+		class InformPingHandler implements PlayerMessageHandler {
 			@Override
 			public boolean process(final PlayerState state, String argument) {
 				try {
@@ -447,7 +446,7 @@ public class RoomEngine {
 			}
 		}
 
-		class InformTunnelPortHandler implements MessageHandler {
+		class InformTunnelPortHandler implements PlayerMessageHandler {
 			@Override
 			public boolean process(PlayerState state, String argument) {
 				try {
@@ -507,18 +506,19 @@ public class RoomEngine {
 			String destMac = Utility.makeMacAddressString(packet, 0, false);
 			String srcMac = Utility.makeMacAddressString(packet, 6, false);
 
-			synchronized (tunnelsByMacAddress) {
-				tunnelsByMacAddress.put(srcMac, state);
-			}
+			tunnelsByMacAddress.put(srcMac, state);
 
 			if (Utility.isMacBroadCastAddress(destMac)) {
 				roomMasterHandler.tunnelPacketReceived(packet);
 
-				for (Entry<String, PlayerState> entry : playersByName.entrySet()) {
-					PlayerState sendTo = entry.getValue();
-					if (sendTo.tunnelState != null && sendTo.tunnelState != state) {
-						packet.position(0);
-						sendTo.tunnelState.getConnection().send(packet);
+				synchronized (playersByName) {
+					for (Entry<String, PlayerState> entry : playersByName.entrySet()) {
+						PlayerState sendTo = entry.getValue();
+						if (sendTo.tunnelState != null && sendTo.tunnelState != state) {
+							packet.position(0);
+							sendTo.tunnelState.getConnection().send(packet);
+							sendTo.tunnelState.lastTunnelTime = System.currentTimeMillis();
+						}
 					}
 				}
 			} else if (masterMacAddresses.containsKey(destMac)) {
@@ -527,6 +527,7 @@ public class RoomEngine {
 			} else if (tunnelsByMacAddress.containsKey(destMac)) {
 				TunnelState sendTo = tunnelsByMacAddress.get(destMac);
 				sendTo.getConnection().send(packet);
+				sendTo.lastTunnelTime = System.currentTimeMillis();
 			}
 
 			return true;
@@ -543,12 +544,14 @@ public class RoomEngine {
 					if (sendTo.tunnelState != null) {
 						packet.position(0);
 						sendTo.tunnelState.getConnection().send(packet);
+						sendTo.tunnelState.lastTunnelTime = System.currentTimeMillis();
 					}
 				}
 			}
 		} else if (tunnelsByMacAddress.containsKey(destMac)) {
 			TunnelState sendTo = tunnelsByMacAddress.get(destMac);
 			sendTo.getConnection().send(packet);
+			sendTo.lastTunnelTime = System.currentTimeMillis();
 		}
 	}
 }

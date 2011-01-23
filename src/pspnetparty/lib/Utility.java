@@ -15,7 +15,7 @@ GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
-*/
+ */
 package pspnetparty.lib;
 
 import java.io.PrintWriter;
@@ -28,7 +28,7 @@ public class Utility {
 
 	private Utility() {
 	}
-
+	
 	public static String decode(ByteBuffer buffer) {
 		return Constants.CHARSET.decode(buffer).toString();
 	}
@@ -56,17 +56,25 @@ public class Utility {
 		return str1.equals(str2);
 	}
 
+	public static String removeQuotations(String string) {
+		if (string == null || string.length() < 3)
+			return "";
+		else
+			return string.substring(1, string.length() - 1);
+	}
+
 	public static boolean isPspPacket(ByteBuffer packet) {
 		return packet.limit() > 14 && packet.get(12) == -120 && packet.get(13) == -56;
 	}
-	
+
 	public static boolean isPspPacket(Ethernet ethernet) {
-		return ethernet.type() == 35016;//0x88c8;
+		return ethernet.type() == 35016;// 0x88c8;
 	}
 
 	public static String makeMacAddressString(ByteBuffer packet, int offset, boolean needHyphen) {
-		if (packet == null) return "";
-		
+		if (packet == null)
+			return "";
+
 		if (packet.limit() < offset + 6)
 			throw new IllegalArgumentException();
 		String format = needHyphen ? "%02X-%02X-%02X-%02X-%02X-%02X" : "%02X%02X%02X%02X%02X%02X";
@@ -75,31 +83,32 @@ public class Utility {
 	}
 
 	public static String makeMacAddressString(byte[] packet, int offset, boolean needHyphen) {
-		if (packet == null) return "";
-		
+		if (packet == null)
+			return "";
+
 		if (packet.length < offset + 6)
 			throw new IllegalArgumentException();
 		String format = needHyphen ? "%02X-%02X-%02X-%02X-%02X-%02X" : "%02X%02X%02X%02X%02X%02X";
 		return String.format(format, packet[offset], packet[offset + 1], packet[offset + 2], packet[offset + 3], packet[offset + 4],
 				packet[offset + 5]);
 	}
-	
+
 	public static boolean isMacBroadCastAddress(String macAddress) {
 		return "FFFFFFFFFFFF".equals(macAddress);
 	}
-	
+
 	public static void main(String[] args) {
 		byte[] data = new byte[] { (byte) 255, (byte) 255, (byte) 255, (byte) 255, (byte) 255, (byte) 255 };
 		ByteBuffer mac = ByteBuffer.wrap(data);
-		
+
 		System.out.println(makeMacAddressString(mac, 0, true));
 		System.out.println(makeMacAddressString(mac, 0, false));
 
 		System.out.println(makeMacAddressString(data, 0, true));
 		System.out.println(makeMacAddressString(data, 0, false));
-		
+
 		System.out.println(mac);
-		
+
 		System.out.println(ByteBuffer.allocateDirect(100));
 	}
 }

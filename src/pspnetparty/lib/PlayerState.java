@@ -21,13 +21,12 @@ package pspnetparty.lib;
 import java.net.InetSocketAddress;
 import java.util.HashMap;
 
-import pspnetparty.lib.RoomEngine.MessageHandler;
 
 public class PlayerState implements IClientState {
 	
 	private IServerConnection connection;
 	
-	public HashMap<String, MessageHandler> messageHandlers;
+	public HashMap<String, PlayerMessageHandler> messageHandlers;
 	public String name;
 	public TunnelState tunnelState;
 	

@@ -22,6 +22,8 @@ public class TunnelState implements IClientState {
 	
 	private IServerConnection connection;
 	
+	public long lastTunnelTime;
+	
 	public TunnelState(IServerConnection connection) {
 		this.connection = connection;
 	}

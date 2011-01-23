@@ -20,8 +20,7 @@ package pspnetparty.lib;
 
 import java.nio.ByteBuffer;
 
-public interface IRoomMasterHandler {
-	public void log(String message);
+public interface IRoomMasterHandler extends ILogger {
 	public void chatReceived(String message);
 	public void playerEntered(String player);
 	public void playerExited(String player);

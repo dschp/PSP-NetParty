@@ -41,7 +41,7 @@ public class AsyncTcpServer<Type extends IClientState> implements IServer<Type> 
 	private ServerSocketChannel serverChannel;
 	private ByteBuffer headerBuffer = ByteBuffer.allocateDirect(Integer.SIZE / 8);
 
-	private HashSet<Connection> establishedConnections = new HashSet<AsyncTcpServer.Connection>();
+	private HashSet<Connection> establishedConnections = new HashSet<Connection>();
 
 	public AsyncTcpServer() {
 	}
@@ -81,17 +81,14 @@ public class AsyncTcpServer<Type extends IClientState> implements IServer<Type> 
 									}
 								} else if (key.isReadable()) {
 									@SuppressWarnings("unchecked")
-									Connection<Type> conn = (Connection<Type>) key.attachment();
+									Connection conn = (Connection) key.attachment();
 									try {
 										doRead(conn);
 									} catch (IOException e) {
 										// Disconnected
 										// e.printStackTrace();
-										handler.disposeState(conn.state);
-										conn.channel.close();
+										conn.disconnect();
 										key.cancel();
-
-										establishedConnections.remove(conn);
 									}
 								}
 							}
@@ -119,7 +116,7 @@ public class AsyncTcpServer<Type extends IClientState> implements IServer<Type> 
 			} catch (IOException e) {
 			}
 		}
-		for (Connection<Type> conn : establishedConnections) {
+		for (Connection conn : establishedConnections) {
 			try {
 				conn.channel.close();
 			} catch (IOException e) {
@@ -128,14 +125,12 @@ public class AsyncTcpServer<Type extends IClientState> implements IServer<Type> 
 		establishedConnections.clear();
 	}
 
-	private class Connection<Type> implements IServerConnection {
+	private class Connection implements IServerConnection {
 		private SocketChannel channel;
-		// private ByteBuffer headerData = ByteBuffer.allocate(Integer.SIZE /
-		// 8);
+		private Type state;
 
-		Type state;
-		ByteBuffer readBuffer = ByteBuffer.allocate(INITIAL_READ_BUFFER_SIZE);
-		PacketData packetData = new PacketData(readBuffer);
+		private ByteBuffer readBuffer = ByteBuffer.allocate(INITIAL_READ_BUFFER_SIZE);
+		private PacketData packetData = new PacketData(readBuffer);
 
 		Connection(SocketChannel channel) {
 			this.channel = channel;
@@ -170,9 +165,18 @@ public class AsyncTcpServer<Type extends IClientState> implements IServer<Type> 
 
 		@Override
 		public void disconnect() {
+			if (state == null)
+				return;
+
+			handler.disposeState(state);
+			state = null;
+
 			establishedConnections.remove(this);
 			try {
-				channel.close();
+				if (channel != null) {
+					channel.close();
+					channel = null;
+				}
 			} catch (IOException e) {
 			}
 		}
@@ -181,7 +185,7 @@ public class AsyncTcpServer<Type extends IClientState> implements IServer<Type> 
 	private void doAccept(ServerSocketChannel serverChannel) throws IOException {
 		SocketChannel channel = serverChannel.accept();
 
-		Connection<Type> conn = new Connection<Type>(channel);
+		Connection conn = new Connection(channel);
 		conn.state = handler.createState(conn);
 
 		channel.configureBlocking(false);
@@ -190,7 +194,7 @@ public class AsyncTcpServer<Type extends IClientState> implements IServer<Type> 
 		establishedConnections.add(conn);
 	}
 
-	private void doRead(Connection<Type> conn) throws IOException {
+	private void doRead(Connection conn) throws IOException {
 		if (conn.readBuffer.position() == 0) {
 			headerBuffer.clear();
 			if (conn.channel.read(headerBuffer) < 0) {
@@ -260,7 +264,7 @@ public class AsyncTcpServer<Type extends IClientState> implements IServer<Type> 
 					}
 				};
 			}
-			
+
 			@Override
 			public void serverStartupFinished() {
 			}

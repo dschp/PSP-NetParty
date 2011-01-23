@@ -1,7 +1,7 @@
 <project default="jar">
 	<property file="build.properties"></property>
 	
-	<target name="jar" depends="jar-lib, jar-swt">
+	<target name="jar" depends="jar-lib, jar-swt, jar-proxy">
 	</target>
 	
 	<target name="jar-lib">
@@ -14,6 +14,15 @@
 			<manifest>
 				<attribute name="Main-Class" value="pspnetparty.client.swt.PlayClientWindow"/>
 				<attribute name="Class-Path" value="PlayClient.jar PspNetParty.jar jnetpcap.jar swt.jar jface_3.6.1.jar org.eclipse.equinox.common_3.6.0.jar org.eclipse.core.commands_3.6.0.jar"/>
+			</manifest>
+		</jar>
+	</target>
+	
+	<target name="jar-proxy">
+		<jar basedir="bin" jarfile="${publish_directory}/ProxyRoomServer.jar" includes="pspnetparty/server/ProxyRoomServer*">
+			<manifest>
+				<attribute name="Main-Class" value="pspnetparty.server.ProxyRoomServer"/>
+				<attribute name="Class-Path" value="ProxyRoomServer.jar PspNetParty.jar"/>
 			</manifest>
 		</jar>
 	</target>
