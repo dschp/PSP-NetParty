@@ -96,7 +96,9 @@ public class AsyncTcpClient implements IAsyncClient {
 									if (readDataBuffer.position() == 0) {
 										readHeaderBuffer.clear();
 										if (channel.read(readHeaderBuffer) < 0) {
-											throw new IOException("Server has disconnected.");
+											//throw new IOException("Server has disconnected.");
+											isConnected = false;
+											break;
 										}
 										readHeaderBuffer.flip();
 
@@ -117,7 +119,9 @@ public class AsyncTcpClient implements IAsyncClient {
 									}
 
 									if (channel.read(readDataBuffer) < 0) {
-										throw new IOException("Server has disconnected.");
+										//throw new IOException("Server has disconnected.");
+										isConnected = false;
+										break;
 									}
 
 									if (readDataBuffer.remaining() == 0) {

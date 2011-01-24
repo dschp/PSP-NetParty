@@ -84,6 +84,8 @@ public class Constants {
 		public static final String COMMAND_ROOM_ENTER = "RE";
 		public static final String COMMAND_ROOM_EXIT = "RX";
 		public static final String COMMAND_ROOM_KICK_PLAYER = "RK";
+		public static final String COMMAND_ROOM_MASTER_TRANSFER = "RT";
+		
 		public static final String COMMAND_ADMIN_NOTIFY = "AN";
 
 		public static final String COMMAND_INFORM_TUNNEL_UDP_PORT = "IU";
@@ -112,5 +114,6 @@ public class Constants {
 		public static final String ERROR_ROOM_CREATE_BEYOND_LIMIT = "ERR_RC_LIM";
 		public static final String ERROR_ROOM_ENTER_PASSWORD_FAIL = "ERR_RE_PWF";
 		public static final String ERROR_ROOM_ENTER_BEYOND_CAPACITY = "ERR_RE_CAP";
+		public static final String ERROR_ROOM_TRANSFER_DUPLICATED_NAME = "ERR_RT_DUP";
 	}
 }

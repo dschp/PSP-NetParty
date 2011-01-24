@@ -118,10 +118,11 @@ public class PlayClientWindow {
 
 	private String loginUserName;
 	private boolean isArenaEntryExitLogEnabled = true;
+	private boolean isRoomInfoUpdating = false;
 
 	private String roomMasterName;
-	private String roomServerAddressText;
-	private InetSocketAddress roomServerAddress;
+	private String roomServerAddressPort;
+	private InetSocketAddress roomServerSocketAddress;
 	private boolean tunnelIsLinked = false;
 	private boolean isPacketCapturing = false;
 
@@ -134,6 +135,11 @@ public class PlayClientWindow {
 
 	private int roomServerListCount = 0;
 	private LinkedList<String> roomServerHistory = new LinkedList<String>();
+
+	private Thread packetMonitorThread;
+	private Thread packetCaptureThread;
+	private Thread pingThread;
+	private Thread natTableMaintainingThread;
 
 	public PlayClientWindow(IniParser iniParser) {
 		this.iniParser = iniParser;
@@ -246,10 +252,7 @@ public class PlayClientWindow {
 
 	private Menu roomPlayerMenu;
 	private MenuItem roomPlayerKickMenuItem;
-	private Thread packetMonitorThread;
-	private Thread packetCaptureThread;
-	private Thread pingThread;
-	private Thread natTableMaintainingThread;
+	private MenuItem roomPlayerMasterTransferMenuItem;
 
 	private void initializeComponents() {
 		display = new Display();
@@ -678,25 +681,7 @@ public class PlayClientWindow {
 		roomFormModeSelectionCombo.addListener(SWT.Selection, new Listener() {
 			@Override
 			public void handleEvent(Event event) {
-				switch (roomFormModeSelectionCombo.getSelectionIndex()) {
-				case 0:
-					roomModeStackLayout.topControl = roomFormServerModeContainer;
-					roomFormServerAddressPortLabel.setText("ポート");
-					setEnableRoomFormItems(true);
-					break;
-				case 1:
-					roomModeStackLayout.topControl = roomFormClientModeContainer;
-					roomFormServerAddressPortLabel.setText("アドレス");
-					setEnableRoomFormItems(false);
-					break;
-				case 2:
-					roomModeStackLayout.topControl = roomFormProxyModeContainer;
-					roomFormServerAddressPortLabel.setText("アドレス");
-					setEnableRoomFormItems(true);
-					break;
-				}
-				roomFormGridContainer.layout(true, true);
-				// roomFormModeSwitchContainer.layout();
+				updateRoomModeSelection();
 			}
 		});
 
@@ -869,6 +854,9 @@ public class PlayClientWindow {
 		ModifyListener roomEditFormModifyListener = new ModifyListener() {
 			@Override
 			public void modifyText(ModifyEvent e) {
+				if (isRoomInfoUpdating)
+					return;
+
 				switch (currentOperationMode) {
 				case RoomMaster:
 				case ProxyRoomMaster:
@@ -926,11 +914,14 @@ public class PlayClientWindow {
 		roomPlayerMenu = new Menu(shell, SWT.POP_UP);
 		roomPlayerKickMenuItem = new MenuItem(roomPlayerMenu, SWT.PUSH);
 		roomPlayerKickMenuItem.setText("キック");
-		roomPlayerKickMenuItem.addSelectionListener(new SelectionListener() {
+		roomPlayerKickMenuItem.addListener(SWT.Selection, new Listener() {
 			@Override
-			public void widgetSelected(SelectionEvent e) {
+			public void handleEvent(Event event) {
 				IStructuredSelection selection = (IStructuredSelection) roomPlayerListViewer.getSelection();
 				Player player = (Player) selection.getFirstElement();
+				if (player == null)
+					return;
+
 				String kickedName = player.getName();
 				switch (currentOperationMode) {
 				case RoomMaster:
@@ -943,9 +934,24 @@ public class PlayClientWindow {
 					break;
 				}
 			}
+		});
 
+		roomPlayerMasterTransferMenuItem = new MenuItem(roomPlayerMenu, SWT.PUSH);
+		roomPlayerMasterTransferMenuItem.setText("部屋主を委譲");
+		roomPlayerMasterTransferMenuItem.addListener(SWT.Selection, new Listener() {
 			@Override
-			public void widgetDefaultSelected(SelectionEvent e) {
+			public void handleEvent(Event event) {
+				IStructuredSelection selection = (IStructuredSelection) roomPlayerListViewer.getSelection();
+				Player player = (Player) selection.getFirstElement();
+				if (player == null)
+					return;
+
+				String newMasterName = player.getName();
+				switch (currentOperationMode) {
+				case ProxyRoomMaster:
+					roomClient.send(Constants.Protocol.COMMAND_ROOM_MASTER_TRANSFER + " " + newMasterName);
+					break;
+				}
 			}
 		});
 
@@ -953,16 +959,23 @@ public class PlayClientWindow {
 		roomPlayerListViewer.getTable().addMenuDetectListener(new MenuDetectListener() {
 			@Override
 			public void menuDetected(MenuDetectEvent e) {
-				if (currentOperationMode == OperationMode.RoomMaster) {
+				boolean isMasterAndOtherSelected = false;
+				switch (currentOperationMode) {
+				case RoomMaster:
+				case ProxyRoomMaster:
 					IStructuredSelection selection = (IStructuredSelection) roomPlayerListViewer.getSelection();
 					Player player = (Player) selection.getFirstElement();
-					if (roomFormMasterText.getText().equals(player.getName())) {
-						roomPlayerKickMenuItem.setEnabled(false);
-					} else {
-						roomPlayerKickMenuItem.setEnabled(true);
+					if (player != null && !roomMasterName.equals(player.getName())) {
+						isMasterAndOtherSelected = true;
 					}
+					break;
+				}
+
+				roomPlayerKickMenuItem.setEnabled(isMasterAndOtherSelected);
+				if (currentOperationMode == OperationMode.ProxyRoomMaster) {
+					roomPlayerMasterTransferMenuItem.setEnabled(isMasterAndOtherSelected);
 				} else {
-					roomPlayerKickMenuItem.setEnabled(false);
+					roomPlayerMasterTransferMenuItem.setEnabled(false);
 				}
 			}
 		});
@@ -1047,10 +1060,11 @@ public class PlayClientWindow {
 				while (!shell.isDisposed()) {
 					try {
 						synchronized (packetCaptureThread) {
-							packetCaptureThread.wait();
-							packet = new PcapPacket(JMemory.POINTER);
+							if (!isPacketCapturing)
+								packetCaptureThread.wait();
 						}
 
+						packet = new PcapPacket(JMemory.POINTER);
 						while (isPacketCapturing) {
 							switch (currentPcapDevice.nextEx(packet)) {
 							case 1:
@@ -1102,8 +1116,9 @@ public class PlayClientWindow {
 			public void run() {
 				try {
 					while (!shell.isDisposed()) {
-						synchronized (roomClient) {
-							roomClient.wait();
+						synchronized (pingThread) {
+							if (!roomClient.isConnected())
+								pingThread.wait();
 						}
 
 						while (roomClient.isConnected()) {
@@ -1129,14 +1144,16 @@ public class PlayClientWindow {
 			public void run() {
 				try {
 					while (!shell.isDisposed()) {
-						synchronized (tunnelClient) {
+						synchronized (natTableMaintainingThread) {
 							if (!tunnelClient.isConnected())
-								tunnelClient.wait();
+								natTableMaintainingThread.wait();
 						}
 
+						Thread.sleep(20000);
+
 						while (tunnelClient.isConnected()) {
-							Thread.sleep(30000);
 							tunnelClient.send(" ");
+							Thread.sleep(20000);
 						}
 					}
 				} catch (InterruptedException e) {
@@ -1173,6 +1190,28 @@ public class PlayClientWindow {
 		}
 	}
 
+	private void updateRoomModeSelection() {
+		switch (roomFormModeSelectionCombo.getSelectionIndex()) {
+		case 0:
+			roomModeStackLayout.topControl = roomFormServerModeContainer;
+			roomFormServerAddressPortLabel.setText("ポート");
+			setEnableRoomFormItems(true);
+			break;
+		case 1:
+			roomModeStackLayout.topControl = roomFormClientModeContainer;
+			roomFormServerAddressPortLabel.setText("アドレス");
+			setEnableRoomFormItems(false);
+			break;
+		case 2:
+			roomModeStackLayout.topControl = roomFormProxyModeContainer;
+			roomFormServerAddressPortLabel.setText("アドレス");
+			setEnableRoomFormItems(true);
+			break;
+		}
+		roomFormGridContainer.layout(true, true);
+		// roomFormModeSwitchContainer.layout();
+	}
+
 	private void appendRoomInfo(StringBuilder sb) {
 		sb.append(' ');
 		sb.append(roomFormMaxPlayersSpiner.getText());
@@ -1202,8 +1241,6 @@ public class PlayClientWindow {
 			return;
 		}
 
-		roomFormMasterText.setText(loginUserName);
-
 		roomEngine.setTitle(title);
 		roomEngine.setMaxPlayers(roomFormMaxPlayersSpiner.getSelection());
 		roomEngine.setPassword(roomFormPasswordText.getText());
@@ -1211,6 +1248,9 @@ public class PlayClientWindow {
 
 		try {
 			roomEngine.openRoom(port, loginUserName);
+
+			roomFormMasterText.setText(loginUserName);
+			roomMasterName = loginUserName;
 
 			roomFormServerModePortSpinner.setEnabled(false);
 			roomFormServerModePortButton.setEnabled(false);
@@ -1260,10 +1300,10 @@ public class PlayClientWindow {
 			return;
 		}
 
-		roomServerAddressText = address;
-		roomServerAddress = new InetSocketAddress(tokens[0], port);
+		roomServerAddressPort = tokens[0] + ":" + tokens[1];
+		roomServerSocketAddress = new InetSocketAddress(tokens[0], port);
 		try {
-			roomClient.connect(roomServerAddress);
+			roomClient.connect(roomServerSocketAddress);
 			goTo(OperationMode.ConnectingToRoomServer);
 		} catch (UnresolvedAddressException e) {
 			appendLogTo(roomChatLogText, "アドレスが解決しません", colorRed);
@@ -1314,10 +1354,11 @@ public class PlayClientWindow {
 			return;
 		}
 
-		roomServerAddressText = address;
-		roomServerAddress = new InetSocketAddress(tokens[0], port);
+		roomServerAddressPort = address;
+		roomServerSocketAddress = new InetSocketAddress(tokens[0], port);
 		try {
-			roomClient.connect(roomServerAddress);
+			roomClient.connect(roomServerSocketAddress);
+			roomMasterName = loginUserName;
 			goTo(OperationMode.ConnectingToProxyServer);
 		} catch (IOException e) {
 			appendLogTo(logText, Utility.makeStackTrace(e));
@@ -1509,7 +1550,7 @@ public class PlayClientWindow {
 		asyncExec(run);
 	}
 
-	private void updateRoom(final String[] tokens) {
+	private void updateRoom(final String[] tokens, final boolean isInitialUpdate) {
 		Runnable run = new Runnable() {
 			@Override
 			public void run() {
@@ -1520,14 +1561,40 @@ public class PlayClientWindow {
 					String password = Utility.removeQuotations(tokens[3]);
 					String description = Utility.removeQuotations(tokens[4]);
 
+					isRoomInfoUpdating = true;
+
 					roomFormMasterText.setText(masterName);
 					roomFormMaxPlayersSpiner.setSelection(maxPlayers);
 					roomFormTitleText.setText(title);
 					roomFormPasswordText.setText(password);
 					roomFormDescriptionText.setText(description);
 
+					isRoomInfoUpdating = false;
+					roomFormEditButton.setEnabled(false);
+
+					if (isInitialUpdate)
+						return;
+
+					appendLogTo(roomChatLogText, "部屋情報が更新されました", colorRoomInfo);
+
+					if (!masterName.equals(roomMasterName)) {
+						roomMasterName = masterName;
+						appendLogTo(roomChatLogText, "部屋主が " + roomMasterName + " に変更されました", colorRoomInfo);
+
+						if (masterName.equals(loginUserName)) {
+							roomFormProxyModeAddressCombo.setEnabled(false);
+							roomFormProxyModeAddressCombo.setText(roomServerAddressPort);
+							goTo(OperationMode.ProxyRoomMaster);
+						} else if (currentOperationMode == OperationMode.ProxyRoomMaster) {
+							roomFormClientModeAddressCombo.setEnabled(false);
+							roomFormClientModeAddressCombo.setText(roomServerAddressPort + ":" + masterName);
+							goTo(OperationMode.RoomParticipant);
+						} else {
+							roomFormClientModeAddressCombo.setText(roomServerAddressPort + ":" + masterName);
+						}
+					}
 				} catch (NumberFormatException e) {
-					appendLogTo(logText, Utility.makeStackTrace(e));
+				} catch (SWTException e) {
 				}
 			}
 		};
@@ -1543,9 +1610,6 @@ public class PlayClientWindow {
 				try {
 					switch (mode) {
 					case Offline:
-						roomFormModeSelectionCombo.setEnabled(true);
-						roomFormServerModePortButton.setEnabled(true);
-
 						statusServerAddressLabel.setText("サーバーアドレス");
 						statusServerStatusLabel.setText("サーバーステータス");
 						statusBarContainer.layout();
@@ -1555,21 +1619,29 @@ public class PlayClientWindow {
 
 						roomFormEditButton.setEnabled(false);
 
+						roomFormModeSelectionCombo.setEnabled(true);
+
+						roomFormServerModePortSpinner.setEnabled(true);
+						roomFormServerModePortButton.setText("起動する");
+						roomFormServerModePortButton.setEnabled(true);
+
+						roomFormClientModeAddressCombo.setEnabled(true);
+						roomFormClientModeAdderssButton.setText("ログイン");
+						roomFormClientModeAdderssButton.setEnabled(true);
+						roomFormClientModeContainer.layout();
+
+						roomFormProxyModeAddressCombo.setEnabled(true);
+						roomFormProxyModeAddressButton.setText("作成する");
+						roomFormProxyModeAddressButton.setEnabled(true);
+						roomFormProxyModeContainer.layout();
+
 						switch (roomFormModeSelectionCombo.getSelectionIndex()) {
 						case 0:
 							setEnableRoomFormItems(true);
-							roomFormServerModePortSpinner.setEnabled(true);
-							roomFormServerModePortButton.setText("起動する");
-
 							updateTunnelStatus(false);
 							break;
 						case 1:
 							setEnableRoomFormItems(false);
-							roomFormClientModeAddressCombo.setEnabled(true);
-							roomFormClientModeAdderssButton.setText("ログイン");
-							roomFormClientModeAdderssButton.setEnabled(true);
-							roomFormClientModeContainer.layout();
-
 							roomFormTitleText.setText("");
 							roomFormPasswordText.setText("");
 							roomFormDescriptionText.setText("");
@@ -1577,10 +1649,6 @@ public class PlayClientWindow {
 							break;
 						case 2:
 							setEnableRoomFormItems(true);
-							roomFormProxyModeAddressCombo.setEnabled(true);
-							roomFormProxyModeAddressButton.setText("ログイン");
-							roomFormProxyModeAddressButton.setEnabled(true);
-							roomFormProxyModeContainer.layout();
 							break;
 						}
 
@@ -1608,18 +1676,21 @@ public class PlayClientWindow {
 					case RoomParticipant:
 						mainTabFolder.setSelection(playRoomTab);
 
-						// roomFormEditButton.setEnabled(false);
-						// setEnableRoomFormItems(false);
-
 						roomFormClientModeAdderssButton.setText("ログアウト");
 						roomFormClientModeAdderssButton.setEnabled(true);
 						roomFormClientModeContainer.layout();
+
+						roomFormModeSelectionCombo.select(1);
+						updateRoomModeSelection();
 
 						break;
 					case ProxyRoomMaster:
 						roomFormProxyModeAddressButton.setText("ログアウト");
 						roomFormProxyModeAddressButton.setEnabled(true);
 						roomFormProxyModeContainer.layout();
+
+						roomFormModeSelectionCombo.select(2);
+						updateRoomModeSelection();
 						break;
 					case ConnectingToRoomServer:
 						roomFormModeSelectionCombo.setEnabled(false);
@@ -1692,11 +1763,13 @@ public class PlayClientWindow {
 		@Override
 		public void roomOpened() {
 			goTo(OperationMode.RoomMaster);
+			appendLogTo(roomChatLogText, "自部屋を起動しました", colorRoomInfo);
 		}
 
 		@Override
 		public void roomClosed() {
 			goTo(OperationMode.Offline);
+			appendLogTo(roomChatLogText, "自部屋を停止しました", colorRoomInfo);
 		}
 	}
 
@@ -1845,12 +1918,12 @@ public class PlayClientWindow {
 		}
 
 		private void prepareSession() {
-			synchronized (roomClient) {
-				roomClient.notifyAll();
+			synchronized (pingThread) {
+				pingThread.notify();
 			}
 
 			try {
-				tunnelClient.connect(roomServerAddress);
+				tunnelClient.connect(roomServerSocketAddress);
 			} catch (IOException ioe) {
 			}
 		}
@@ -1861,7 +1934,7 @@ public class PlayClientWindow {
 				goTo(OperationMode.RoomParticipant);
 				appendLogTo(roomChatLogText, "部屋に入りました  ", colorRoomInfo);
 
-				updateRoom(args.split(" "));
+				updateRoom(args.split(" "), true);
 
 				prepareSession();
 			}
@@ -1874,7 +1947,7 @@ public class PlayClientWindow {
 
 				StringBuilder sb = new StringBuilder();
 				sb.append("代理サーバーで部屋を作成しました  ");
-				sb.append(roomServerAddressText);
+				sb.append(roomServerAddressPort);
 				sb.append(':').append(loginUserName);
 				appendLogTo(roomChatLogText, sb.toString(), colorRoomInfo);
 
@@ -1998,8 +2071,8 @@ public class PlayClientWindow {
 		private class NotifyRoomUpdatedHandler implements CommandHandler {
 			@Override
 			public void process(String args) {
-				updateRoom(args.split(" "));
-				appendLogTo(roomChatLogText, "部屋情報が更新されました", colorRoomInfo);
+				String oldMasterName = roomMasterName;
+				updateRoom(args.split(" "), false);
 			}
 		}
 
@@ -2056,7 +2129,13 @@ public class PlayClientWindow {
 		private class ErrorLoginBeyondCapacityHandler implements CommandHandler {
 			@Override
 			public void process(String message) {
-				appendLogTo(roomChatLogText, "サーバーの最大人数を超えたのでログインできません", colorLogError);
+				switch (currentOperationMode) {
+				case ConnectingToProxyServer:
+					appendLogTo(roomChatLogText, "サーバーの最大部屋数を超えたので部屋を作成できません", colorLogError);
+					break;
+				default:
+					appendLogTo(roomChatLogText, "サーバーの最大人数を超えたのでログインできません", colorLogError);
+				}
 			}
 		}
 
@@ -2122,15 +2201,13 @@ public class PlayClientWindow {
 		@Override
 		public void connectCallback(IAsyncClient client) {
 			client.send(" ");
-			synchronized (tunnelClient) {
-				tunnelClient.notifyAll();
+			synchronized (natTableMaintainingThread) {
+				natTableMaintainingThread.notify();
 			}
-			//System.out.println("test");
 		}
 
 		@Override
 		public void readCallback(IAsyncClient client, PacketData data) {
-			//System.out.println("foo");
 			ByteBuffer packet = data.getBuffer();
 			// System.out.println(packet.toString());
 			if (Utility.isPspPacket(packet)) {

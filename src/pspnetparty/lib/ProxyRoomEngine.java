@@ -32,7 +32,7 @@ public class ProxyRoomEngine {
 
 	private HashMap<String, Room> masterNameRoomMap = new HashMap<String, ProxyRoomEngine.Room>();
 	private HashMap<PlayerState, Room> playerRoomMap = new HashMap<PlayerState, Room>();
-	
+
 	private Map<TunnelState, Room> tunnelRoomMap = new ConcurrentHashMap<TunnelState, Room>();
 	private Map<InetSocketAddress, TunnelState> notYetLinkedTunnels = new ConcurrentHashMap<InetSocketAddress, TunnelState>();
 
@@ -85,7 +85,7 @@ public class ProxyRoomEngine {
 		if (maxRooms > 0)
 			this.maxRooms = maxRooms;
 	}
-	
+
 	@Override
 	public String toString() {
 		StringBuilder sb = new StringBuilder();
@@ -162,6 +162,7 @@ public class ProxyRoomEngine {
 			thirdStageHandler.put(Constants.Protocol.COMMAND_INFORM_TUNNEL_UDP_PORT, new InformTunnelPortHandler());
 			thirdStageHandler.put(Constants.Protocol.COMMAND_ROOM_UPDATE, new RoomUpdateHandler());
 			thirdStageHandler.put(Constants.Protocol.COMMAND_ROOM_KICK_PLAYER, new RoomKickPlayerHandler());
+			thirdStageHandler.put(Constants.Protocol.COMMAND_ROOM_MASTER_TRANSFER, new RoomMasterTransferHandler());
 		}
 
 		@Override
@@ -195,7 +196,7 @@ public class ProxyRoomEngine {
 			Room room = playerRoomMap.remove(state);
 			if (room == null)
 				return;
-			
+
 			synchronized (room.playersByName) {
 				room.playersByName.remove(name);
 			}
@@ -273,7 +274,11 @@ public class ProxyRoomEngine {
 
 				PlayerMessageHandler handler = state.messageHandlers.get(command);
 				if (handler != null) {
-					sessionContinue = handler.process(state, argument);
+					try {
+						sessionContinue = handler.process(state, argument);
+					} catch (RuntimeException e) {
+						logger.log(Utility.makeStackTrace(e));
+					}
 				}
 
 				if (!sessionContinue)
@@ -325,29 +330,36 @@ public class ProxyRoomEngine {
 					return false;
 
 				Room newRoom = null;
+				String errorMsg = null;
 				synchronized (masterNameRoomMap) {
-					if (masterNameRoomMap.size() < maxRooms && !masterNameRoomMap.containsKey(name)) {
+					if (masterNameRoomMap.size() >= maxRooms) {
+						errorMsg = Constants.Protocol.ERROR_ROOM_CREATE_BEYOND_LIMIT;
+					} else if (masterNameRoomMap.containsKey(name)) {
+						errorMsg = Constants.Protocol.ERROR_LOGIN_DUPLICATED_NAME;
+					} else {
 						newRoom = new Room();
 						masterNameRoomMap.put(name, newRoom);
 					}
 				}
-				if (newRoom != null) {
-					newRoom.roomMaster = state;
-					newRoom.title = title;
-					newRoom.maxPlayers = maxPlayers;
-					newRoom.password = Utility.removeQuotations(tokens[3]);
-					newRoom.description = Utility.removeQuotations(tokens[4]);
-
-					playerRoomMap.put(state, newRoom);
-
-					newRoom.playersByName.put(name, state);
-
-					state.name = name;
-					state.messageHandlers = thirdStageHandler;
-
-					state.getConnection().send(Constants.Protocol.COMMAND_ROOM_CREATE);
+				if (newRoom == null) {
+					state.getConnection().send(errorMsg);
+					return false;
 				}
 
+				newRoom.roomMaster = state;
+				newRoom.title = title;
+				newRoom.maxPlayers = maxPlayers;
+				newRoom.password = Utility.removeQuotations(tokens[3]);
+				newRoom.description = Utility.removeQuotations(tokens[4]);
+
+				playerRoomMap.put(state, newRoom);
+
+				newRoom.playersByName.put(name, state);
+
+				state.name = name;
+				state.messageHandlers = thirdStageHandler;
+
+				state.getConnection().send(Constants.Protocol.COMMAND_ROOM_CREATE);
 				return true;
 			}
 		}
@@ -473,7 +485,7 @@ public class ProxyRoomEngine {
 					return false;
 
 				try {
-					int ping = Integer.parseInt(argument);
+					Integer.parseInt(argument);
 					final String message = Constants.Protocol.COMMAND_INFORM_PING + " " + state.name + " " + argument;
 					room.forEachParticipant(new PlayerStateAction() {
 						@Override
@@ -565,7 +577,7 @@ public class ProxyRoomEngine {
 					if (kickedPlayer == null)
 						return true;
 				}
-				
+
 				final String notify = Constants.Protocol.NOTIFY_ROOM_PLAYER_KICKED + " " + name;
 
 				room.forEachParticipant(new PlayerStateAction() {
@@ -578,6 +590,47 @@ public class ProxyRoomEngine {
 				kickedPlayer.getConnection().send(Constants.Protocol.NOTIFY_ROOM_PLAYER_KICKED + " " + name);
 				kickedPlayer.getConnection().disconnect();
 
+				return true;
+			}
+		}
+		
+		class RoomMasterTransferHandler implements PlayerMessageHandler {
+			@Override
+			public boolean process(PlayerState state, String argument) {
+				Room room = playerRoomMap.get(state);
+				if (room == null || state != room.roomMaster)
+					return false;
+
+				String name = argument;
+				if (Utility.equals(name, state.name))
+					return true;
+
+				PlayerState newMasterPlayer = room.playersByName.get(name);
+				if (newMasterPlayer == null)
+					return true;
+				
+				if (masterNameRoomMap.containsKey(name)) {
+					state.getConnection().send(Constants.Protocol.ERROR_ROOM_TRANSFER_DUPLICATED_NAME);
+					return true;
+				}
+				
+				synchronized (masterNameRoomMap) {
+					masterNameRoomMap.remove(state.name);
+					masterNameRoomMap.put(name, room);
+					room.roomMaster = newMasterPlayer;
+				}
+				
+				StringBuilder sb = new StringBuilder();
+				sb.append(Constants.Protocol.NOTIFY_ROOM_UPDATED);
+				room.appendRoomInfo(sb);
+
+				final String notify = sb.toString();
+				room.forEachParticipant(new PlayerStateAction() {
+					@Override
+					public void action(PlayerState p) {
+						p.getConnection().send(notify);
+					}
+				});
 				return true;
 			}
 		}
