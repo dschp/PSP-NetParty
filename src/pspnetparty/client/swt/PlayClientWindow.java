@@ -935,6 +935,8 @@ public class PlayClientWindow {
 				}
 			}
 		});
+		
+		new MenuItem(roomPlayerMenu, SWT.SEPARATOR);
 
 		roomPlayerMasterTransferMenuItem = new MenuItem(roomPlayerMenu, SWT.PUSH);
 		roomPlayerMasterTransferMenuItem.setText("部屋主を委譲");
