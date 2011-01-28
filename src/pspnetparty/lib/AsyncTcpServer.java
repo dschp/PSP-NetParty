@@ -23,12 +23,16 @@ import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.nio.ByteBuffer;
 import java.nio.channels.CancelledKeyException;
+import java.nio.channels.ClosedSelectorException;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
 import java.util.HashSet;
 import java.util.Iterator;
+
+import pspnetparty.lib.constants.AppConstants;
+import pspnetparty.lib.constants.ProtocolConstants;
 
 public class AsyncTcpServer<Type extends IClientState> implements IServer<Type> {
 
@@ -47,8 +51,14 @@ public class AsyncTcpServer<Type extends IClientState> implements IServer<Type> 
 	}
 
 	@Override
+	public boolean isListening() {
+		return selector != null && selector.isOpen();
+	}
+
+	@Override
 	public void startListening(InetSocketAddress bindAddress, final IServerHandler<Type> handler) throws IOException {
-		stopListening();
+		if (isListening())
+			stopListening();
 		this.handler = handler;
 
 		selector = Selector.open();
@@ -60,56 +70,60 @@ public class AsyncTcpServer<Type extends IClientState> implements IServer<Type> 
 		ServerSocket socket = serverChannel.socket();
 		handler.log("TCP: Listening on " + socket.getLocalSocketAddress());
 
-		Runnable run = new Runnable() {
+		Thread asyncLoopThread = new Thread(new Runnable() {
 			@Override
 			public void run() {
 				AsyncTcpServer.this.handler.serverStartupFinished();
 				try {
-					while (serverChannel.isOpen())
-						while (selector.select(2000) > 0) {
-							for (Iterator<SelectionKey> it = selector.selectedKeys().iterator(); it.hasNext();) {
-								SelectionKey key = it.next();
-								it.remove();
+					while (selector.select() > 0) {
+						for (Iterator<SelectionKey> it = selector.selectedKeys().iterator(); it.hasNext();) {
+							SelectionKey key = it.next();
+							it.remove();
 
-								if (key.isAcceptable()) {
-									ServerSocketChannel channel = (ServerSocketChannel) key.channel();
-									try {
-										doAccept(channel);
-									} catch (IOException e) {
-										// e.printStackTrace();
-										key.cancel();
-									}
-								} else if (key.isReadable()) {
-									@SuppressWarnings("unchecked")
-									Connection conn = (Connection) key.attachment();
-									try {
-										doRead(conn);
-									} catch (IOException e) {
-										// Disconnected
-										// e.printStackTrace();
-										conn.disconnect();
-										key.cancel();
-									}
+							if (key.isAcceptable()) {
+								ServerSocketChannel channel = (ServerSocketChannel) key.channel();
+								try {
+									doAccept(channel);
+								} catch (IOException e) {
+									key.cancel();
+								}
+							} else if (key.isReadable()) {
+								@SuppressWarnings("unchecked")
+								Connection conn = (Connection) key.attachment();
+								try {
+									doRead(conn);
+								} catch (IOException e) {
+									// Disconnected
+									conn.disconnect();
+									key.cancel();
 								}
 							}
 						}
+					}
 				} catch (IOException e) {
 					e.printStackTrace();
 				} catch (CancelledKeyException e) {
+				} catch (ClosedSelectorException e) {
 				}
 
 				AsyncTcpServer.this.handler.log("TCP: Now shuting down...");
 				AsyncTcpServer.this.handler.serverShutdownFinished();
 			}
-		};
-
-		Thread asyncLoopThread = new Thread(run);
-		asyncLoopThread.setName(AsyncTcpServer.class.getName());
+		}, AsyncTcpServer.class.getName());
 		asyncLoopThread.start();
 	}
 
 	@Override
 	public void stopListening() {
+		if (!isListening())
+			return;
+
+		try {
+			selector.close();
+		} catch (IOException e) {
+		}
+		selector = null;
+
 		if (serverChannel != null && serverChannel.isOpen()) {
 			try {
 				serverChannel.close();
@@ -117,15 +131,12 @@ public class AsyncTcpServer<Type extends IClientState> implements IServer<Type> 
 			}
 		}
 		for (Connection conn : establishedConnections) {
-			try {
-				conn.channel.close();
-			} catch (IOException e) {
-			}
+			conn.disconnect();
 		}
 		establishedConnections.clear();
 	}
 
-	private class Connection implements IServerConnection {
+	private class Connection implements ISocketConnection {
 		private SocketChannel channel;
 		private Type state;
 
@@ -142,12 +153,17 @@ public class AsyncTcpServer<Type extends IClientState> implements IServer<Type> 
 		}
 
 		@Override
+		public boolean isConnected() {
+			return channel.isConnected();
+		}
+
+		@Override
 		public void send(ByteBuffer buffer) {
 			if (!channel.isConnected())
 				return;
 
 			try {
-				ByteBuffer headerData = ByteBuffer.allocate(Constants.Protocol.INTEGER_BYTE_SIZE);
+				ByteBuffer headerData = ByteBuffer.allocate(ProtocolConstants.INTEGER_BYTE_SIZE);
 				headerData.putInt(buffer.limit());
 				headerData.flip();
 
@@ -159,7 +175,13 @@ public class AsyncTcpServer<Type extends IClientState> implements IServer<Type> 
 
 		@Override
 		public void send(String message) {
-			ByteBuffer buffer = Constants.CHARSET.encode(message);
+			ByteBuffer buffer = AppConstants.CHARSET.encode(message);
+			send(buffer);
+		}
+
+		@Override
+		public void send(byte[] data) {
+			ByteBuffer buffer = ByteBuffer.wrap(data);
 			send(buffer);
 		}
 
@@ -254,12 +276,12 @@ public class AsyncTcpServer<Type extends IClientState> implements IServer<Type> 
 			}
 
 			@Override
-			public IClientState createState(final IServerConnection connection) {
+			public IClientState createState(final ISocketConnection connection) {
 				System.out.println(connection.getRemoteAddress() + "[接続されました]");
 
 				return new IClientState() {
 					@Override
-					public IServerConnection getConnection() {
+					public ISocketConnection getConnection() {
 						return connection;
 					}
 				};

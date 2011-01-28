@@ -33,6 +33,8 @@ import java.util.LinkedHashMap;
 import java.util.Map.Entry;
 import java.util.Set;
 
+import pspnetparty.lib.constants.AppConstants;
+
 public class IniParser {
 
 	private HashMap<String, HashMap<String, String>> sectionMap = new LinkedHashMap<String, HashMap<String, String>>();
@@ -53,7 +55,7 @@ public class IniParser {
 		if (file.isFile()) {
 			try {
 				FileInputStream fileInputStream = new FileInputStream(file);
-				InputStreamReader streamReader = new InputStreamReader(fileInputStream, Constants.CHARSET);
+				InputStreamReader streamReader = new InputStreamReader(fileInputStream, AppConstants.CHARSET);
 				bufferedReader = new BufferedReader(streamReader);
 				
 				bufferedReader.mark(1);
@@ -152,7 +154,7 @@ public class IniParser {
 		String filePath = Utility.isEmpty(newFilePath) ? iniFilePath : newFilePath;
 
 		FileOutputStream fileOutputStream = new FileOutputStream(filePath, false);
-		OutputStreamWriter streamWriter = new OutputStreamWriter(fileOutputStream, Constants.CHARSET);
+		OutputStreamWriter streamWriter = new OutputStreamWriter(fileOutputStream, AppConstants.CHARSET);
 
 		BufferedWriter bufferedWriter = new BufferedWriter(streamWriter);
 		PrintWriter printWriter = new PrintWriter(bufferedWriter);

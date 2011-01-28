@@ -27,6 +27,8 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.concurrent.ConcurrentHashMap;
 
+import pspnetparty.lib.constants.ProtocolConstants;
+
 public class RoomEngine {
 
 	private HashMap<String, PlayerState> playersByName = new LinkedHashMap<String, PlayerState>();
@@ -35,7 +37,7 @@ public class RoomEngine {
 	private HashMap<String, Long> masterMacAddresses = new HashMap<String, Long>();
 
 	private Map<InetSocketAddress, TunnelState> notYetLinkedTunnels = new ConcurrentHashMap<InetSocketAddress, TunnelState>();
-	
+
 	private String masterName;
 	private IRoomMasterHandler roomMasterHandler;
 
@@ -43,6 +45,10 @@ public class RoomEngine {
 	private String title;
 	private String description = "";
 	private String password = "";
+
+	private String roomMasterAuthCode;
+
+	private boolean allowEmptyMasterNameLogin = true;
 
 	private IServer<PlayerState> roomServer;
 	private RoomHandler roomHandler;
@@ -95,8 +101,10 @@ public class RoomEngine {
 	private void serverStartupFinished() {
 		synchronized (serverCountLock) {
 			activeServerCount++;
-			if (activeServerCount == 2)
-				roomMasterHandler.roomOpened();
+			if (activeServerCount == 2) {
+				roomMasterAuthCode = Utility.makeAuthCode();
+				roomMasterHandler.roomOpened(roomMasterAuthCode);
+			}
 		}
 	}
 
@@ -117,7 +125,7 @@ public class RoomEngine {
 	}
 
 	private void appendNotifyUserList(StringBuilder sb) {
-		sb.append(Constants.Protocol.NOTIFY_USER_LIST);
+		sb.append(ProtocolConstants.Room.NOTIFY_USER_LIST);
 		sb.append(' ').append(masterName);
 		synchronized (playersByName) {
 			for (Entry<String, PlayerState> entry : playersByName.entrySet()) {
@@ -127,7 +135,7 @@ public class RoomEngine {
 		}
 	}
 
-	private void forEachParticipant(PlayerStateAction action) {
+	private void forEachParticipant(IClientStateAction<PlayerState> action) {
 		synchronized (playersByName) {
 			for (Entry<String, PlayerState> entry : playersByName.entrySet()) {
 				PlayerState state = entry.getValue();
@@ -138,12 +146,12 @@ public class RoomEngine {
 
 	public void updateRoom() {
 		StringBuilder sb = new StringBuilder();
-		sb.append(Constants.Protocol.NOTIFY_ROOM_UPDATED);
+		sb.append(ProtocolConstants.Room.NOTIFY_ROOM_UPDATED);
 		appendRoomInfo(sb);
 
 		final String notify = sb.toString();
 
-		forEachParticipant(new PlayerStateAction() {
+		forEachParticipant(new IClientStateAction<PlayerState>() {
 			@Override
 			public void action(PlayerState p) {
 				p.getConnection().send(notify);
@@ -158,9 +166,9 @@ public class RoomEngine {
 			if (kickedPlayer == null)
 				return;
 		}
-		final String notify = Constants.Protocol.NOTIFY_ROOM_PLAYER_KICKED + " " + name;
+		final String notify = ProtocolConstants.Room.NOTIFY_ROOM_PLAYER_KICKED + " " + name;
 
-		forEachParticipant(new PlayerStateAction() {
+		forEachParticipant(new IClientStateAction<PlayerState>() {
 			@Override
 			public void action(PlayerState p) {
 				p.getConnection().send(notify);
@@ -170,7 +178,7 @@ public class RoomEngine {
 		if (kickedPlayer.tunnelState != null)
 			notYetLinkedTunnels.remove(kickedPlayer.tunnelState.getConnection().getRemoteAddress());
 
-		kickedPlayer.getConnection().send(Constants.Protocol.NOTIFY_ROOM_PLAYER_KICKED + " " + name);
+		kickedPlayer.getConnection().send(ProtocolConstants.Room.NOTIFY_ROOM_PLAYER_KICKED + " " + name);
 		kickedPlayer.getConnection().disconnect();
 	}
 
@@ -180,8 +188,8 @@ public class RoomEngine {
 
 	private void processChat(String player, String text) {
 		String chatText = String.format("<%s> %s", player, text);
-		final String chatMessage = Constants.Protocol.COMMAND_CHAT + " " + chatText;
-		forEachParticipant(new PlayerStateAction() {
+		final String chatMessage = ProtocolConstants.Room.COMMAND_CHAT + " " + chatText;
+		forEachParticipant(new IClientStateAction<PlayerState>() {
 			@Override
 			public void action(PlayerState p) {
 				p.getConnection().send(chatMessage);
@@ -230,23 +238,28 @@ public class RoomEngine {
 		this.password = password;
 	}
 
+	public void setAllowEmptyMasterNameLogin(boolean allowEmptyMasterNameLogin) {
+		this.allowEmptyMasterNameLogin = allowEmptyMasterNameLogin;
+	}
+
 	class RoomHandler implements IServerHandler<PlayerState> {
 
-		private HashMap<String, PlayerMessageHandler> firstStageHandler = new HashMap<String, PlayerMessageHandler>();
-		private HashMap<String, PlayerMessageHandler> secondStageHandler = new HashMap<String, PlayerMessageHandler>();
-		private HashMap<String, PlayerMessageHandler> thirdStageHandler = new HashMap<String, PlayerMessageHandler>();
+		private HashMap<String, IServerMessageHandler<PlayerState>> protocolHandlers = new HashMap<String, IServerMessageHandler<PlayerState>>();
+		private HashMap<String, IServerMessageHandler<PlayerState>> loginHandlers = new HashMap<String, IServerMessageHandler<PlayerState>>();
+		private HashMap<String, IServerMessageHandler<PlayerState>> sessionHandlers = new HashMap<String, IServerMessageHandler<PlayerState>>();
 
 		RoomHandler() {
-			firstStageHandler.put(Constants.Protocol.COMMAND_VERSION, new VersionMatchHandler());
+			protocolHandlers.put(ProtocolConstants.Room.PROTOCOL_NAME, new ProtocolMatchHandler());
 
-			secondStageHandler.put(Constants.Protocol.COMMAND_LOGIN, new LoginHandler());
-			secondStageHandler.put(Constants.Protocol.COMMAND_LOGOUT, new LogoutHandler());
+			loginHandlers.put(ProtocolConstants.Room.COMMAND_LOGIN, new LoginHandler());
+			loginHandlers.put(ProtocolConstants.Room.COMMAND_LOGOUT, new LogoutHandler());
+			loginHandlers.put(ProtocolConstants.Room.COMMAND_CONFIRM_AUTH_CODE, new ConfirmAuthCodeHandler());
 
-			thirdStageHandler.put(Constants.Protocol.COMMAND_LOGOUT, new LogoutHandler());
-			thirdStageHandler.put(Constants.Protocol.COMMAND_CHAT, new ChatHandler());
-			thirdStageHandler.put(Constants.Protocol.COMMAND_PING, new PingHandler());
-			thirdStageHandler.put(Constants.Protocol.COMMAND_INFORM_PING, new InformPingHandler());
-			thirdStageHandler.put(Constants.Protocol.COMMAND_INFORM_TUNNEL_UDP_PORT, new InformTunnelPortHandler());
+			sessionHandlers.put(ProtocolConstants.Room.COMMAND_LOGOUT, new LogoutHandler());
+			sessionHandlers.put(ProtocolConstants.Room.COMMAND_CHAT, new ChatHandler());
+			sessionHandlers.put(ProtocolConstants.Room.COMMAND_PING, new PingHandler());
+			sessionHandlers.put(ProtocolConstants.Room.COMMAND_INFORM_PING, new InformPingHandler());
+			sessionHandlers.put(ProtocolConstants.Room.COMMAND_INFORM_TUNNEL_UDP_PORT, new InformTunnelPortHandler());
 		}
 
 		@Override
@@ -265,9 +278,9 @@ public class RoomEngine {
 		}
 
 		@Override
-		public PlayerState createState(IServerConnection connection) {
+		public PlayerState createState(ISocketConnection connection) {
 			PlayerState state = new PlayerState(connection);
-			state.messageHandlers = firstStageHandler;
+			state.messageHandlers = protocolHandlers;
 			return state;
 		}
 
@@ -281,8 +294,8 @@ public class RoomEngine {
 					playersByName.remove(state.name);
 				}
 
-				final String notify = Constants.Protocol.NOTIFY_USER_EXITED + " " + state.name;
-				forEachParticipant(new PlayerStateAction() {
+				final String notify = ProtocolConstants.Room.NOTIFY_USER_EXITED + " " + state.name;
+				forEachParticipant(new IClientStateAction<PlayerState>() {
 					@Override
 					public void action(PlayerState p) {
 						p.getConnection().send(notify);
@@ -307,7 +320,7 @@ public class RoomEngine {
 					argument = "";
 				}
 
-				PlayerMessageHandler handler = state.messageHandlers.get(command);
+				IServerMessageHandler<PlayerState> handler = state.messageHandlers.get(command);
 				if (handler != null) {
 					sessionContinue = handler.process(state, argument);
 				}
@@ -319,14 +332,14 @@ public class RoomEngine {
 			return sessionContinue;
 		}
 
-		class VersionMatchHandler implements PlayerMessageHandler {
-			String errorMessage = Constants.Protocol.ERROR_VERSION_MISMATCH + " " + Constants.Protocol.PROTOCOL_NUMBER;
+		private class ProtocolMatchHandler implements IServerMessageHandler<PlayerState> {
+			String errorMessage = ProtocolConstants.ERROR_PROTOCOL_MISMATCH + " " + ProtocolConstants.PROTOCOL_NUMBER;
 
 			@Override
 			public boolean process(PlayerState state, String argument) {
-				if (Constants.Protocol.PROTOCOL_NUMBER.equals(argument)) {
-					state.messageHandlers = secondStageHandler;
-					state.getConnection().send(Constants.Protocol.SERVER_ROOM);
+				if (ProtocolConstants.PROTOCOL_NUMBER.equals(argument)) {
+					state.messageHandlers = loginHandlers;
+					// state.getConnection().send(ProtocolConstants.Room.PROTOCOL_NAME);
 					return true;
 				} else {
 					state.getConnection().send(errorMessage);
@@ -335,52 +348,77 @@ public class RoomEngine {
 			}
 		}
 
-		class LoginHandler implements PlayerMessageHandler {
+		private class ConfirmAuthCodeHandler implements IServerMessageHandler<PlayerState> {
+			@Override
+			public boolean process(PlayerState state, String argument) {
+				// CAC masterName authCode
+				String[] tokens = argument.split(" ");
+				if (tokens.length != 2)
+					return false;
+
+				String masterName = tokens[0];
+				String authCode = tokens[1];
+				if (masterName.equals(RoomEngine.this.masterName) && authCode.equals(roomMasterAuthCode)) {
+					state.getConnection().send(ProtocolConstants.Room.COMMAND_CONFIRM_AUTH_CODE);
+				}
+				return false;
+			}
+		}
+
+		private class LoginHandler implements IServerMessageHandler<PlayerState> {
 			@Override
 			public boolean process(final PlayerState state, String argument) {
-				// LI "" loginName password
+				// LI "masterName" loginName password
 				String[] tokens = argument.split(" ");
 
 				String loginRoomMasterName = Utility.removeQuotations(tokens[0]);
 				String loginName = tokens[1];
 				String sentPassword = tokens.length == 2 ? null : tokens[1];
 
-				if (loginRoomMasterName.length() != 0 || loginName.length() == 0) {
+				if (loginRoomMasterName.length() == 0) {
+					if (!allowEmptyMasterNameLogin) {
+						return false;
+					}
+				} else if (loginRoomMasterName.equals(masterName)) {
+					return false;
+				}
+
+				if (loginName.length() == 0) {
 					return false;
 				}
 
 				if (!Utility.isEmpty(RoomEngine.this.password)) {
 					if (sentPassword == null) {
-						state.getConnection().send(Constants.Protocol.NOTIFY_ROOM_PASSWORD_REQUIRED);
+						state.getConnection().send(ProtocolConstants.Room.NOTIFY_ROOM_PASSWORD_REQUIRED);
 						return true;
 					}
 					if (!RoomEngine.this.password.equals(sentPassword)) {
-						state.getConnection().send(Constants.Protocol.ERROR_ROOM_ENTER_PASSWORD_FAIL);
+						state.getConnection().send(ProtocolConstants.Room.ERROR_ROOM_ENTER_PASSWORD_FAIL);
 						return true;
 					}
 				}
 
 				if (masterName.equals(loginName) || playersByName.containsKey(loginName)) {
 					// 同名のユーザーが存在するので接続を拒否します
-					state.getConnection().send(Constants.Protocol.ERROR_LOGIN_DUPLICATED_NAME);
+					state.getConnection().send(ProtocolConstants.Room.ERROR_LOGIN_DUPLICATED_NAME);
 					return false;
 				}
 
 				synchronized (playersByName) {
 					if (playersByName.size() < maxPlayers - 1) {
 						playersByName.put(loginName, state);
-						state.messageHandlers = thirdStageHandler;
+						state.messageHandlers = sessionHandlers;
 
 						state.name = loginName;
 					} else {
 						// 最大人数を超えたので接続を拒否します
-						state.getConnection().send(Constants.Protocol.ERROR_LOGIN_BEYOND_CAPACITY);
+						state.getConnection().send(ProtocolConstants.Room.ERROR_LOGIN_BEYOND_CAPACITY);
 						return false;
 					}
 				}
 
-				final String notify = Constants.Protocol.NOTIFY_USER_ENTERED + " " + loginName;
-				forEachParticipant(new PlayerStateAction() {
+				final String notify = ProtocolConstants.Room.NOTIFY_USER_ENTERED + " " + loginName;
+				forEachParticipant(new IClientStateAction<PlayerState>() {
 					@Override
 					public void action(PlayerState p) {
 						if (p != state)
@@ -391,10 +429,10 @@ public class RoomEngine {
 
 				StringBuilder sb = new StringBuilder();
 
-				sb.append(Constants.Protocol.COMMAND_LOGIN);
+				sb.append(ProtocolConstants.Room.COMMAND_LOGIN);
 				appendRoomInfo(sb);
 
-				sb.append(Constants.Protocol.MESSAGE_SEPARATOR);
+				sb.append(ProtocolConstants.MESSAGE_SEPARATOR);
 				appendNotifyUserList(sb);
 
 				state.getConnection().send(sb.toString());
@@ -403,14 +441,14 @@ public class RoomEngine {
 			}
 		}
 
-		class LogoutHandler implements PlayerMessageHandler {
+		private class LogoutHandler implements IServerMessageHandler<PlayerState> {
 			@Override
 			public boolean process(PlayerState state, String argument) {
 				return false;
 			}
 		}
 
-		class ChatHandler implements PlayerMessageHandler {
+		private class ChatHandler implements IServerMessageHandler<PlayerState> {
 			@Override
 			public boolean process(PlayerState state, String argument) {
 				processChat(state.name, argument);
@@ -418,21 +456,21 @@ public class RoomEngine {
 			}
 		}
 
-		class PingHandler implements PlayerMessageHandler {
+		private class PingHandler implements IServerMessageHandler<PlayerState> {
 			@Override
 			public boolean process(PlayerState state, String argument) {
-				state.getConnection().send(Constants.Protocol.COMMAND_PINGBACK + " " + argument);
+				state.getConnection().send(ProtocolConstants.Room.COMMAND_PINGBACK + " " + argument);
 				return true;
 			}
 		}
 
-		class InformPingHandler implements PlayerMessageHandler {
+		private class InformPingHandler implements IServerMessageHandler<PlayerState> {
 			@Override
 			public boolean process(final PlayerState state, String argument) {
 				try {
 					int ping = Integer.parseInt(argument);
-					final String message = Constants.Protocol.COMMAND_INFORM_PING + " " + state.name + " " + argument;
-					forEachParticipant(new PlayerStateAction() {
+					final String message = ProtocolConstants.Room.COMMAND_INFORM_PING + " " + state.name + " " + argument;
+					forEachParticipant(new IClientStateAction<PlayerState>() {
 						@Override
 						public void action(PlayerState p) {
 							if (p != state)
@@ -446,7 +484,7 @@ public class RoomEngine {
 			}
 		}
 
-		class InformTunnelPortHandler implements PlayerMessageHandler {
+		private class InformTunnelPortHandler implements IServerMessageHandler<PlayerState> {
 			@Override
 			public boolean process(PlayerState state, String argument) {
 				try {
@@ -455,7 +493,7 @@ public class RoomEngine {
 					state.tunnelState = notYetLinkedTunnels.remove(remoteEP);
 
 					if (state.tunnelState != null)
-						state.getConnection().send(Constants.Protocol.COMMAND_INFORM_TUNNEL_UDP_PORT);
+						state.getConnection().send(ProtocolConstants.Room.COMMAND_INFORM_TUNNEL_UDP_PORT);
 				} catch (NumberFormatException e) {
 				}
 				return true;
@@ -480,7 +518,7 @@ public class RoomEngine {
 		}
 
 		@Override
-		public TunnelState createState(IServerConnection connection) {
+		public TunnelState createState(ISocketConnection connection) {
 			TunnelState state = new TunnelState(connection);
 			notYetLinkedTunnels.put(connection.getRemoteAddress(), state);
 			return state;

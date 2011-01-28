@@ -21,168 +21,226 @@ package pspnetparty.lib;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
+import java.nio.channels.ClosedSelectorException;
 import java.nio.channels.DatagramChannel;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
+import java.util.HashSet;
 import java.util.Iterator;
 
-public class AsyncUdpClient implements IAsyncClient {
+import pspnetparty.lib.constants.AppConstants;
+
+public class AsyncUdpClient {
 
 	private static final int BUFFER_SIZE = 20000;
 
-	private IAsyncClientHandler handler;
-
-	private InetSocketAddress remoteAddress;
-
 	private Selector selector;
-	private DatagramChannel channel;
-	private boolean isConnected = false;
+	private HashSet<Connection> connections = new HashSet<Connection>();
 
-	public AsyncUdpClient(IAsyncClientHandler handler) {
-		this.handler = handler;
-	}
+	private Thread selectorThread;
 
-	@Override
-	public void connect(InetSocketAddress address) throws IOException {
-		if (address == null)
-			throw new IllegalArgumentException();
+	public AsyncUdpClient() {
+		try {
+			selector = Selector.open();
+		} catch (IOException e) {
+			throw new RuntimeException(e);
+		}
 
-		this.remoteAddress = address;
-
-		selector = Selector.open();
-
-		channel = DatagramChannel.open();
-		channel.configureBlocking(false);
-		channel.register(selector, SelectionKey.OP_READ);
-		channel.connect(address);
-
-		isConnected = true;
-
-		Runnable run = new Runnable() {
-			private ByteBuffer readBuffer = ByteBuffer.allocateDirect(BUFFER_SIZE);
-			private PacketData packetData = new PacketData(readBuffer);
-
+		selectorThread = new Thread(new Runnable() {
 			@Override
 			public void run() {
 				try {
-					while (isConnected) {
-						if (selector.select(2000) > 0) {
-							for (Iterator<SelectionKey> it = selector.selectedKeys().iterator(); it.hasNext();) {
-								SelectionKey key = it.next();
-								it.remove();
+					while (selector.isOpen()) {
+						synchronized (connections) {
+							while (connections.isEmpty())
+								connections.wait();
+						}
+						while (!connections.isEmpty())
+							if (selector.select(1000) > 0) {
+								for (Iterator<SelectionKey> it = selector.selectedKeys().iterator(); it.hasNext();) {
+									SelectionKey key = it.next();
+									it.remove();
+									Connection connection = (Connection) key.attachment();
 
-								if (key.isReadable()) {
-									readBuffer.clear();
-									channel.read(readBuffer);
-									readBuffer.flip();
-
-									handler.readCallback(AsyncUdpClient.this, packetData);
+									try {
+										if (key.isReadable()) {
+											connection.readReady();
+										}
+									} catch (IOException e) {
+										connection.handler.log(connection, Utility.makeStackTrace(e));
+										key.cancel();
+										connection.disconnect();
+									}
 								}
 							}
-						}
 					}
+				} catch (ClosedSelectorException e) {
 				} catch (IOException e) {
-					handler.log(AsyncUdpClient.this, Utility.makeStackTrace(e));
-				} finally {
-					isConnected = false;
-					try {
-						handler.disconnectCallback(AsyncUdpClient.this);
-					} catch (RuntimeException re) {
-					}
-					if (channel != null && channel.isOpen()) {
-						try {
-							channel.close();
-						} catch (IOException e) {
-						}
-					}
+				} catch (InterruptedException e) {
 				}
 			}
-		};
-
-		handler.connectCallback(AsyncUdpClient.this);
-		Thread dispatchThread = new Thread(run, AsyncUdpClient.class.getName());
-		// dispatchThread.setDaemon(true);
-		dispatchThread.start();
+		}, AsyncUdpClient.class.getName());
+		selectorThread.setDaemon(true);
+		//selectorThread.start();
 	}
 
-	@Override
-	public void disconnect() {
-		isConnected = false;
+	private class Connection implements ISocketConnection {
+		private DatagramChannel channel;
+
+		private InetSocketAddress remoteAddress;
+		private IAsyncClientHandler handler;
+
+		private ByteBuffer readBuffer = ByteBuffer.allocateDirect(BUFFER_SIZE);
+		private PacketData packetData = new PacketData(readBuffer);
+
+		public Connection(InetSocketAddress address, IAsyncClientHandler handler) throws IOException {
+			this.remoteAddress = address;
+			this.handler = handler;
+
+			channel = DatagramChannel.open();
+			channel.configureBlocking(false);
+			channel.register(selector, SelectionKey.OP_READ, this);
+			channel.connect(address);
+
+			handler.connectCallback(this);
+
+			synchronized (connections) {
+				if (!selectorThread.isAlive()) {
+					selectorThread.start();
+				}
+				connections.add(this);
+				connections.notify();
+			}
+		}
+
+		private void readReady() throws IOException {
+			readBuffer.clear();
+			channel.read(readBuffer);
+			readBuffer.flip();
+
+			handler.readCallback(this, packetData);
+		}
+
+		@Override
+		public void disconnect() {
+			synchronized (connections) {
+				if (!connections.remove(this))
+					return;
+			}
+			try {
+				handler.disconnectCallback(this);
+			} catch (RuntimeException re) {
+			}
+			if (channel.isOpen()) {
+				try {
+					channel.close();
+				} catch (IOException e) {
+				}
+			}
+		}
+
+		@Override
+		public boolean isConnected() {
+			return channel.isOpen();
+		}
+
+		@Override
+		public InetSocketAddress getRemoteAddress() {
+			return remoteAddress;
+		}
+
+		@Override
+		public void send(ByteBuffer buffer) {
+			if (!channel.isOpen())
+				return;
+
+			try {
+				channel.send(buffer, remoteAddress);
+			} catch (IOException e) {
+				handler.log(this, buffer.toString());
+				handler.log(this, Utility.makeStackTrace(e));
+			}
+		}
+
+		@Override
+		public void send(byte[] data) {
+			send(ByteBuffer.wrap(data));
+		}
+
+		@Override
+		public void send(String data) {
+			ByteBuffer buffer = AppConstants.CHARSET.encode(data);
+			send(buffer);
+		}
 	}
 
-	@Override
-	public boolean isConnected() {
-		return isConnected;
+	public ISocketConnection connect(InetSocketAddress address, IAsyncClientHandler handler) throws IOException {
+		if (address == null)
+			throw new IllegalArgumentException();
+
+		return new Connection(address, handler);
 	}
 
-	@Override
-	public InetSocketAddress getSocketAddress() {
-		return remoteAddress;
-	}
-
-	@Override
-	public void send(ByteBuffer buffer) {
-		if (!isConnected)
+	public void dispose() {
+		if (!selector.isOpen())
 			return;
-
+		for (Connection conn : connections) {
+			conn.disconnect();
+		}
+		connections.clear();
 		try {
-			channel.send(buffer, remoteAddress);
+			selector.close();
 		} catch (IOException e) {
-			handler.log(this, buffer.toString());
-			handler.log(this, Utility.makeStackTrace(e));
+			e.printStackTrace();
 		}
 	}
 
 	@Override
-	public void send(byte[] data) {
-		send(ByteBuffer.wrap(data));
-	}
-
-	@Override
-	public void send(String data) {
-		ByteBuffer buffer = Constants.CHARSET.encode(data);
-		send(buffer);
+	protected void finalize() throws Throwable {
+		super.finalize();
+		dispose();
 	}
 
 	public static void main(String[] args) throws IOException {
-		IAsyncClientHandler handler = new IAsyncClientHandler() {
+		final AsyncUdpClient client = new AsyncUdpClient();
+		InetSocketAddress address = new InetSocketAddress("localhost", 30000);
+		final ISocketConnection conn = client.connect(address, new IAsyncClientHandler() {
 			@Override
-			public void log(IAsyncClient client, String message) {
+			public void log(ISocketConnection connection, String message) {
 				System.out.println(message);
 			}
 
 			@Override
-			public void readCallback(IAsyncClient client, PacketData data) {
-				for (String msg : data.getMessages()) {
-					System.out.println("受信("+ msg.length() + ")： " + msg);
-				}
+			public void connectCallback(ISocketConnection connection) {
+				System.out.println("接続しました: " + connection.getRemoteAddress());
 			}
 
 			@Override
-			public void disconnectCallback(IAsyncClient client) {
+			public void disconnectCallback(ISocketConnection connection) {
 				System.out.println("切断しました");
 			}
 
 			@Override
-			public void connectCallback(IAsyncClient client) {
-				System.out.println("接続しました: " + client.getSocketAddress());
+			public void readCallback(ISocketConnection connection, PacketData data) {
+				for (String msg : data.getMessages()) {
+					System.out.println("受信(" + msg.length() + ")： " + msg);
+				}
 			}
-		};
-
-		final AsyncUdpClient client = new AsyncUdpClient(handler);
-		client.connect(new InetSocketAddress("localhost", 30000));
+		});
 
 		Thread sendThread = new Thread(new Runnable() {
 			@Override
 			public void run() {
 				for (int i = 0; i < 3; i++)
 					try {
-						Thread.sleep(1000);
-						client.send("TEST " + i);
+						Thread.sleep(500);
+						conn.send("TEST " + i);
+						Thread.sleep(500);
 					} catch (InterruptedException e) {
 					}
-					
-				client.disconnect();
+
+				conn.disconnect();
+				client.dispose();
 			}
 		});
 		sendThread.start();

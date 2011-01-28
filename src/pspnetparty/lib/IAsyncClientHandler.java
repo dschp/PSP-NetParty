@@ -19,10 +19,8 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 package pspnetparty.lib;
 
 public interface IAsyncClientHandler {
-	
-	public void connectCallback(IAsyncClient client);
-	public void readCallback(IAsyncClient client, PacketData data);
-	//public void SendCallback(int bytesSent);
-	public void disconnectCallback(IAsyncClient client);
-	public void log(IAsyncClient client, String message);
+	public void connectCallback(ISocketConnection connection);
+	public void readCallback(ISocketConnection connection, PacketData data);
+	public void disconnectCallback(ISocketConnection connection);
+	public void log(ISocketConnection connection, String message);
 }

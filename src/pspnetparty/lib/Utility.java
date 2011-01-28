@@ -24,13 +24,15 @@ import java.nio.ByteBuffer;
 import org.jnetpcap.packet.PcapPacket;
 import org.jnetpcap.protocol.lan.Ethernet;
 
+import pspnetparty.lib.constants.AppConstants;
+
 public class Utility {
 
 	private Utility() {
 	}
 	
 	public static String decode(ByteBuffer buffer) {
-		return Constants.CHARSET.decode(buffer).toString();
+		return AppConstants.CHARSET.decode(buffer).toString();
 	}
 
 	public static String makeStackTrace(Exception exception) {
@@ -95,6 +97,10 @@ public class Utility {
 
 	public static boolean isMacBroadCastAddress(String macAddress) {
 		return "FFFFFFFFFFFF".equals(macAddress);
+	}
+	
+	public static String makeAuthCode() {
+		return Long.toString(System.currentTimeMillis());
 	}
 
 	public static void main(String[] args) {

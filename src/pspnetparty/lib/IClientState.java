@@ -19,5 +19,5 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 package pspnetparty.lib;
 
 public interface IClientState {
-	public IServerConnection getConnection();
+	public ISocketConnection getConnection();
 }

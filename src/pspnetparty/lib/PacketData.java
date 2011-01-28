@@ -20,6 +20,8 @@ package pspnetparty.lib;
 
 import java.nio.ByteBuffer;
 
+import pspnetparty.lib.constants.ProtocolConstants;
+
 public class PacketData {
 	
 	private ByteBuffer buffer;
@@ -34,7 +36,7 @@ public class PacketData {
 	
 	public String[] getMessages() {
 		String data = Utility.decode(buffer);
-		return data.split(Constants.Protocol.MESSAGE_SEPARATOR);
+		return data.split(ProtocolConstants.MESSAGE_SEPARATOR);
 	}
 	
 	public ByteBuffer getBuffer() {

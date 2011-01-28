@@ -18,24 +18,23 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 package pspnetparty.lib;
 
-import java.net.InetSocketAddress;
 import java.util.HashMap;
 
 
 public class PlayerState implements IClientState {
 	
-	private IServerConnection connection;
+	private ISocketConnection connection;
 	
-	public HashMap<String, PlayerMessageHandler> messageHandlers;
+	public HashMap<String, IServerMessageHandler<PlayerState>> messageHandlers;
 	public String name;
 	public TunnelState tunnelState;
 	
-	public PlayerState(IServerConnection conn) {
+	public PlayerState(ISocketConnection conn) {
 		connection = conn;
 	}
 
 	@Override
-	public IServerConnection getConnection() {
+	public ISocketConnection getConnection() {
 		return connection;
 	}
 

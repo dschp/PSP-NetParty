@@ -19,7 +19,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 package pspnetparty.lib;
 
 public interface IServerHandler<Type extends IClientState> extends ILogger {
-	public Type createState(IServerConnection connection);
+	public Type createState(ISocketConnection connection);
 	public void disposeState(Type state);
 	public boolean processIncomingData(Type state, PacketData data);
 	public void serverStartupFinished();

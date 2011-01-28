@@ -21,12 +21,16 @@ package pspnetparty.lib;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
+import java.nio.channels.CancelledKeyException;
+import java.nio.channels.ClosedSelectorException;
 import java.nio.channels.DatagramChannel;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map.Entry;
+
+import pspnetparty.lib.constants.AppConstants;
 
 public class AsyncUdpServer<Type extends IClientState> implements IServer<Type> {
 
@@ -42,19 +46,23 @@ public class AsyncUdpServer<Type extends IClientState> implements IServer<Type> 
 
 	private HashMap<InetSocketAddress, Connection> establishedConnections = new HashMap<InetSocketAddress, Connection>();
 
+	private Thread selectorThread;
+
+	private Thread sessionCleanupThread;
+
 	public AsyncUdpServer() {
 	}
 
-	private class Connection implements IServerConnection {
-		private DatagramChannel channel;
+	private class Connection implements ISocketConnection {
 		private InetSocketAddress remoteAddress;
 
 		public Type state;
 		public long lastUsedTime;
 
-		public Connection(DatagramChannel channel, InetSocketAddress remoteAddress) {
-			this.channel = channel;
+		public Connection(InetSocketAddress remoteAddress) {
 			this.remoteAddress = remoteAddress;
+
+			establishedConnections.put(remoteAddress, this);
 		}
 
 		@Override
@@ -63,17 +71,28 @@ public class AsyncUdpServer<Type extends IClientState> implements IServer<Type> 
 		}
 
 		@Override
+		public boolean isConnected() {
+			return serverChannel.isConnected();
+		}
+
+		@Override
 		public void send(String message) {
-			ByteBuffer buffer = Constants.CHARSET.encode(message);
+			ByteBuffer buffer = AppConstants.CHARSET.encode(message);
 			send(buffer);
 		}
 
 		@Override
 		public void send(ByteBuffer buffer) {
 			try {
-				channel.send(buffer, remoteAddress);
+				serverChannel.send(buffer, remoteAddress);
 			} catch (IOException e) {
 			}
+		}
+
+		@Override
+		public void send(byte[] data) {
+			ByteBuffer buffer = ByteBuffer.wrap(data);
+			send(buffer);
 		}
 
 		@Override
@@ -82,21 +101,21 @@ public class AsyncUdpServer<Type extends IClientState> implements IServer<Type> 
 				handler.disposeState(state);
 				state = null;
 			}
-			if (channel != null) {
-				try {
-					channel.close();
-					channel = null;
-				} catch (IOException e) {
-				}
-			}
+			establishedConnections.remove(remoteAddress);
 
 			lastUsedTime = 0;
 		}
 	}
 
 	@Override
-	public void startListening(InetSocketAddress bindAddress, IServerHandler<Type> handler) throws IOException {
-		stopListening();
+	public boolean isListening() {
+		return selector != null && selector.isOpen();
+	}
+
+	@Override
+	public void startListening(InetSocketAddress bindAddress, final IServerHandler<Type> handler) throws IOException {
+		if (isListening())
+			stopListening();
 		this.handler = handler;
 
 		selector = Selector.open();
@@ -108,44 +127,64 @@ public class AsyncUdpServer<Type extends IClientState> implements IServer<Type> 
 
 		handler.log("UDP: Listening on " + bindAddress);
 
-		Thread asyncLoopThread = new Thread(new Runnable() {
+		selectorThread = new Thread(new Runnable() {
 			@Override
 			public void run() {
 				AsyncUdpServer.this.handler.serverStartupFinished();
 				try {
-					while (serverChannel.isOpen())
-						while (selector.select(2000) > 0) {
-							for (Iterator<SelectionKey> it = selector.selectedKeys().iterator(); it.hasNext();) {
-								SelectionKey key = it.next();
-								it.remove();
+					// while (serverChannel.isOpen())
+					while (selector.select() > 0) {
+						for (Iterator<SelectionKey> it = selector.selectedKeys().iterator(); it.hasNext();) {
+							SelectionKey key = it.next();
+							it.remove();
 
-								if (key.isReadable()) {
-									DatagramChannel channel = (DatagramChannel) key.channel();
-									try {
-										doRead(channel);
-									} catch (Exception e) {
-										key.cancel();
-										// e.printStackTrace();
+							if (key.isReadable()) {
+								try {
+									readBuffer.clear();
+									InetSocketAddress remoteAddress = (InetSocketAddress) serverChannel.receive(readBuffer);
+									if (remoteAddress == null) {
+										throw new IOException("Client has disconnected.");
 									}
+									readBuffer.flip();
+
+									Connection conn = establishedConnections.get(remoteAddress);
+									if (conn == null) {
+										conn = new Connection(remoteAddress);
+										conn.state = handler.createState(conn);
+									}
+									conn.lastUsedTime = System.currentTimeMillis();
+
+									boolean sessionContinue = handler.processIncomingData(conn.state, data);
+
+									if (!sessionContinue) {
+										conn.disconnect();
+										//key.cancel();
+									}
+								} catch (Exception e) {
+									//key.cancel();
 								}
 							}
 						}
+					}
+				} catch (CancelledKeyException e) {
+				} catch (ClosedSelectorException e) {
 				} catch (IOException e) {
-					e.printStackTrace();
+					AsyncUdpServer.this.handler.log(Utility.makeStackTrace(e));
 				}
-				
+
 				AsyncUdpServer.this.handler.log("UDP: Now shuting down...");
 				AsyncUdpServer.this.handler.serverShutdownFinished();
+				sessionCleanupThread.interrupt();
 			}
 		});
-		asyncLoopThread.setName(AsyncUdpServer.class.getName());
-		asyncLoopThread.start();
+		selectorThread.setName(AsyncUdpServer.class.getName());
+		selectorThread.start();
 
-		Thread sessionCleanupThread = new Thread(new Runnable() {
+		sessionCleanupThread = new Thread(new Runnable() {
 			@Override
 			public void run() {
 				try {
-					while (serverChannel.isOpen()) {
+					while (isListening()) {
 						long deadline = System.currentTimeMillis() - 60000;
 						Iterator<Entry<InetSocketAddress, Connection>> iter = establishedConnections.entrySet().iterator();
 						while (iter.hasNext()) {
@@ -156,62 +195,43 @@ public class AsyncUdpServer<Type extends IClientState> implements IServer<Type> 
 								conn.disconnect();
 							}
 						}
+						//AsyncUdpServer.this.handler.log(establishedConnections.toString());
 						Thread.sleep(20000);
 					}
 				} catch (InterruptedException e) {
-					e.printStackTrace();
 				}
 			}
 		});
 		sessionCleanupThread.setName(AsyncUdpServer.class.getName() + " SessionCleanup");
 		sessionCleanupThread.setDaemon(true);
-		// sessionCleanupThread.start();
+		sessionCleanupThread.start();
 	}
 
 	@Override
 	public void stopListening() {
+		if (!isListening())
+			return;
+
+		try {
+			selector.close();
+		} catch (IOException e) {
+		}
+		selector = null;
+
 		if (serverChannel != null && serverChannel.isOpen()) {
 			try {
 				serverChannel.close();
 			} catch (IOException e) {
 			}
 		}
-	}
-
-	private void doRead(DatagramChannel channel) throws IOException {
-		Connection conn = null;
-		try {
-			readBuffer.clear();
-			InetSocketAddress remoteAddress = (InetSocketAddress) channel.receive(readBuffer);
-			if (remoteAddress == null) {
-				throw new IOException("Client has disconnected.");
-			}
-			readBuffer.flip();
-
-			conn = establishedConnections.get(remoteAddress);
-			if (conn == null) {
-				conn = new Connection(channel, remoteAddress);
-
-				conn.state = handler.createState(conn);
-
-				establishedConnections.put(remoteAddress, conn);
-			}
-			conn.lastUsedTime = System.currentTimeMillis();
-
-			boolean sessionContinue = handler.processIncomingData(conn.state, data);
-			
-			if (!sessionContinue) {
-				conn.disconnect();
-				establishedConnections.remove(remoteAddress);
-			}
-
-		} catch (IOException e) {
-			// Disconnected
-			if (conn != null) {
-				conn.disconnect();
-			}
-			throw e;
-		}
+//		Iterator<Entry<InetSocketAddress, Connection>> iter = establishedConnections.entrySet().iterator();
+//		while (iter.hasNext()) {
+//			Entry<InetSocketAddress, Connection> entry = iter.next();
+//			
+//			Connection conn = entry.getValue();
+//			conn.disconnect();
+//		}
+		establishedConnections.clear();
 	}
 
 	public static void main(String[] args) throws IOException {
@@ -235,7 +255,7 @@ public class AsyncUdpServer<Type extends IClientState> implements IServer<Type> 
 			}
 
 			@Override
-			public IClientState createState(final IServerConnection connection) {
+			public IClientState createState(final ISocketConnection connection) {
 				System.out.println(connection.getRemoteAddress() + "[接続されました]");
 
 				Thread pingThread = new Thread(new Runnable() {
@@ -254,16 +274,16 @@ public class AsyncUdpServer<Type extends IClientState> implements IServer<Type> 
 
 				return new IClientState() {
 					@Override
-					public IServerConnection getConnection() {
+					public ISocketConnection getConnection() {
 						return connection;
 					}
 				};
 			}
-			
+
 			@Override
 			public void serverStartupFinished() {
 			}
-			
+
 			@Override
 			public void serverShutdownFinished() {
 			}

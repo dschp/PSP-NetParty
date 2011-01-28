@@ -22,12 +22,12 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 
-public interface IAsyncClient {
-	public void connect(InetSocketAddress address) throws IOException;
+public interface ISocketConnection {
+	//public void connect(InetSocketAddress address, IAsyncClientHandler handler) throws IOException;
+	public InetSocketAddress getRemoteAddress();
 	public void send(byte[] data);
 	public void send(ByteBuffer buffer);
 	public void send(String data);
 	public void disconnect();
 	public boolean isConnected();
-	public InetSocketAddress getSocketAddress();
 }

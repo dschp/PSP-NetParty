@@ -20,16 +20,16 @@ package pspnetparty.lib;
 
 public class TunnelState implements IClientState {
 	
-	private IServerConnection connection;
+	private ISocketConnection connection;
 	
 	public long lastTunnelTime;
 	
-	public TunnelState(IServerConnection connection) {
+	public TunnelState(ISocketConnection connection) {
 		this.connection = connection;
 	}
 
 	@Override
-	public IServerConnection getConnection() {
+	public ISocketConnection getConnection() {
 		return connection;
 	}
 

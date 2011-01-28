@@ -24,4 +24,5 @@ import java.net.InetSocketAddress;
 public interface IServer<Type extends IClientState> {
 	public void startListening(InetSocketAddress bindAddress, IServerHandler<Type> handler) throws IOException;
 	public void stopListening();
+	public boolean isListening();
 }

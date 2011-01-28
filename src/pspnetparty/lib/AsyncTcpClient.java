@@ -19,214 +19,273 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 package pspnetparty.lib;
 
 import java.io.IOException;
-import java.net.ConnectException;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
+import java.nio.channels.CancelledKeyException;
+import java.nio.channels.ClosedSelectorException;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 import java.nio.channels.SocketChannel;
+import java.util.HashSet;
 import java.util.Iterator;
 
-public class AsyncTcpClient implements IAsyncClient {
+import pspnetparty.lib.constants.AppConstants;
+import pspnetparty.lib.constants.ProtocolConstants;
+
+public class AsyncTcpClient {
 
 	private static final int INITIAL_READ_BUFFER_SIZE = 2000;
 	private static final int MAX_PACKET_SIZE = 100000;
 
-	private IAsyncClientHandler handler;
-
 	private Selector selector;
-	private SocketChannel channel;
-	private boolean isConnected = false;
+	private HashSet<Connection> connections = new HashSet<Connection>();
 
-	private InetSocketAddress remoteAddress;
+	private Thread selectorThread;
+	private ByteBuffer readHeaderBuffer = ByteBuffer.allocateDirect(ProtocolConstants.INTEGER_BYTE_SIZE);
 
-	// private ByteBuffer sendHeaderBuffer =
-	// ByteBuffer.allocate(Constants.Protocol.INTEGER_BYTE_SIZE);
+	public AsyncTcpClient() {
+		try {
+			selector = Selector.open();
+		} catch (IOException e) {
+			throw new RuntimeException(e);
+		}
 
-	public AsyncTcpClient(IAsyncClientHandler handler) {
-		this.handler = handler;
+		selectorThread = new Thread(new Runnable() {
+			@Override
+			public void run() {
+				try {
+					while (selector.isOpen()) {
+						// System.out.println("LOOP");
+						synchronized (connections) {
+							while (connections.isEmpty())
+								connections.wait();
+						}
+						while (!connections.isEmpty())
+							if (selector.select(1000) > 0) {
+								// System.out.println("SELECT");
+								for (Iterator<SelectionKey> it = selector.selectedKeys().iterator(); it.hasNext();) {
+									SelectionKey key = it.next();
+									it.remove();
+									Connection connection = (Connection) key.attachment();
+									try {
+										if (key.isConnectable()) {
+											connection.connectReady();
+										} else if (key.isReadable()) {
+											connection.readReady();
+										}
+									} catch (CancelledKeyException e) {
+										connection.disconnect();
+									} catch (IOException e) {
+										connection.handler.log(connection, Utility.makeStackTrace(e));
+										connection.disconnect();
+									}
+									if (!connection.isConnected()) {
+										key.cancel();
+									}
+								}
+							}
+					}
+				} catch (ClosedSelectorException e) {
+				} catch (IOException e) {
+				} catch (InterruptedException e) {
+				}
+			}
+		}, AsyncTcpClient.class.getName());
+		selectorThread.setDaemon(true);
+		//selectorThread.start();
+	}
+
+	private class Connection implements ISocketConnection {
+		private SocketChannel channel;
+
+		private InetSocketAddress remoteAddress;
+		private IAsyncClientHandler handler;
+
+		private ByteBuffer readDataBuffer = ByteBuffer.allocateDirect(INITIAL_READ_BUFFER_SIZE);
+		private PacketData packetData = new PacketData(readDataBuffer);
+
+		public Connection(InetSocketAddress address, IAsyncClientHandler handler) throws IOException {
+			this.remoteAddress = address;
+			this.handler = handler;
+
+			channel = SocketChannel.open();
+			channel.configureBlocking(false);
+
+			channel.register(selector, SelectionKey.OP_CONNECT, this);
+			channel.connect(address);
+
+			synchronized (connections) {
+				if (!selectorThread.isAlive()) {
+					selectorThread.start();
+				}
+				connections.add(this);
+				connections.notify();
+			}
+		}
+
+		private void connectReady() throws IOException {
+			channel.finishConnect();
+			channel.register(selector, SelectionKey.OP_READ, this);
+
+			handler.connectCallback(this);
+		}
+
+		private void readReady() throws IOException {
+			if (readDataBuffer.position() == 0) {
+				readHeaderBuffer.clear();
+				if (channel.read(readHeaderBuffer) < 0) {
+					// throw new
+					// IOException("Server has disconnected.");
+					disconnect();
+					return;
+				}
+				readHeaderBuffer.flip();
+
+				int dataSize = readHeaderBuffer.getInt();
+				// System.out.println("Data size=" +
+				// dataSize);
+				if (dataSize < 1 || dataSize > MAX_PACKET_SIZE) {
+					readHeaderBuffer.position(0);
+					System.out.println(Utility.decode(readHeaderBuffer));
+					throw new IOException("Too big data size: " + dataSize);
+				}
+
+				if (dataSize > readDataBuffer.capacity()) {
+					readDataBuffer = ByteBuffer.allocateDirect(dataSize);
+					packetData.replaceBuffer(readDataBuffer);
+				} else {
+					readDataBuffer.limit(dataSize);
+				}
+			}
+
+			if (channel.read(readDataBuffer) < 0) {
+				// throw new
+				// IOException("Server has disconnected.");
+				disconnect();
+				return;
+			}
+
+			if (readDataBuffer.remaining() == 0) {
+				readDataBuffer.position(0);
+				handler.readCallback(this, packetData);
+				readDataBuffer.clear();
+			}
+		}
+
+		@Override
+		protected void finalize() throws Throwable {
+			super.finalize();
+			disconnect();
+		}
+
+		@Override
+		public boolean isConnected() {
+			return channel.isOpen();
+		}
+
+		@Override
+		public void disconnect() {
+			synchronized (connections) {
+				if (!connections.remove(this))
+					return;
+			}
+			try {
+				handler.disconnectCallback(this);
+			} catch (RuntimeException re) {
+			}
+			try {
+				channel.close();
+			} catch (IOException e) {
+			}
+		}
+
+		@Override
+		public InetSocketAddress getRemoteAddress() {
+			return remoteAddress;
+		}
+
+		@Override
+		public void send(String data) {
+			ByteBuffer buffer = AppConstants.CHARSET.encode(data);
+			send(buffer);
+		}
+
+		@Override
+		public void send(byte[] data) {
+			ByteBuffer buffer = ByteBuffer.wrap(data);
+			send(buffer);
+		}
+
+		@Override
+		public void send(ByteBuffer buffer) {
+			if (!channel.isConnected())
+				return;
+
+			try {
+				ByteBuffer headerData = ByteBuffer.allocate(ProtocolConstants.INTEGER_BYTE_SIZE);
+				headerData.putInt(buffer.limit());
+				headerData.flip();
+
+				ByteBuffer[] array = new ByteBuffer[] { headerData, buffer };
+				channel.write(array);
+			} catch (IOException e) {
+			}
+		}
+	}
+
+	public ISocketConnection connect(InetSocketAddress address, IAsyncClientHandler handler) throws IOException {
+		if (address == null || handler == null)
+			throw new IllegalArgumentException();
+
+		return new Connection(address, handler);
+	}
+
+	public void dispose() {
+		if (!selector.isOpen())
+			return;
+		for (Connection conn : connections) {
+			conn.disconnect();
+		}
+		connections.clear();
+		try {
+			selector.close();
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
 	}
 
 	@Override
 	protected void finalize() throws Throwable {
 		super.finalize();
-		disconnect();
-	}
-
-	@Override
-	public void connect(InetSocketAddress address) throws IOException {
-		if (address == null)
-			throw new IllegalArgumentException();
-
-		this.remoteAddress = address;
-
-		channel = SocketChannel.open();
-		channel.configureBlocking(false);
-
-		selector = Selector.open();
-		channel.register(selector, SelectionKey.OP_CONNECT);
-
-		channel.connect(address);
-
-		isConnected = true;
-
-		Runnable run = new Runnable() {
-			private ByteBuffer readDataBuffer = ByteBuffer.allocateDirect(INITIAL_READ_BUFFER_SIZE);
-			private PacketData packetData = new PacketData(readDataBuffer);
-
-			private ByteBuffer readHeaderBuffer = ByteBuffer.allocateDirect(Constants.Protocol.INTEGER_BYTE_SIZE);
-
-			@Override
-			public void run() {
-				try {
-					while (isConnected) {
-						// System.out.println("LOOP");
-						if (selector.select(1000) > 0) {
-							// System.out.println("SELECT");
-							for (Iterator<SelectionKey> it = selector.selectedKeys().iterator(); it.hasNext();) {
-								SelectionKey key = it.next();
-								it.remove();
-
-								if (key.isConnectable()) {
-									channel.finishConnect();
-									channel.register(selector, SelectionKey.OP_READ);
-
-									handler.connectCallback(AsyncTcpClient.this);
-								} else if (key.isReadable()) {
-									if (readDataBuffer.position() == 0) {
-										readHeaderBuffer.clear();
-										if (channel.read(readHeaderBuffer) < 0) {
-											//throw new IOException("Server has disconnected.");
-											isConnected = false;
-											break;
-										}
-										readHeaderBuffer.flip();
-
-										int dataSize = readHeaderBuffer.getInt();
-										//System.out.println("Data size=" + dataSize);
-										if (dataSize < 1 || dataSize > MAX_PACKET_SIZE) {
-											readHeaderBuffer.position(0);
-											System.out.println(Utility.decode(readHeaderBuffer));
-											throw new IOException("Too big data size: " + dataSize);
-										}
-
-										if (dataSize > readDataBuffer.capacity()) {
-											readDataBuffer = ByteBuffer.allocateDirect(dataSize);
-											packetData.replaceBuffer(readDataBuffer);
-										} else {
-											readDataBuffer.limit(dataSize);
-										}
-									}
-
-									if (channel.read(readDataBuffer) < 0) {
-										//throw new IOException("Server has disconnected.");
-										isConnected = false;
-										break;
-									}
-
-									if (readDataBuffer.remaining() == 0) {
-										readDataBuffer.position(0);
-										handler.readCallback(AsyncTcpClient.this, packetData);
-										readDataBuffer.clear();
-									}
-								}
-							}
-						}
-					}
-				} catch (ConnectException e) {
-				} catch (IOException e) {
-					handler.log(AsyncTcpClient.this, Utility.makeStackTrace(e));
-				} finally {
-					isConnected = false;
-					try {
-						handler.disconnectCallback(AsyncTcpClient.this);
-					} catch (RuntimeException re) {
-					}
-					if (channel != null && channel.isOpen()) {
-						try {
-							channel.close();
-						} catch (IOException e) {
-						}
-					}
-				}
-			}
-		};
-
-		Thread dispatchThread = new Thread(run, AsyncTcpClient.class.getName());
-		// dispatchThread.setDaemon(true);
-		dispatchThread.start();
-	}
-
-	@Override
-	public boolean isConnected() {
-		return isConnected;
-	}
-
-	@Override
-	public void disconnect() {
-		isConnected = false;
-	}
-
-	@Override
-	public InetSocketAddress getSocketAddress() {
-		return remoteAddress;
-	}
-
-	@Override
-	public void send(String data) {
-		ByteBuffer buffer = Constants.CHARSET.encode(data);
-		send(buffer);
-	}
-
-	@Override
-	public void send(byte[] data) {
-		ByteBuffer buffer = ByteBuffer.wrap(data);
-		send(buffer);
-	}
-
-	@Override
-	public void send(ByteBuffer buffer) {
-		if (!isConnected)
-			return;
-
-		try {
-			ByteBuffer headerData = ByteBuffer.allocate(Constants.Protocol.INTEGER_BYTE_SIZE);
-			headerData.putInt(buffer.limit());
-			headerData.flip();
-
-			ByteBuffer[] array = new ByteBuffer[] { headerData, buffer };
-			channel.write(array);
-		} catch (IOException e) {
-		}
+		dispose();
 	}
 
 	public static void main(String[] args) throws Exception {
-		IAsyncClientHandler handler = new IAsyncClientHandler() {
+		final AsyncTcpClient client = new AsyncTcpClient();
+		final InetSocketAddress address = new InetSocketAddress("localhost", 30000);
+		final ISocketConnection conn = client.connect(address, new IAsyncClientHandler() {
 			@Override
-			public void log(IAsyncClient client, String message) {
+			public void log(ISocketConnection connection, String message) {
 				System.out.println(message);
 			}
 
 			@Override
-			public void connectCallback(IAsyncClient client) {
-				System.out.println("接続しました: " + client.getSocketAddress());
+			public void connectCallback(ISocketConnection conn) {
+				System.out.println("接続しました: " + conn.getRemoteAddress());
 			}
 
 			@Override
-			public void readCallback(IAsyncClient client, PacketData data) {
+			public void readCallback(ISocketConnection connection, PacketData data) {
 				for (String msg : data.getMessages()) {
 					System.out.println("受信(" + msg.length() + ")");
 				}
 			}
 
 			@Override
-			public void disconnectCallback(IAsyncClient client) {
+			public void disconnectCallback(ISocketConnection connection) {
 				System.out.println("切断しました");
 			}
-		};
-
-		final AsyncTcpClient client = new AsyncTcpClient(handler);
-		client.connect(new InetSocketAddress("localhost", 30000));
+		});
 
 		Thread sendThread = new Thread(new Runnable() {
 			private String makeLongString(char c, int length) {
@@ -243,15 +302,16 @@ public class AsyncTcpClient implements IAsyncClient {
 				System.out.println("length: " + text.length());
 				try {
 					Thread.sleep(500);
-					for (int i = 0; i < 10; i++) {
-						client.send(text);
-						Thread.sleep(1500);
+					for (int i = 0; i < 3; i++) {
+						conn.send(text);
+						Thread.sleep(1000);
 					}
 					Thread.sleep(100);
 				} catch (InterruptedException e) {
 				}
 
-				client.disconnect();
+				conn.disconnect();
+				client.dispose();
 			}
 		});
 		sendThread.start();

@@ -22,14 +22,15 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 
-import pspnetparty.lib.Constants;
 import pspnetparty.lib.ILogger;
 import pspnetparty.lib.IniParser;
 import pspnetparty.lib.ProxyRoomEngine;
+import pspnetparty.lib.constants.AppConstants;
+import pspnetparty.lib.constants.IniConstants;
 
 public class ProxyRoomServer {
 	public static void main(String[] args) throws IOException {
-		System.out.printf("%s 部屋代理サーバー  version %s\n", Constants.App.APP_NAME, Constants.App.VERSION);
+		System.out.printf("%s 部屋代理サーバー  version %s\n", AppConstants.APP_NAME, AppConstants.VERSION);
 		
 		String iniFileName = "ProxyRoomServer.ini";
 		switch (args.length) {
@@ -40,24 +41,24 @@ public class ProxyRoomServer {
 		System.out.println("設定INIファイル名: " + iniFileName);
 		
 		IniParser parser = new IniParser(iniFileName);
-		IniParser.Section settings = parser.getSection(Constants.Ini.SECTION_SETTINGS);
+		IniParser.Section settings = parser.getSection(IniConstants.SECTION_SETTINGS);
 		
-		int port = settings.get(Constants.Ini.SERVER_PORT, 30000);
+		int port = settings.get(IniConstants.SERVER_PORT, 30000);
 		if (port < 1 || port > 65535) {
 			System.out.println("ポート番号が不正です: " + port);
 			return;
 		}
 		System.out.println("ポート: " + port);
 		
-		int maxRooms = settings.get(Constants.Ini.SERVER_MAX_ROOMS, 10);
+		int maxRooms = settings.get(IniConstants.SERVER_MAX_ROOMS, 10);
 		if (maxRooms < 1) {
 			System.out.println("部屋数が不正です: " + maxRooms);
 			return;
 		}
 		System.out.println("最大部屋数: " + maxRooms);
 		
-		settings.set(Constants.Ini.SERVER_PORT, Integer.toString(port));
-		settings.set(Constants.Ini.SERVER_MAX_ROOMS, Integer.toString(maxRooms));
+		settings.set(IniConstants.SERVER_PORT, Integer.toString(port));
+		settings.set(IniConstants.SERVER_MAX_ROOMS, Integer.toString(maxRooms));
 		
 		parser.saveToIni();
 		
@@ -69,7 +70,7 @@ public class ProxyRoomServer {
 		});
 		engine.setMaxRooms(maxRooms);
 
-		engine.startListening(port);
+		engine.start(port);
 
 		BufferedReader reader = new BufferedReader(new InputStreamReader(System.in));
 		String line;
@@ -81,6 +82,6 @@ public class ProxyRoomServer {
 			}
 		}
 
-		engine.stopListening();
+		engine.stop();
 	}
 }
