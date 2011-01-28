@@ -39,6 +39,9 @@ import org.eclipse.swt.custom.SashForm;
 import org.eclipse.swt.custom.StackLayout;
 import org.eclipse.swt.custom.StyleRange;
 import org.eclipse.swt.custom.StyledText;
+import org.eclipse.swt.dnd.Clipboard;
+import org.eclipse.swt.dnd.TextTransfer;
+import org.eclipse.swt.dnd.Transfer;
 import org.eclipse.swt.events.DisposeEvent;
 import org.eclipse.swt.events.DisposeListener;
 import org.eclipse.swt.events.KeyEvent;
@@ -163,12 +166,12 @@ public class PlayClientWindow {
 		this.iniParser = iniParser;
 		this.iniSettingSection = iniParser.getSection(IniConstants.SECTION_SETTINGS);
 
+		roomEngine = new RoomEngine(new RoomServerHandler());
+
 		initializeComponents();
 		initializeComponentListeners();
 
 		goTo(OperationMode.Offline);
-
-		roomEngine = new RoomEngine(new RoomServerHandler());
 
 		refreshLanAdapterList();
 
@@ -272,6 +275,8 @@ public class PlayClientWindow {
 	private Menu roomPlayerMenu;
 	private MenuItem roomPlayerKickMenuItem;
 	private MenuItem roomPlayerMasterTransferMenuItem;
+	private Menu statusServerAddressMenu;
+	private MenuItem statusServerAddressCopy;
 
 	private void initializeComponents() {
 		display = new Display();
@@ -307,6 +312,9 @@ public class PlayClientWindow {
 
 		mainTabFolder = new TabFolder(shell, SWT.TOP);
 		mainTabFolder.setLayoutData(new GridData(SWT.FILL, SWT.FILL, true, true));
+
+		TabItem searchTab = new TabItem(mainTabFolder, SWT.NONE);
+		searchTab.setText("部屋検索");
 
 		playRoomTab = new TabItem(mainTabFolder, SWT.NONE);
 		playRoomTab.setText("プレイルーム");
@@ -638,6 +646,7 @@ public class PlayClientWindow {
 
 		configRoomServerAllowEmptyMasterNameCheck = new Button(configRoomServerGroup, SWT.CHECK | SWT.FLAT);
 		configRoomServerAllowEmptyMasterNameCheck.setText("アドレスの部屋主名を省略でもログインできるようにする (ホスト名:ポート)");
+		configRoomServerAllowEmptyMasterNameCheck.setSelection(roomEngine.isAllowEmptyMasterNameLogin());
 		configRoomServerAllowEmptyMasterNameCheck.setLayoutData(new GridData(SWT.LEFT, SWT.CENTER, false, false, 2, 1));
 
 		logTab = new TabItem(mainTabFolder, SWT.NONE);
@@ -664,12 +673,14 @@ public class PlayClientWindow {
 
 		statusServerStatusLabel = new Label(statusBarContainer, SWT.BORDER);
 		statusServerStatusLabel.setText("サーバーステータス");
+		statusServerStatusLabel.setVisible(false);
 		formData = new FormData();
 		formData.left = new FormAttachment(statusServerAddressLabel, 5);
 		statusServerStatusLabel.setLayoutData(formData);
 
 		statusTraficStatusLabel = new Label(statusBarContainer, SWT.BORDER);
 		statusTraficStatusLabel.setText("トラフィック");
+		statusTraficStatusLabel.setVisible(false);
 		formData = new FormData();
 		formData.right = new FormAttachment(100, -20);
 		statusTraficStatusLabel.setLayoutData(formData);
@@ -830,19 +841,6 @@ public class PlayClientWindow {
 			}
 		});
 
-		configUserNameText.addModifyListener(new ModifyListener() {
-			@Override
-			public void modifyText(ModifyEvent e) {
-				if (Utility.isEmpty(configUserNameText.getText())) {
-					configUserNameAlertLabel.setVisible(true);
-					shell.setText(AppConstants.APP_NAME);
-				} else {
-					configUserNameAlertLabel.setVisible(false);
-					shell.setText(configUserNameText.getText() + " - " + AppConstants.APP_NAME);
-				}
-			}
-		});
-
 		wlanAdapterListCombo.addListener(SWT.Selection, new Listener() {
 			@Override
 			public void handleEvent(Event event) {
@@ -866,10 +864,74 @@ public class PlayClientWindow {
 			}
 		});
 
+		roomFormEditButton.addListener(SWT.Selection, new Listener() {
+			@Override
+			public void handleEvent(Event event) {
+				if (commitRoomEditForm()) {
+					updateMasterSearchRoomInfo();
+				}
+			}
+		});
+
+		roomFormSearchServerButton.addListener(SWT.Selection, new Listener() {
+			@Override
+			public void handleEvent(Event event) {
+				if (masterSearchConnection != null && masterSearchConnection.isConnected()) {
+					masterSearchConnection.send(ProtocolConstants.Search.COMMAND_LOGOUT);
+				} else {
+					if (roomFormEditButton.getEnabled() && !commitRoomEditForm()) {
+						roomFormSearchServerButton.setSelection(false);
+						return;
+					}
+					connectToSearchServerAsMaster();
+				}
+			}
+		});
+		roomFormSearchServerCombo.addKeyListener(new KeyListener() {
+			@Override
+			public void keyReleased(KeyEvent e) {
+			}
+
+			@Override
+			public void keyPressed(KeyEvent e) {
+				switch (e.character) {
+				case SWT.CR:
+				case SWT.LF:
+					e.doit = false;
+					connectToSearchServerAsMaster();
+					break;
+				}
+			}
+		});
+
+		configUserNameText.addModifyListener(new ModifyListener() {
+			@Override
+			public void modifyText(ModifyEvent e) {
+				if (Utility.isEmpty(configUserNameText.getText())) {
+					configUserNameAlertLabel.setVisible(true);
+					shell.setText(AppConstants.APP_NAME);
+				} else {
+					configUserNameAlertLabel.setVisible(false);
+					shell.setText(configUserNameText.getText() + " - " + AppConstants.APP_NAME);
+				}
+			}
+		});
+
 		configRoomServerAllowEmptyMasterNameCheck.addListener(SWT.Selection, new Listener() {
 			@Override
 			public void handleEvent(Event event) {
 				roomEngine.setAllowEmptyMasterNameLogin(configRoomServerAllowEmptyMasterNameCheck.getSelection());
+			}
+		});
+		
+		configRoomServerHostNameText.addModifyListener(new ModifyListener() {
+			@Override
+			public void modifyText(ModifyEvent e) {
+				switch (currentOperationMode) {
+				case RoomMaster:
+					roomServerAddressPort = configRoomServerHostNameText.getText() + ":" + roomFormServerModePortSpinner.getSelection();
+					updateServerAddress();
+				}
 			}
 		});
 
@@ -920,46 +982,8 @@ public class PlayClientWindow {
 		roomFormDescriptionText.addModifyListener(roomEditFormModifyDetectListener);
 		roomFormMaxPlayersSpiner.addModifyListener(roomEditFormModifyDetectListener);
 
-		roomFormEditButton.addListener(SWT.Selection, new Listener() {
-			@Override
-			public void handleEvent(Event event) {
-				if (commitRoomEditForm()) {
-					updateMasterSearchRoomInfo();
-				}
-			}
-		});
-
-		roomFormSearchServerButton.addListener(SWT.Selection, new Listener() {
-			@Override
-			public void handleEvent(Event event) {
-				if (masterSearchConnection != null && masterSearchConnection.isConnected()) {
-					masterSearchConnection.send(ProtocolConstants.Search.COMMAND_LOGOUT);
-				} else {
-					if (roomFormEditButton.getEnabled() && !commitRoomEditForm()) {
-						return;
-					}
-					connectToSearchServerAsMaster();
-				}
-			}
-		});
-		roomFormSearchServerCombo.addKeyListener(new KeyListener() {
-			@Override
-			public void keyReleased(KeyEvent e) {
-			}
-
-			@Override
-			public void keyPressed(KeyEvent e) {
-				switch (e.character) {
-				case SWT.CR:
-				case SWT.LF:
-					e.doit = false;
-					connectToSearchServerAsMaster();
-					break;
-				}
-			}
-		});
-
 		roomPlayerMenu = new Menu(shell, SWT.POP_UP);
+
 		roomPlayerKickMenuItem = new MenuItem(roomPlayerMenu, SWT.PUSH);
 		roomPlayerKickMenuItem.setText("キック");
 		roomPlayerKickMenuItem.addListener(SWT.Selection, new Listener() {
@@ -1028,6 +1052,36 @@ public class PlayClientWindow {
 					roomPlayerMasterTransferMenuItem.setEnabled(isMasterAndOtherSelected);
 				} else {
 					roomPlayerMasterTransferMenuItem.setEnabled(false);
+				}
+			}
+		});
+
+		statusServerAddressMenu = new Menu(shell, SWT.POP_UP);
+
+		statusServerAddressCopy = new MenuItem(statusServerAddressMenu, SWT.PUSH);
+		statusServerAddressCopy.setText("アドレスをコピー");
+		statusServerAddressCopy.addListener(SWT.Selection, new Listener() {
+			private Clipboard clipboard = new Clipboard(display);
+			private TextTransfer[] transfers = new TextTransfer[] {TextTransfer.getInstance()};
+ 			@Override
+			public void handleEvent(Event event) {
+				String roomURL = roomServerAddressPort + ":" + roomMasterName;
+				clipboard.setContents(new Object[] {roomURL} , transfers);
+			}
+		});
+
+		statusServerAddressLabel.setMenu(statusServerAddressMenu);
+		statusServerAddressLabel.addMenuDetectListener(new MenuDetectListener() {
+			@Override
+			public void menuDetected(MenuDetectEvent e) {
+				switch (currentOperationMode) {
+				case RoomMaster:
+				case RoomParticipant:
+				case ProxyRoomMaster:
+					statusServerAddressCopy.setEnabled(true);
+					break;
+				default:
+					statusServerAddressCopy.setEnabled(false);
 				}
 			}
 		});
@@ -1520,7 +1574,7 @@ public class PlayClientWindow {
 				roomChatText.setText("");
 				break;
 			default:
-				appendLogTo(roomChatLogText, "サーバーにログインしていません", colorRoomInfo);
+				appendLogTo(roomChatLogText, "サーバーにログインしていません", colorLogInfo);
 			}
 		}
 	}
@@ -1572,19 +1626,26 @@ public class PlayClientWindow {
 		asyncExec(run);
 	}
 
-	private void updateServerAddress(final String type) {
-		Runnable run = new Runnable() {
+	private void updateServerAddress() {
+		asyncExec(new Runnable() {
 			@Override
 			public void run() {
 				try {
-					String text = String.format("%sサーバー  %s", type, roomFormModeSelectionCombo.getText());
-					statusServerAddressLabel.setText(text);
+					switch (currentOperationMode) {
+					case Offline:
+						statusServerAddressLabel.setText("サーバーにログインしていません");
+						break;
+					default:
+						String roomURL = roomServerAddressPort + ":" + roomMasterName;
+
+						String text = String.format("サーバーアドレス  %s", roomURL);
+						statusServerAddressLabel.setText(text);
+					}
 					statusBarContainer.layout();
 				} catch (SWTException e) {
 				}
 			}
-		};
-		asyncExec(run);
+		});
 	}
 
 	private void updateTunnelStatus(boolean isConnected) {
@@ -1643,7 +1704,7 @@ public class PlayClientWindow {
 					map.put(name, player);
 					viewer.add(player);
 					viewer.refresh();
-					
+
 					updateMasterSearchPlayerCount();
 				} catch (SWTException e) {
 				}
@@ -1666,7 +1727,7 @@ public class PlayClientWindow {
 
 					viewer.remove(player);
 					viewer.refresh();
-					
+
 					updateMasterSearchPlayerCount();
 				} catch (SWTException e) {
 				}
@@ -1707,7 +1768,6 @@ public class PlayClientWindow {
 
 					isRoomInfoUpdating = true;
 
-					roomFormMasterText.setText(masterName);
 					roomFormMaxPlayersSpiner.setSelection(maxPlayers);
 					roomFormTitleText.setText(title);
 					roomFormPasswordText.setText(password);
@@ -1722,8 +1782,10 @@ public class PlayClientWindow {
 					appendLogTo(roomChatLogText, "部屋情報が更新されました", colorRoomInfo);
 
 					if (!masterName.equals(roomMasterName)) {
+						roomFormMasterText.setText(masterName);
 						roomMasterName = masterName;
 						appendLogTo(roomChatLogText, "部屋主が " + roomMasterName + " に変更されました", colorRoomInfo);
+						updateServerAddress();
 
 						if (masterName.equals(loginUserName)) {
 							roomFormProxyModeAddressCombo.setEnabled(false);
@@ -1877,7 +1939,7 @@ public class PlayClientWindow {
 		roomFormMaxPlayersSpiner.setEnabled(enabled);
 		roomFormDescriptionText.setEditable(enabled);
 	}
-	
+
 	private void updateMasterSearchRoomInfo() {
 		if (masterSearchConnection != null && masterSearchConnection.isConnected()) {
 			StringBuilder sb = new StringBuilder();
@@ -1952,6 +2014,7 @@ public class PlayClientWindow {
 				public void run() {
 					roomFormSearchServerButton.setText("検索登録する");
 					roomFormSearchServerButton.setSelection(false);
+					configRoomServerHostNameText.setEnabled(true);
 					switch (currentOperationMode) {
 					case RoomMaster:
 					case ProxyRoomMaster:
@@ -2010,6 +2073,7 @@ public class PlayClientWindow {
 					public void run() {
 						roomFormSearchServerButton.setText("登録解除");
 						roomFormSearchServerButton.setEnabled(true);
+						configRoomServerHostNameText.setEnabled(false);
 
 						isEntryCompleted = true;
 						appendLogTo(roomChatLogText, "検索サーバーに登録しました", colorRoomInfo);
@@ -2084,6 +2148,7 @@ public class PlayClientWindow {
 		public void roomOpened(String authCode) {
 			roomMasterAuthCode = authCode;
 			goTo(OperationMode.RoomMaster);
+			updateServerAddress();
 			appendLogTo(roomChatLogText, "自部屋を起動しました", colorRoomInfo);
 		}
 
@@ -2166,8 +2231,8 @@ public class PlayClientWindow {
 				sb.append(' ').append(ProtocolConstants.PROTOCOL_NUMBER);
 				sb.append(ProtocolConstants.MESSAGE_SEPARATOR);
 				sb.append(ProtocolConstants.Room.COMMAND_LOGIN);
-				sb.append(" \"").append(roomMasterName).append("\" ");
-				sb.append(loginUserName);
+				sb.append(' ').append(loginUserName);
+				sb.append(" \"").append(roomMasterName).append('"');
 
 				roomConnection.send(sb.toString());
 
@@ -2260,9 +2325,11 @@ public class PlayClientWindow {
 			@Override
 			public void process(String args) {
 				goTo(OperationMode.RoomParticipant);
-				appendLogTo(roomChatLogText, "部屋に入りました  ", colorRoomInfo);
 
 				updateRoom(args.split(" "), true);
+				updateServerAddress();
+
+				appendLogTo(roomChatLogText, "部屋に入りました  ", colorRoomInfo);
 
 				prepareSession();
 			}
@@ -2276,14 +2343,11 @@ public class PlayClientWindow {
 					public void run() {
 						goTo(OperationMode.ProxyRoomMaster);
 
-						StringBuilder sb = new StringBuilder();
-						sb.append("代理サーバーで部屋を作成しました  ");
-						sb.append(roomServerAddressPort);
-						sb.append(':').append(loginUserName);
-						appendLogTo(roomChatLogText, sb.toString(), colorRoomInfo);
-
 						roomFormMasterText.setText(loginUserName);
 						addPlayer(roomPlayerListViewer, loginUserName);
+						updateServerAddress();
+
+						appendLogTo(roomChatLogText, "代理サーバーで部屋を作成しました", colorRoomInfo);
 
 						prepareSession();
 					}

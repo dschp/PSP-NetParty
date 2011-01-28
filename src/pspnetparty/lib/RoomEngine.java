@@ -237,6 +237,10 @@ public class RoomEngine {
 			password = "";
 		this.password = password;
 	}
+	
+	public boolean isAllowEmptyMasterNameLogin() {
+		return allowEmptyMasterNameLogin;
+	}
 
 	public void setAllowEmptyMasterNameLogin(boolean allowEmptyMasterNameLogin) {
 		this.allowEmptyMasterNameLogin = allowEmptyMasterNameLogin;
@@ -368,25 +372,24 @@ public class RoomEngine {
 		private class LoginHandler implements IServerMessageHandler<PlayerState> {
 			@Override
 			public boolean process(final PlayerState state, String argument) {
-				// LI "masterName" loginName password
+				// LI loginName "masterName" password
 				String[] tokens = argument.split(" ");
 
-				String loginRoomMasterName = Utility.removeQuotations(tokens[0]);
-				String loginName = tokens[1];
-				String sentPassword = tokens.length == 2 ? null : tokens[1];
-
-				if (loginRoomMasterName.length() == 0) {
-					if (!allowEmptyMasterNameLogin) {
-						return false;
-					}
-				} else if (loginRoomMasterName.equals(masterName)) {
-					return false;
-				}
-
+				String loginName = tokens[0];
 				if (loginName.length() == 0) {
 					return false;
 				}
 
+				String loginRoomMasterName = Utility.removeQuotations(tokens[1]);
+				if (loginRoomMasterName.length() == 0) {
+					if (!allowEmptyMasterNameLogin) {
+						return false;
+					}
+				} else if (!loginRoomMasterName.equals(masterName)) {
+					return false;
+				}
+
+				String sentPassword = tokens.length == 2 ? null : tokens[1];
 				if (!Utility.isEmpty(RoomEngine.this.password)) {
 					if (sentPassword == null) {
 						state.getConnection().send(ProtocolConstants.Room.NOTIFY_ROOM_PASSWORD_REQUIRED);

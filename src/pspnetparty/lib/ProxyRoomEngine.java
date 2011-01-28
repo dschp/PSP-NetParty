@@ -257,7 +257,7 @@ public class ProxyRoomEngine {
 					room.roomMasterAuthCode = Utility.makeAuthCode();
 					sb.append(ProtocolConstants.Room.NOTIFY_ROOM_MASTER_AUTH_CODE);
 					sb.append(' ').append(room.roomMasterAuthCode);
-					
+
 					newRoomMaster.getConnection().send(sb.toString());
 				}
 			} else {
@@ -309,7 +309,7 @@ public class ProxyRoomEngine {
 			public boolean process(PlayerState state, String argument) {
 				if (ProtocolConstants.PROTOCOL_NUMBER.equals(argument)) {
 					state.messageHandlers = loginHandlers;
-					//state.getConnection().send(ProtocolConstants.Room.PROTOCOL_NAME);
+					// state.getConnection().send(ProtocolConstants.Room.PROTOCOL_NAME);
 					return true;
 				} else {
 					state.getConnection().send(errorMessage);
@@ -317,7 +317,7 @@ public class ProxyRoomEngine {
 				}
 			}
 		}
-		
+
 		private class ConfirmAuthCodeHandler implements IServerMessageHandler<PlayerState> {
 			@Override
 			public boolean process(PlayerState state, String argument) {
@@ -327,11 +327,11 @@ public class ProxyRoomEngine {
 					return false;
 
 				String masterName = tokens[0];
-				
+
 				Room room = masterNameRoomMap.get(masterName);
 				if (room == null)
 					return false;
-				
+
 				String authCode = tokens[1];
 				if (authCode.equals(room.roomMasterAuthCode)) {
 					state.getConnection().send(ProtocolConstants.Room.COMMAND_CONFIRM_AUTH_CODE);
@@ -412,19 +412,18 @@ public class ProxyRoomEngine {
 		private class LoginHandler implements IServerMessageHandler<PlayerState> {
 			@Override
 			public boolean process(final PlayerState state, String argument) {
-				// LI "masterName" loginName password
+				// LI loginName "masterName" password
 				String[] tokens = argument.split(" ");
 
 				if (tokens.length < 2)
 					return false;
 
-				String masterName = Utility.removeQuotations(tokens[0]);
-				String loginName = tokens[1];
-				String sentPassword = tokens.length == 3 ? tokens[2] : null;
-
+				String loginName = tokens[0];
 				if (Utility.isEmpty(loginName)) {
 					return false;
 				}
+
+				String masterName = Utility.removeQuotations(tokens[1]);
 				if (Utility.isEmpty(masterName)) {
 					// default room
 					masterName = "";
@@ -434,6 +433,7 @@ public class ProxyRoomEngine {
 				if (room == null)
 					return false;
 
+				String sentPassword = tokens.length == 3 ? tokens[2] : null;
 				if (!Utility.isEmpty(room.password)) {
 					if (sentPassword == null) {
 						state.getConnection().send(ProtocolConstants.Room.NOTIFY_ROOM_PASSWORD_REQUIRED);
