@@ -475,46 +475,4 @@ public class RoomSearchEngine {
 			}
 		}
 	}
-
-	public static void main(String[] args) throws Exception {
-		Class.forName("com.mysql.jdbc.Driver");
-
-		Connection conn = DriverManager.getConnection("jdbc:mysql://team-monketsu.net/pspnetparty", "pnp", "pnp");
-
-		Statement stmt = conn.createStatement();
-		ResultSet rs = stmt.executeQuery("SELECT * FROM rooms");
-
-		while (rs.next()) {
-			String address = rs.getString(Search.DB_COLUMN_ADDRESS);
-			String master = rs.getString(Search.DB_COLUMN_MASTER_NAME);
-			String title = rs.getString(Search.DB_COLUMN_TITLE);
-			int currentPlayers = rs.getInt(Search.DB_COLUMN_CURRENT_PLAYERS);
-			int maxPlayers = rs.getInt(Search.DB_COLUMN_MAX_PLAYERS);
-			String description = rs.getString(Search.DB_COLUMN_DESCRIPTION);
-
-			System.out.println("=============================");
-			System.out.println("address: " + address);
-			System.out.println("master: " + master);
-			System.out.println("title: " + title);
-			System.out.println("current: " + currentPlayers);
-			System.out.println("max: " + maxPlayers);
-			System.out.println("description: " + description);
-		}
-
-		try {
-			rs.close();
-		} catch (SQLException e) {
-			e.printStackTrace();
-		}
-		try {
-			stmt.close();
-		} catch (SQLException e) {
-			e.printStackTrace();
-		}
-		try {
-			conn.close();
-		} catch (SQLException e) {
-			e.printStackTrace();
-		}
-	}
 }

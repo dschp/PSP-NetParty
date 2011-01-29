@@ -106,9 +106,7 @@ public class AsyncTcpServer<Type extends IClientState> implements IServer<Type> 
 							}
 						}
 				} catch (IOException e) {
-					AsyncTcpServer.this.handler.log(Utility.makeStackTrace(e));
 				} catch (ClosedSelectorException e) {
-					AsyncTcpServer.this.handler.log(Utility.makeStackTrace(e));
 				} catch (RuntimeException e) {
 					AsyncTcpServer.this.handler.log(Utility.makeStackTrace(e));
 				}

@@ -177,6 +177,7 @@ public class AsyncUdpServer<Type extends IClientState> implements IServer<Type> 
 				} catch (CancelledKeyException e) {
 				} catch (ClosedSelectorException e) {
 				} catch (IOException e) {
+				} catch (RuntimeException e) {
 					AsyncUdpServer.this.handler.log(Utility.makeStackTrace(e));
 				}
 

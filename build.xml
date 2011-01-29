@@ -49,7 +49,7 @@
 		<jar basedir="bin" jarfile="${publish_directory}/RoomSearchServer.jar" includes="pspnetparty/server/RoomSearchServer*">
 			<manifest>
 				<attribute name="Main-Class" value="pspnetparty.server.RoomSearchServer" />
-				<attribute name="Class-Path" value="RoomSearchServer.jar PspNetParty.jar" />
+				<attribute name="Class-Path" value="RoomSearchServer.jar PspNetParty.jar database.jar" />
 			</manifest>
 		</jar>
 	</target>
