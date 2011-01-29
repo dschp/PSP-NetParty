@@ -33,7 +33,7 @@ import pspnetparty.lib.constants.IniConstants;
 public class RoomSearchServer {
 	public static void main(String[] args) throws Exception {
 		System.out.printf("%s 部屋検索サーバー  version %s\n", AppConstants.APP_NAME, AppConstants.VERSION);
-		
+
 		String iniFileName = "RoomSearchServer.ini";
 		switch (args.length) {
 		case 1:
@@ -41,42 +41,50 @@ public class RoomSearchServer {
 			break;
 		}
 		System.out.println("設定INIファイル名: " + iniFileName);
-		
+
 		IniParser parser = new IniParser(iniFileName);
 		IniParser.Section settings = parser.getSection(IniConstants.SECTION_SETTINGS);
-		
+
 		int port = settings.get(IniConstants.SERVER_PORT, 40000);
 		if (port < 1 || port > 65535) {
 			System.out.println("ポート番号が不正です: " + port);
 			return;
 		}
 		System.out.println("ポート: " + port);
-		
+
 		settings.set(IniConstants.SERVER_PORT, Integer.toString(port));
-		parser.saveToIni();
-		
-		String driver = settings.get(IniConstants.SERVER_DB_DRIVER, null);
+
+		String driver = settings.get(IniConstants.SERVER_DB_DRIVER, "");
+		String url = settings.get(IniConstants.SERVER_DB_URL, "");
+		String user = settings.get(IniConstants.SERVER_DB_USER, "");
+		String password = settings.get(IniConstants.SERVER_DB_PASSWORD, "");
+
+		boolean hasDbSettingError = false;
 		if (Utility.isEmpty(driver)) {
 			System.out.println("データベースドライバーが指定されていません");
-			return;
+			hasDbSettingError = true;
 		}
-		System.out.println("DBドライバー: " + driver);
-		Class.forName(driver);
-		
-		String url = settings.get(IniConstants.SERVER_DB_URL, null);
 		if (Utility.isEmpty(url)) {
 			System.out.println("データベースURLが指定されていません");
+			hasDbSettingError = true;
+		}
+
+		if (hasDbSettingError) {
+			parser.saveToIni();
 			return;
 		}
+
+		System.out.println("DBドライバー: " + driver);
 		System.out.println("DB URL: " + url);
-		
-		String user = settings.get(IniConstants.SERVER_DB_USER, null);
-		String password = settings.get(IniConstants.SERVER_DB_PASSWORD, null);
-		
+		System.out.println("DBユーザー: " + user);
+		Class.forName(driver);
+
+		parser.saveToIni();
+
 		Connection dbConn = null;
 		try {
 			dbConn = DriverManager.getConnection(url, user, password);
-			
+
 			RoomSearchEngine engine = new RoomSearchEngine(dbConn, new ILogger() {
 				@Override
 				public void log(String message) {

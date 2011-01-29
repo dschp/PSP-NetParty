@@ -147,7 +147,7 @@ public class ProxyRoomEngine {
 		}
 	}
 
-	class RoomHandler implements IServerHandler<PlayerState> {
+	class RoomHandler implements IAsyncServerHandler<PlayerState> {
 
 		private HashMap<String, IServerMessageHandler<PlayerState>> protocolHandlers = new HashMap<String, IServerMessageHandler<PlayerState>>();
 		private HashMap<String, IServerMessageHandler<PlayerState>> loginHandlers = new HashMap<String, IServerMessageHandler<PlayerState>>();
@@ -685,7 +685,7 @@ public class ProxyRoomEngine {
 		}
 	}
 
-	class TunnelHandler implements IServerHandler<TunnelState> {
+	class TunnelHandler implements IAsyncServerHandler<TunnelState> {
 		@Override
 		public void serverStartupFinished() {
 		}

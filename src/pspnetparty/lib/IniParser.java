@@ -122,19 +122,25 @@ public class IniParser {
 
 			@Override
 			public String get(String key, String defaultValue) {
-				return settings.containsKey(key) ? settings.get(key) : defaultValue;
+				if (settings.containsKey(key)) {
+					return settings.get(key);
+				}
+				settings.put(key, defaultValue);
+				return defaultValue;
 			}
 
 			@Override
 			public int get(String key, int defaultValue) {
 				String string = settings.get(key);
 				if (string == null) {
+					settings.put(key, Integer.toString(defaultValue));
 					return defaultValue;
 				}
 				try {
 					int value = Integer.parseInt(string);
 					return value;
 				} catch (NumberFormatException e) {
+					settings.put(key, Integer.toString(defaultValue));
 					return defaultValue;
 				}
 			}

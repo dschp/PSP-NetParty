@@ -40,7 +40,7 @@ public class AsyncTcpServer<Type extends IClientState> implements IServer<Type> 
 	private static final int MAX_PACKET_SIZE = 40000;
 
 	private Selector selector;
-	private IServerHandler<Type> handler;
+	private IAsyncServerHandler<Type> handler;
 
 	private ServerSocketChannel serverChannel;
 	private ByteBuffer headerBuffer = ByteBuffer.allocateDirect(Integer.SIZE / 8);
@@ -56,7 +56,7 @@ public class AsyncTcpServer<Type extends IClientState> implements IServer<Type> 
 	}
 
 	@Override
-	public void startListening(InetSocketAddress bindAddress, final IServerHandler<Type> handler) throws IOException {
+	public void startListening(InetSocketAddress bindAddress, final IAsyncServerHandler<Type> handler) throws IOException {
 		if (isListening())
 			stopListening();
 		this.handler = handler;
@@ -75,35 +75,42 @@ public class AsyncTcpServer<Type extends IClientState> implements IServer<Type> 
 			public void run() {
 				AsyncTcpServer.this.handler.serverStartupFinished();
 				try {
-					while (selector.select() > 0) {
-						for (Iterator<SelectionKey> it = selector.selectedKeys().iterator(); it.hasNext();) {
-							SelectionKey key = it.next();
-							it.remove();
+					while (serverChannel.isOpen())
+						while (selector.select() > 0) {
+							for (Iterator<SelectionKey> it = selector.selectedKeys().iterator(); it.hasNext();) {
+								SelectionKey key = it.next();
+								it.remove();
 
-							if (key.isAcceptable()) {
-								ServerSocketChannel channel = (ServerSocketChannel) key.channel();
 								try {
-									doAccept(channel);
-								} catch (IOException e) {
-									key.cancel();
-								}
-							} else if (key.isReadable()) {
-								@SuppressWarnings("unchecked")
-								Connection conn = (Connection) key.attachment();
-								try {
-									doRead(conn);
-								} catch (IOException e) {
-									// Disconnected
-									conn.disconnect();
-									key.cancel();
+									if (key.isAcceptable()) {
+										ServerSocketChannel channel = (ServerSocketChannel) key.channel();
+										try {
+											doAccept(channel);
+										} catch (IOException e) {
+											key.cancel();
+										}
+									} else if (key.isReadable()) {
+										@SuppressWarnings("unchecked")
+										Connection conn = (Connection) key.attachment();
+										try {
+											doRead(conn);
+										} catch (IOException e) {
+											// Disconnected
+											conn.disconnect();
+											key.cancel();
+										}
+									}
+								} catch (CancelledKeyException e) {
+									// AsyncTcpServer.this.handler.log(Utility.makeStackTrace(e));
 								}
 							}
 						}
-					}
 				} catch (IOException e) {
-					e.printStackTrace();
-				} catch (CancelledKeyException e) {
+					AsyncTcpServer.this.handler.log(Utility.makeStackTrace(e));
 				} catch (ClosedSelectorException e) {
+					AsyncTcpServer.this.handler.log(Utility.makeStackTrace(e));
+				} catch (RuntimeException e) {
+					AsyncTcpServer.this.handler.log(Utility.makeStackTrace(e));
 				}
 
 				AsyncTcpServer.this.handler.log("TCP: Now shuting down...");
@@ -130,10 +137,12 @@ public class AsyncTcpServer<Type extends IClientState> implements IServer<Type> 
 			} catch (IOException e) {
 			}
 		}
-		for (Connection conn : establishedConnections) {
-			conn.disconnect();
+		synchronized (establishedConnections) {
+			for (Connection conn : establishedConnections) {
+				conn.cleanResource();
+			}
+			establishedConnections.clear();
 		}
-		establishedConnections.clear();
 	}
 
 	private class Connection implements ISocketConnection {
@@ -187,13 +196,19 @@ public class AsyncTcpServer<Type extends IClientState> implements IServer<Type> 
 
 		@Override
 		public void disconnect() {
+			synchronized (establishedConnections) {
+				establishedConnections.remove(this);
+			}
+			cleanResource();
+		}
+
+		private void cleanResource() {
 			if (state == null)
 				return;
 
 			handler.disposeState(state);
 			state = null;
 
-			establishedConnections.remove(this);
 			try {
 				if (channel != null) {
 					channel.close();
@@ -258,7 +273,7 @@ public class AsyncTcpServer<Type extends IClientState> implements IServer<Type> 
 	public static void main(String[] args) throws IOException {
 		InetSocketAddress address = new InetSocketAddress(30000);
 		AsyncTcpServer<IClientState> server = new AsyncTcpServer<IClientState>();
-		server.startListening(address, new IServerHandler<IClientState>() {
+		server.startListening(address, new IAsyncServerHandler<IClientState>() {
 			@Override
 			public boolean processIncomingData(IClientState state, PacketData data) {
 				String remoteAddress = state.getConnection().getRemoteAddress().toString();

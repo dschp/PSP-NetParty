@@ -21,7 +21,7 @@ package pspnetparty.lib;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.nio.ByteBuffer;
-import org.jnetpcap.packet.PcapPacket;
+
 import org.jnetpcap.protocol.lan.Ethernet;
 
 import pspnetparty.lib.constants.AppConstants;
@@ -35,7 +35,7 @@ public class Utility {
 		return AppConstants.CHARSET.decode(buffer).toString();
 	}
 
-	public static String makeStackTrace(Exception exception) {
+	public static String makeStackTrace(Throwable exception) {
 		StringWriter sw = new StringWriter();
 		PrintWriter pw = new PrintWriter(sw);
 		exception.printStackTrace(pw);
@@ -63,6 +63,12 @@ public class Utility {
 			return "";
 		else
 			return string.substring(1, string.length() - 1);
+	}
+	 
+	public static String trim(String string, int maxLength) {
+		if (string == null)
+			return "";
+		return string.substring(0, Math.min(maxLength, string.length()));
 	}
 
 	public static boolean isPspPacket(ByteBuffer packet) {
@@ -116,5 +122,8 @@ public class Utility {
 		System.out.println(mac);
 
 		System.out.println(ByteBuffer.allocateDirect(100));
+		
+		System.out.println(trim("EAG", 10));
+		System.out.println(trim("EAGkljhklglkgWGQWW", 10));
 	}
 }

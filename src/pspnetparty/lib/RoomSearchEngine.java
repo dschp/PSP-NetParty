@@ -49,6 +49,8 @@ public class RoomSearchEngine {
 	private PreparedStatement searchNonFullRoomStatement;
 	private PreparedStatement searchAllRoomStatement;
 
+	private int descriptionMaxLength = 100;
+
 	public RoomSearchEngine(Connection dbConn, ILogger logger) throws SQLException {
 		// this.dbConnection = dbConn;
 		this.logger = logger;
@@ -64,26 +66,26 @@ public class RoomSearchEngine {
 		stmt.close();
 
 		String sql;
-		sql = String.format("INSERT INTO rooms (%s,%s,%s,%s,%s,%s,%s) VALUES (?,?,?,?,?,?,?)", Search.DB_COLUMN_URL,
+		sql = String.format("INSERT INTO rooms (%s,%s,%s,%s,%s,%s,%s) VALUES (?,?,?,?,?,?,?)", Search.DB_COLUMN_ADDRESS,
 				Search.DB_COLUMN_MASTER_NAME, Search.DB_COLUMN_TITLE, Search.DB_COLUMN_CURRENT_PLAYERS, Search.DB_COLUMN_MAX_PLAYERS,
 				Search.DB_COLUMN_HAS_PASSWORD, Search.DB_COLUMN_DESCRIPTION);
 		insertRoomStatement = dbConn.prepareStatement(sql);
 
 		sql = String.format("UPDATE rooms SET %s=?, %s=?, %s=?, %s=? WHERE %s=?", Search.DB_COLUMN_TITLE, Search.DB_COLUMN_MAX_PLAYERS,
-				Search.DB_COLUMN_HAS_PASSWORD, Search.DB_COLUMN_DESCRIPTION, Search.DB_COLUMN_URL);
+				Search.DB_COLUMN_HAS_PASSWORD, Search.DB_COLUMN_DESCRIPTION, Search.DB_COLUMN_ADDRESS);
 		updateRoomStatement = dbConn.prepareStatement(sql);
 
-		sql = String.format("UPDATE rooms SET %s=? WHERE %s=?", Search.DB_COLUMN_CURRENT_PLAYERS, Search.DB_COLUMN_URL);
+		sql = String.format("UPDATE rooms SET %s=? WHERE %s=?", Search.DB_COLUMN_CURRENT_PLAYERS, Search.DB_COLUMN_ADDRESS);
 		updatePlayerCountStatement = dbConn.prepareStatement(sql);
 
-		sql = String.format("DELETE FROM rooms WHERE %s = ?", Search.DB_COLUMN_URL);
+		sql = String.format("DELETE FROM rooms WHERE %s = ?", Search.DB_COLUMN_ADDRESS);
 		deleteRoomStatement = dbConn.prepareStatement(sql);
 
-		sql = String.format("SELECT * FROM rooms WHERE (%s LIKE ? OR %s LIKE ? OR %s LIKE ?) AND %s < %s", Search.DB_COLUMN_URL,
+		sql = String.format("SELECT * FROM rooms WHERE %s LIKE ? AND %s LIKE ? AND %s LIKE ? AND %s < %s", Search.DB_COLUMN_ADDRESS,
 				Search.DB_COLUMN_MASTER_NAME, Search.DB_COLUMN_TITLE, Search.DB_COLUMN_CURRENT_PLAYERS, Search.DB_COLUMN_MAX_PLAYERS);
 		searchNonFullRoomStatement = dbConn.prepareStatement(sql);
 
-		sql = String.format("SELECT * FROM rooms WHERE %s LIKE ? OR %s LIKE ? OR %s LIKE ?", Search.DB_COLUMN_URL,
+		sql = String.format("SELECT * FROM rooms WHERE %s LIKE ? AND %s LIKE ? AND %s LIKE ?", Search.DB_COLUMN_ADDRESS,
 				Search.DB_COLUMN_MASTER_NAME, Search.DB_COLUMN_TITLE);
 		searchAllRoomStatement = dbConn.prepareStatement(sql);
 	}
@@ -104,7 +106,7 @@ public class RoomSearchEngine {
 		searchServer.stopListening();
 	}
 
-	private class SearchHandler implements IServerHandler<SearchState> {
+	private class SearchHandler implements IAsyncServerHandler<SearchState> {
 		private HashMap<String, IServerMessageHandler<SearchState>> protocolHandlers = new HashMap<String, IServerMessageHandler<SearchState>>();
 		private HashMap<String, IServerMessageHandler<SearchState>> loginHandlers = new HashMap<String, IServerMessageHandler<SearchState>>();
 		private HashMap<String, IServerMessageHandler<SearchState>> masterEntryHandlers = new HashMap<String, IServerMessageHandler<SearchState>>();
@@ -148,9 +150,9 @@ public class RoomSearchEngine {
 
 		@Override
 		public void disposeState(SearchState state) {
-			if (!Utility.isEmpty(state.url)) {
+			if (!Utility.isEmpty(state.address)) {
 				try {
-					deleteRoomStatement.setString(1, state.url);
+					deleteRoomStatement.setString(1, state.address);
 					deleteRoomStatement.executeUpdate();
 				} catch (SQLException e) {
 					log(Utility.makeStackTrace(e));
@@ -251,7 +253,7 @@ public class RoomSearchEngine {
 					final int currentPlayers = Integer.parseInt(tokens[4]);
 					final int maxPlayers = Integer.parseInt(tokens[5]);
 					final boolean hasPassword = "Y".equals(tokens[6]);
-					final String description = Utility.removeQuotations(tokens[7]);
+					final String description = Utility.trim(Utility.removeQuotations(tokens[7]), descriptionMaxLength);
 
 					final InetSocketAddress socketAddress = new InetSocketAddress(hostname, port);
 
@@ -260,6 +262,8 @@ public class RoomSearchEngine {
 
 						@Override
 						public void log(ISocketConnection connection, String message) {
+							logger.log(connection.getRemoteAddress().toString());
+							logger.log(message);
 						}
 
 						@Override
@@ -285,6 +289,8 @@ public class RoomSearchEngine {
 
 										@Override
 										public void log(ISocketConnection connection, String message) {
+											logger.log(connection.getRemoteAddress().toString());
+											logger.log(message);
 										}
 
 										@Override
@@ -305,9 +311,9 @@ public class RoomSearchEngine {
 										public void disconnectCallback(ISocketConnection connection) {
 											if (udpReadSuccess) {
 												try {
-													String url = hostname + ":" + port + ":" + masterName;
+													String address = hostname + ":" + port + ":" + masterName;
 
-													insertRoomStatement.setString(1, url);
+													insertRoomStatement.setString(1, address);
 													insertRoomStatement.setString(2, masterName);
 													insertRoomStatement.setString(3, title);
 													insertRoomStatement.setInt(4, currentPlayers);
@@ -321,7 +327,7 @@ public class RoomSearchEngine {
 													}
 
 													state.getConnection().send(Search.COMMAND_ENTRY);
-													state.url = url;
+													state.address = address;
 													state.messageHandlers = masterHandlers;
 
 												} catch (SQLException e) {
@@ -376,8 +382,8 @@ public class RoomSearchEngine {
 					updateRoomStatement.setString(1, tokens[0]);
 					updateRoomStatement.setInt(2, Integer.parseInt(tokens[1]));
 					updateRoomStatement.setBoolean(3, "Y".equals(tokens[2]));
-					updateRoomStatement.setString(4, Utility.removeQuotations(tokens[3]));
-					updateRoomStatement.setString(5, state.url);
+					updateRoomStatement.setString(4, Utility.trim(Utility.removeQuotations(tokens[3]), descriptionMaxLength));
+					updateRoomStatement.setString(5, state.address);
 
 					updateRoomStatement.executeUpdate();
 					return true;
@@ -395,7 +401,7 @@ public class RoomSearchEngine {
 				try {
 					int playerCount = Integer.parseInt(argument);
 					updatePlayerCountStatement.setInt(1, playerCount);
-					updatePlayerCountStatement.setString(2, state.url);
+					updatePlayerCountStatement.setString(2, state.address);
 
 					updatePlayerCountStatement.executeUpdate();
 					return true;
@@ -409,15 +415,15 @@ public class RoomSearchEngine {
 		private class RoomSearchHandler implements IServerMessageHandler<SearchState> {
 			@Override
 			public boolean process(SearchState state, String argument) {
-				// S "serverHostName" "masterName" "title" includeFullRoom
+				// S title masterName serverHostName includeFullRoom
 
 				String[] tokens = argument.split(" ");
 				if (tokens.length != 4)
 					return false;
 
-				String queryServerHost = Utility.removeQuotations(tokens[0]);
-				String queryMasterName = Utility.removeQuotations(tokens[1]);
-				String queryTitle = Utility.removeQuotations(tokens[2]);
+				String queryTitle = "%" + tokens[0] + "%"; // Utility.removeQuotations(tokens[0]);
+				String queryMasterName = "%" + tokens[1] + "%"; // Utility.removeQuotations(tokens[1]);
+				String queryServerHost = "%" + tokens[2] + "%"; // Utility.removeQuotations(tokens[2]);
 				boolean includeFullRoom = "Y".equals(tokens[3]);
 
 				PreparedStatement stmt = includeFullRoom ? searchAllRoomStatement : searchNonFullRoomStatement;
@@ -431,18 +437,21 @@ public class RoomSearchEngine {
 
 					StringBuilder sb = new StringBuilder();
 					while (rs.next()) {
-						String url = rs.getString(Search.DB_COLUMN_URL);
+						String address = rs.getString(Search.DB_COLUMN_ADDRESS);
 						String master = rs.getString(Search.DB_COLUMN_MASTER_NAME);
 						String title = rs.getString(Search.DB_COLUMN_TITLE);
 						int currentPlayers = rs.getInt(Search.DB_COLUMN_CURRENT_PLAYERS);
 						int maxPlayers = rs.getInt(Search.DB_COLUMN_MAX_PLAYERS);
 						String description = rs.getString(Search.DB_COLUMN_DESCRIPTION);
+						boolean hasPassword = rs.getBoolean(Search.DB_COLUMN_HAS_PASSWORD);
 
 						sb.append(ProtocolConstants.Search.COMMAND_SEARCH);
-						sb.append(' ').append(url);
+						sb.append(' ').append(address);
 						sb.append(' ').append(master);
+						sb.append(' ').append(title);
 						sb.append(' ').append(currentPlayers);
 						sb.append(' ').append(maxPlayers);
+						sb.append(' ').append(hasPassword ? "Y" : "N");
 						sb.append(" \"").append(description).append('"');
 						sb.append(ProtocolConstants.MESSAGE_SEPARATOR);
 					}
@@ -462,7 +471,7 @@ public class RoomSearchEngine {
 					return false;
 				}
 
-				return true;
+				return false;
 			}
 		}
 	}
@@ -476,7 +485,7 @@ public class RoomSearchEngine {
 		ResultSet rs = stmt.executeQuery("SELECT * FROM rooms");
 
 		while (rs.next()) {
-			String url = rs.getString(Search.DB_COLUMN_URL);
+			String address = rs.getString(Search.DB_COLUMN_ADDRESS);
 			String master = rs.getString(Search.DB_COLUMN_MASTER_NAME);
 			String title = rs.getString(Search.DB_COLUMN_TITLE);
 			int currentPlayers = rs.getInt(Search.DB_COLUMN_CURRENT_PLAYERS);
@@ -484,7 +493,7 @@ public class RoomSearchEngine {
 			String description = rs.getString(Search.DB_COLUMN_DESCRIPTION);
 
 			System.out.println("=============================");
-			System.out.println("url: " + url);
+			System.out.println("address: " + address);
 			System.out.println("master: " + master);
 			System.out.println("title: " + title);
 			System.out.println("current: " + currentPlayers);

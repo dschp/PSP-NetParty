@@ -102,7 +102,7 @@ public class ProtocolConstants {
 		public static final String ERROR_MASTER_INVALID_AUTH_CODE = "ERR_RM_IAC";
 		public static final String ERROR_MASTER_DATABASE_ENTRY = "ERR_RM_DBE";
 
-		public static final String DB_COLUMN_URL = "url";
+		public static final String DB_COLUMN_ADDRESS = "address";
 		public static final String DB_COLUMN_MASTER_NAME = "master_name";
 		public static final String DB_COLUMN_TITLE = "title";
 		public static final String DB_COLUMN_CURRENT_PLAYERS = "current_players";

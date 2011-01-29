@@ -246,7 +246,7 @@ public class RoomEngine {
 		this.allowEmptyMasterNameLogin = allowEmptyMasterNameLogin;
 	}
 
-	class RoomHandler implements IServerHandler<PlayerState> {
+	class RoomHandler implements IAsyncServerHandler<PlayerState> {
 
 		private HashMap<String, IServerMessageHandler<PlayerState>> protocolHandlers = new HashMap<String, IServerMessageHandler<PlayerState>>();
 		private HashMap<String, IServerMessageHandler<PlayerState>> loginHandlers = new HashMap<String, IServerMessageHandler<PlayerState>>();
@@ -389,7 +389,7 @@ public class RoomEngine {
 					return false;
 				}
 
-				String sentPassword = tokens.length == 2 ? null : tokens[1];
+				String sentPassword = tokens.length == 2 ? null : tokens[2];
 				if (!Utility.isEmpty(RoomEngine.this.password)) {
 					if (sentPassword == null) {
 						state.getConnection().send(ProtocolConstants.Room.NOTIFY_ROOM_PASSWORD_REQUIRED);
@@ -504,7 +504,7 @@ public class RoomEngine {
 		}
 	}
 
-	class TunnelHandler implements IServerHandler<TunnelState> {
+	class TunnelHandler implements IAsyncServerHandler<TunnelState> {
 		@Override
 		public void serverStartupFinished() {
 			RoomEngine.this.serverStartupFinished();

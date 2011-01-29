@@ -25,6 +25,7 @@ import java.nio.channels.ClosedSelectorException;
 import java.nio.channels.DatagramChannel;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
+import java.nio.channels.UnresolvedAddressException;
 import java.util.HashSet;
 import java.util.Iterator;
 
@@ -81,7 +82,7 @@ public class AsyncUdpClient {
 			}
 		}, AsyncUdpClient.class.getName());
 		selectorThread.setDaemon(true);
-		//selectorThread.start();
+		// selectorThread.start();
 	}
 
 	private class Connection implements ISocketConnection {
@@ -100,7 +101,11 @@ public class AsyncUdpClient {
 			channel = DatagramChannel.open();
 			channel.configureBlocking(false);
 			channel.register(selector, SelectionKey.OP_READ, this);
-			channel.connect(address);
+			try {
+				channel.connect(address);
+			} catch (RuntimeException e) {
+				throw new IOException(e);
+			}
 
 			handler.connectCallback(this);
 
@@ -127,15 +132,18 @@ public class AsyncUdpClient {
 				if (!connections.remove(this))
 					return;
 			}
+			cleanResource();
+		}
+		
+		private void cleanResource() {
 			try {
 				handler.disconnectCallback(this);
 			} catch (RuntimeException re) {
 			}
-			if (channel.isOpen()) {
-				try {
+			try {
+				if (channel.isOpen())
 					channel.close();
-				} catch (IOException e) {
-				}
+			} catch (IOException e) {
 			}
 		}
 
@@ -184,10 +192,12 @@ public class AsyncUdpClient {
 	public void dispose() {
 		if (!selector.isOpen())
 			return;
-		for (Connection conn : connections) {
-			conn.disconnect();
+		synchronized (connections) {
+			for (Connection conn : connections) {
+				conn.cleanResource();
+			}
+			connections.clear();
 		}
-		connections.clear();
 		try {
 			selector.close();
 		} catch (IOException e) {

@@ -15,7 +15,7 @@ GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
-*/
+ */
 package pspnetparty.client.swt;
 
 import java.util.HashMap;
@@ -27,21 +27,32 @@ import org.eclipse.jface.viewers.Viewer;
 import org.eclipse.swt.graphics.Image;
 
 public class PlayRoom {
-	
+
+	private String address;
 	private String masterName;
 	private String title;
 	private boolean hasPassword = false;
 	private int currentPlayerCount = 0;
 	private int maxPlayers;
-	
-	public PlayRoom(String masterName, String title, boolean hasPassword, int currentPlayerCount, int maxPlayers) {
+	private String description;
+
+	public PlayRoom(String address, String masterName, String title, boolean hasPassword, int currentPlayerCount, int maxPlayers) {
+		this.address = address;
 		this.masterName = masterName;
 		this.title = title;
 		this.hasPassword = hasPassword;
 		this.currentPlayerCount = currentPlayerCount;
 		this.maxPlayers = maxPlayers;
 	}
-	
+
+	public String getAddress() {
+		return address;
+	}
+
+	public void setAddress(String address) {
+		this.address = address;
+	}
+
 	public String getMasterName() {
 		return masterName;
 	}
@@ -82,6 +93,14 @@ public class PlayRoom {
 		this.maxPlayers = maxPlayers;
 	}
 
+	public String getDescription() {
+		return description;
+	}
+
+	public void setDescription(String description) {
+		this.description = description;
+	}
+
 	public static class PlayRoomListContentProvider implements IStructuredContentProvider {
 		@Override
 		public void dispose() {
@@ -98,7 +117,7 @@ public class PlayRoom {
 			return playRooms.values().toArray();
 		}
 	}
-	
+
 	public static class PlayRoomLabelProvider implements ITableLabelProvider {
 		@Override
 		public void addListener(ILabelProviderListener arg0) {
@@ -125,14 +144,14 @@ public class PlayRoom {
 		@Override
 		public String getColumnText(Object element, int columnIndex) {
 			PlayRoom room = (PlayRoom) element;
-			
+
 			String result = "";
 			switch (columnIndex) {
 			case 0:
-				result = room.masterName;
+				result = room.address;
 				break;
 			case 1:
-				result = room.hasPassword ? "有" : "";
+				result = room.masterName;
 				break;
 			case 2:
 				result = room.title;
@@ -140,8 +159,14 @@ public class PlayRoom {
 			case 3:
 				result = room.currentPlayerCount + " / " + room.maxPlayers;
 				break;
+			case 4:
+				result = room.hasPassword ? "有" : "";
+				break;
+			case 5:
+				result = room.description;
+				break;
 			}
-			
+
 			return result;
 		}
 	}

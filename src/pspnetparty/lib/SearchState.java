@@ -6,7 +6,7 @@ public class SearchState implements IClientState {
 	
 	private ISocketConnection connection;
 	public HashMap<String, IServerMessageHandler<SearchState>> messageHandlers;
-	public String url;
+	public String address;
 	
 	public SearchState(ISocketConnection connection) {
 		this.connection = connection;
