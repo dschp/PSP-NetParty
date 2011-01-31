@@ -1,0 +1,25 @@
+﻿検索サーバーの起動について
+
+現在はmysqlのみで動作確認しております
+以下はmysqlのテーブル作成SQLです
+
+CREATE TABLE `rooms` (
+  `address` varchar(255) NOT NULL,
+  `master_name` varchar(255) NOT NULL,
+  `title` varchar(255) NOT NULL,
+  `current_players` tinyint(4) NOT NULL,
+  `max_players` tinyint(4) NOT NULL,
+  `has_password` tinyint(1) NOT NULL,
+  `description` text NOT NULL,
+  PRIMARY KEY (`address`)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8
+
+
+JDBCドライバーをdatabase.jarとリネームして
+RoomSearchServer.jarやPspNetParty.jarと同じフォルダに置いてください
+DatabaseDriver、DatabaseURL、DatabaseUser、DatabasePasswordを
+それぞれ設定すれば完了です
+
+以下はmysqlでの設定例です
+DatabaseDriver=com.mysql.jdbc.Driver
+DatabaseURL=jdbc:mysql://ホスト名/DB名
