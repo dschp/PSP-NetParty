@@ -22,21 +22,20 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.util.HashMap;
-import java.util.LinkedHashMap;
-import java.util.Map;
 import java.util.Map.Entry;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentSkipListMap;
 
 import pspnetparty.lib.constants.ProtocolConstants;
 
 public class RoomEngine {
 
-	private HashMap<String, PlayerState> playersByName = new LinkedHashMap<String, PlayerState>();
+	private ConcurrentSkipListMap<String, PlayerState> playersByName;
 
-	private HashMap<String, TunnelState> tunnelsByMacAddress = new HashMap<String, TunnelState>();
-	private HashMap<String, Long> masterMacAddresses = new HashMap<String, Long>();
+	private HashMap<String, TunnelState> tunnelsByMacAddress;
+	private HashMap<String, Long> masterMacAddresses;
 
-	private Map<InetSocketAddress, TunnelState> notYetLinkedTunnels = new ConcurrentHashMap<InetSocketAddress, TunnelState>();
+	private ConcurrentHashMap<InetSocketAddress, TunnelState> notYetLinkedTunnels;
 
 	private String masterName;
 	private IRoomMasterHandler roomMasterHandler;
@@ -61,6 +60,11 @@ public class RoomEngine {
 
 	public RoomEngine(IRoomMasterHandler masterHandler) {
 		this.roomMasterHandler = masterHandler;
+
+		playersByName = new ConcurrentSkipListMap<String, PlayerState>();
+		tunnelsByMacAddress = new HashMap<String, TunnelState>();
+		masterMacAddresses = new HashMap<String, Long>();
+		notYetLinkedTunnels = new ConcurrentHashMap<InetSocketAddress, TunnelState>(16, 0.75f, 2);
 
 		roomHandler = new RoomHandler();
 		roomServer = new AsyncTcpServer<PlayerState>();
@@ -127,20 +131,16 @@ public class RoomEngine {
 	private void appendNotifyUserList(StringBuilder sb) {
 		sb.append(ProtocolConstants.Room.NOTIFY_USER_LIST);
 		sb.append(' ').append(masterName);
-		synchronized (playersByName) {
-			for (Entry<String, PlayerState> entry : playersByName.entrySet()) {
-				PlayerState state = entry.getValue();
-				sb.append(' ').append(state.name);
-			}
+		for (Entry<String, PlayerState> entry : playersByName.entrySet()) {
+			PlayerState state = entry.getValue();
+			sb.append(' ').append(state.name);
 		}
 	}
 
 	private void forEachParticipant(IClientStateAction<PlayerState> action) {
-		synchronized (playersByName) {
-			for (Entry<String, PlayerState> entry : playersByName.entrySet()) {
-				PlayerState state = entry.getValue();
-				action.action(state);
-			}
+		for (Entry<String, PlayerState> entry : playersByName.entrySet()) {
+			PlayerState state = entry.getValue();
+			action.action(state);
 		}
 	}
 
@@ -161,11 +161,9 @@ public class RoomEngine {
 
 	public void kickPlayer(String name) {
 		PlayerState kickedPlayer;
-		synchronized (playersByName) {
-			kickedPlayer = playersByName.remove(name);
-			if (kickedPlayer == null)
-				return;
-		}
+		kickedPlayer = playersByName.remove(name);
+		if (kickedPlayer == null)
+			return;
 		final String notify = ProtocolConstants.Room.NOTIFY_ROOM_PLAYER_KICKED + " " + name;
 
 		forEachParticipant(new IClientStateAction<PlayerState>() {
@@ -237,7 +235,7 @@ public class RoomEngine {
 			password = "";
 		this.password = password;
 	}
-	
+
 	public boolean isAllowEmptyMasterNameLogin() {
 		return allowEmptyMasterNameLogin;
 	}
@@ -294,9 +292,7 @@ public class RoomEngine {
 				notYetLinkedTunnels.remove(state.tunnelState.getConnection().getRemoteAddress());
 
 			if (!Utility.isEmpty(state.name)) {
-				synchronized (playersByName) {
-					playersByName.remove(state.name);
-				}
+				playersByName.remove(state.name);
 
 				final String notify = ProtocolConstants.Room.NOTIFY_USER_EXITED + " " + state.name;
 				forEachParticipant(new IClientStateAction<PlayerState>() {
@@ -343,7 +339,6 @@ public class RoomEngine {
 			public boolean process(PlayerState state, String argument) {
 				if (ProtocolConstants.PROTOCOL_NUMBER.equals(argument)) {
 					state.messageHandlers = loginHandlers;
-					// state.getConnection().send(ProtocolConstants.Room.PROTOCOL_NAME);
 					return true;
 				} else {
 					state.getConnection().send(errorMessage);
@@ -364,6 +359,8 @@ public class RoomEngine {
 				String authCode = tokens[1];
 				if (masterName.equals(RoomEngine.this.masterName) && authCode.equals(roomMasterAuthCode)) {
 					state.getConnection().send(ProtocolConstants.Room.COMMAND_CONFIRM_AUTH_CODE);
+				} else {
+					state.getConnection().send(ProtocolConstants.Room.ERROR_CONFIRM_INVALID_AUTH_CODE);
 				}
 				return false;
 			}
@@ -401,24 +398,24 @@ public class RoomEngine {
 					}
 				}
 
-				if (masterName.equals(loginName) || playersByName.containsKey(loginName)) {
-					// 同名のユーザーが存在するので接続を拒否します
+				if (masterName.equals(loginName)) {
 					state.getConnection().send(ProtocolConstants.Room.ERROR_LOGIN_DUPLICATED_NAME);
 					return false;
 				}
 
-				synchronized (playersByName) {
-					if (playersByName.size() < maxPlayers - 1) {
-						playersByName.put(loginName, state);
-						state.messageHandlers = sessionHandlers;
-
-						state.name = loginName;
-					} else {
-						// 最大人数を超えたので接続を拒否します
-						state.getConnection().send(ProtocolConstants.Room.ERROR_LOGIN_BEYOND_CAPACITY);
-						return false;
-					}
+				if (playersByName.size() >= maxPlayers - 1) {
+					// 最大人数を超えたので接続を拒否します
+					state.getConnection().send(ProtocolConstants.Room.ERROR_LOGIN_BEYOND_CAPACITY);
+					return false;
 				}
+
+				if (playersByName.putIfAbsent(loginName, state) != null) {
+					// 同名のユーザーが存在するので接続を拒否します
+					state.getConnection().send(ProtocolConstants.Room.ERROR_LOGIN_DUPLICATED_NAME);
+					return false;
+				}
+				state.messageHandlers = sessionHandlers;
+				state.name = loginName;
 
 				final String notify = ProtocolConstants.Room.NOTIFY_USER_ENTERED + " " + loginName;
 				forEachParticipant(new IClientStateAction<PlayerState>() {
@@ -552,14 +549,12 @@ public class RoomEngine {
 			if (Utility.isMacBroadCastAddress(destMac)) {
 				roomMasterHandler.tunnelPacketReceived(packet);
 
-				synchronized (playersByName) {
-					for (Entry<String, PlayerState> entry : playersByName.entrySet()) {
-						PlayerState sendTo = entry.getValue();
-						if (sendTo.tunnelState != null && sendTo.tunnelState != state) {
-							packet.position(0);
-							sendTo.tunnelState.getConnection().send(packet);
-							sendTo.tunnelState.lastTunnelTime = System.currentTimeMillis();
-						}
+				for (Entry<String, PlayerState> entry : playersByName.entrySet()) {
+					PlayerState sendTo = entry.getValue();
+					if (sendTo.tunnelState != null && sendTo.tunnelState != state) {
+						packet.position(0);
+						sendTo.tunnelState.getConnection().send(packet);
+						sendTo.tunnelState.lastTunnelTime = System.currentTimeMillis();
 					}
 				}
 			} else if (masterMacAddresses.containsKey(destMac)) {
@@ -579,14 +574,12 @@ public class RoomEngine {
 		masterMacAddresses.put(srcMac, System.currentTimeMillis());
 
 		if (Utility.isMacBroadCastAddress(destMac)) {
-			synchronized (playersByName) {
-				for (Entry<String, PlayerState> entry : playersByName.entrySet()) {
-					PlayerState sendTo = entry.getValue();
-					if (sendTo.tunnelState != null) {
-						packet.position(0);
-						sendTo.tunnelState.getConnection().send(packet);
-						sendTo.tunnelState.lastTunnelTime = System.currentTimeMillis();
-					}
+			for (Entry<String, PlayerState> entry : playersByName.entrySet()) {
+				PlayerState sendTo = entry.getValue();
+				if (sendTo.tunnelState != null) {
+					packet.position(0);
+					sendTo.tunnelState.getConnection().send(packet);
+					sendTo.tunnelState.lastTunnelTime = System.currentTimeMillis();
 				}
 			}
 		} else if (tunnelsByMacAddress.containsKey(destMac)) {

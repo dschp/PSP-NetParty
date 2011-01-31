@@ -18,13 +18,12 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 package pspnetparty.lib;
 
-import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 
 public interface ISocketConnection {
-	//public void connect(InetSocketAddress address, IAsyncClientHandler handler) throws IOException;
 	public InetSocketAddress getRemoteAddress();
+	public InetSocketAddress getLocalAddress();
 	public void send(byte[] data);
 	public void send(ByteBuffer buffer);
 	public void send(String data);

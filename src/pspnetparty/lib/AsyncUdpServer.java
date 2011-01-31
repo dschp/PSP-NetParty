@@ -26,9 +26,9 @@ import java.nio.channels.ClosedSelectorException;
 import java.nio.channels.DatagramChannel;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
-import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map.Entry;
+import java.util.concurrent.ConcurrentHashMap;
 
 import pspnetparty.lib.constants.AppConstants;
 
@@ -40,17 +40,16 @@ public class AsyncUdpServer<Type extends IClientState> implements IServer<Type> 
 	private IAsyncServerHandler<Type> handler;
 
 	private DatagramChannel serverChannel;
-
 	private ByteBuffer readBuffer = ByteBuffer.allocateDirect(READ_BUFFER_SIZE);
 	private PacketData data = new PacketData(readBuffer);
 
-	private HashMap<InetSocketAddress, Connection> establishedConnections = new HashMap<InetSocketAddress, Connection>();
+	private ConcurrentHashMap<InetSocketAddress, Connection> establishedConnections;
 
 	private Thread selectorThread;
-
 	private Thread sessionCleanupThread;
 
 	public AsyncUdpServer() {
+		establishedConnections = new ConcurrentHashMap<InetSocketAddress, Connection>(30, 0.75f, 3);
 	}
 
 	private class Connection implements ISocketConnection {
@@ -61,13 +60,16 @@ public class AsyncUdpServer<Type extends IClientState> implements IServer<Type> 
 
 		public Connection(InetSocketAddress remoteAddress) {
 			this.remoteAddress = remoteAddress;
-
-			establishedConnections.put(remoteAddress, this);
 		}
 
 		@Override
 		public InetSocketAddress getRemoteAddress() {
 			return remoteAddress;
+		}
+		
+		@Override
+		public InetSocketAddress getLocalAddress() {
+			return (InetSocketAddress) serverChannel.socket().getLocalSocketAddress();
 		}
 
 		@Override
@@ -97,15 +99,8 @@ public class AsyncUdpServer<Type extends IClientState> implements IServer<Type> 
 
 		@Override
 		public void disconnect() {
-			synchronized (establishedConnections) {
-				if (establishedConnections.remove(remoteAddress) == null)
-					return;
-
-			}
-			cleanResource();
-		}
-
-		private void cleanResource() {
+			if (establishedConnections.remove(remoteAddress) == null)
+				return;
 			if (state != null) {
 				handler.disposeState(state);
 				state = null;
@@ -159,6 +154,8 @@ public class AsyncUdpServer<Type extends IClientState> implements IServer<Type> 
 										if (conn == null) {
 											conn = new Connection(remoteAddress);
 											conn.state = handler.createState(conn);
+
+											establishedConnections.put(remoteAddress, conn);
 										}
 										conn.lastUsedTime = System.currentTimeMillis();
 
@@ -166,10 +163,8 @@ public class AsyncUdpServer<Type extends IClientState> implements IServer<Type> 
 
 										if (!sessionContinue) {
 											conn.disconnect();
-											// key.cancel();
 										}
 									} catch (Exception e) {
-										// key.cancel();
 									}
 								}
 							}
@@ -195,12 +190,9 @@ public class AsyncUdpServer<Type extends IClientState> implements IServer<Type> 
 				try {
 					while (isListening()) {
 						long deadline = System.currentTimeMillis() - 60000;
-						Iterator<Entry<InetSocketAddress, Connection>> iter = establishedConnections.entrySet().iterator();
-						while (iter.hasNext()) {
-							Entry<InetSocketAddress, Connection> entry = iter.next();
+						for (Entry<InetSocketAddress, Connection> entry : establishedConnections.entrySet()) {
 							Connection conn = entry.getValue();
 							if (conn.lastUsedTime < deadline) {
-								iter.remove();
 								conn.disconnect();
 							}
 						}
@@ -233,14 +225,9 @@ public class AsyncUdpServer<Type extends IClientState> implements IServer<Type> 
 			} catch (IOException e) {
 			}
 		}
-		synchronized (establishedConnections) {
-			Iterator<Entry<InetSocketAddress, Connection>> iter = establishedConnections.entrySet().iterator();
-			while (iter.hasNext()) {
-				Entry<InetSocketAddress, Connection> entry = iter.next();
-				Connection conn = entry.getValue();
-				conn.cleanResource();
-			}
-			establishedConnections.clear();
+		for (Entry<InetSocketAddress, Connection> entry : establishedConnections.entrySet()) {
+			Connection conn = entry.getValue();
+			conn.disconnect();
 		}
 	}
 

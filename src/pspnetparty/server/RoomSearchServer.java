@@ -45,19 +45,19 @@ public class RoomSearchServer {
 		IniParser parser = new IniParser(iniFileName);
 		IniParser.Section settings = parser.getSection(IniConstants.SECTION_SETTINGS);
 
-		int port = settings.get(IniConstants.SERVER_PORT, 40000);
+		int port = settings.get(IniConstants.Server.PORT, 40000);
 		if (port < 1 || port > 65535) {
 			System.out.println("ポート番号が不正です: " + port);
 			return;
 		}
 		System.out.println("ポート: " + port);
 
-		settings.set(IniConstants.SERVER_PORT, Integer.toString(port));
+		settings.set(IniConstants.Server.PORT, Integer.toString(port));
 
-		String driver = settings.get(IniConstants.SERVER_DB_DRIVER, "");
-		String url = settings.get(IniConstants.SERVER_DB_URL, "");
-		String user = settings.get(IniConstants.SERVER_DB_USER, "");
-		String password = settings.get(IniConstants.SERVER_DB_PASSWORD, "");
+		String driver = settings.get(IniConstants.Server.DB_DRIVER, "");
+		String url = settings.get(IniConstants.Server.DB_URL, "");
+		String user = settings.get(IniConstants.Server.DB_USER, "");
+		String password = settings.get(IniConstants.Server.DB_PASSWORD, "");
 
 		boolean hasDbSettingError = false;
 		if (Utility.isEmpty(driver)) {

@@ -21,7 +21,6 @@ package pspnetparty.lib;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -48,6 +47,7 @@ public class RoomSearchEngine {
 
 	private PreparedStatement searchNonFullRoomStatement;
 	private PreparedStatement searchAllRoomStatement;
+	private PreparedStatement getAllRoomStatement;
 
 	private int descriptionMaxLength = 100;
 
@@ -81,13 +81,16 @@ public class RoomSearchEngine {
 		sql = String.format("DELETE FROM rooms WHERE %s = ?", Search.DB_COLUMN_ADDRESS);
 		deleteRoomStatement = dbConn.prepareStatement(sql);
 
-		sql = String.format("SELECT * FROM rooms WHERE %s LIKE ? AND %s LIKE ? AND %s LIKE ? AND %s < %s", Search.DB_COLUMN_ADDRESS,
-				Search.DB_COLUMN_MASTER_NAME, Search.DB_COLUMN_TITLE, Search.DB_COLUMN_CURRENT_PLAYERS, Search.DB_COLUMN_MAX_PLAYERS);
+		sql = String.format("SELECT * FROM rooms WHERE %s LIKE ? AND %s LIKE ? AND %s LIKE ? AND %s = ? AND %s < %s",
+				Search.DB_COLUMN_ADDRESS, Search.DB_COLUMN_MASTER_NAME, Search.DB_COLUMN_TITLE, Search.DB_COLUMN_HAS_PASSWORD,
+				Search.DB_COLUMN_CURRENT_PLAYERS, Search.DB_COLUMN_MAX_PLAYERS);
 		searchNonFullRoomStatement = dbConn.prepareStatement(sql);
 
-		sql = String.format("SELECT * FROM rooms WHERE %s LIKE ? AND %s LIKE ? AND %s LIKE ?", Search.DB_COLUMN_ADDRESS,
-				Search.DB_COLUMN_MASTER_NAME, Search.DB_COLUMN_TITLE);
+		sql = String.format("SELECT * FROM rooms WHERE %s LIKE ? AND %s LIKE ? AND %s LIKE ? AND %s = ?", Search.DB_COLUMN_ADDRESS,
+				Search.DB_COLUMN_MASTER_NAME, Search.DB_COLUMN_TITLE, Search.DB_COLUMN_HAS_PASSWORD);
 		searchAllRoomStatement = dbConn.prepareStatement(sql);
+		
+		getAllRoomStatement = dbConn.prepareStatement("SELECT * FROM rooms");
 	}
 
 	public void start(int port) throws IOException {
@@ -104,6 +107,28 @@ public class RoomSearchEngine {
 		if (!searchServer.isListening())
 			return;
 		searchServer.stopListening();
+	}
+	
+	@Override
+	public String toString() {
+		StringBuilder sb;
+		try {
+			ResultSet rs = getAllRoomStatement.executeQuery();
+
+			sb = new StringBuilder();
+			while (rs.next()) {
+				sb.append(rs.getString(Search.DB_COLUMN_ADDRESS)).append('\t');
+				sb.append(rs.getString(Search.DB_COLUMN_MASTER_NAME)).append('\t');
+				sb.append(rs.getString(Search.DB_COLUMN_TITLE)).append('\t');
+				sb.append(rs.getInt(Search.DB_COLUMN_CURRENT_PLAYERS));
+				sb.append(" / ");
+				sb.append(rs.getInt(Search.DB_COLUMN_MAX_PLAYERS));
+				sb.append('\n');
+			}
+		} catch (SQLException e) {
+			return Utility.makeStackTrace(e);
+		}
+		return sb.toString();
 	}
 
 	private class SearchHandler implements IAsyncServerHandler<SearchState> {
@@ -247,9 +272,10 @@ public class RoomSearchEngine {
 					String[] address = tokens[1].split(":");
 					final String hostname = makeHostName(address[0], state);
 					final int port = Integer.parseInt(address[1]);
-
+					
 					final String masterName = tokens[2];
 					final String title = tokens[3];
+
 					final int currentPlayers = Integer.parseInt(tokens[4]);
 					final int maxPlayers = Integer.parseInt(tokens[5]);
 					final boolean hasPassword = "Y".equals(tokens[6]);
@@ -415,16 +441,17 @@ public class RoomSearchEngine {
 		private class RoomSearchHandler implements IServerMessageHandler<SearchState> {
 			@Override
 			public boolean process(SearchState state, String argument) {
-				// S title masterName serverHostName includeFullRoom
+				// S title masterName serverHostName includeFullRoom hasPassword
 
 				String[] tokens = argument.split(" ");
-				if (tokens.length != 4)
+				if (tokens.length != 5)
 					return false;
 
 				String queryTitle = "%" + tokens[0] + "%"; // Utility.removeQuotations(tokens[0]);
 				String queryMasterName = "%" + tokens[1] + "%"; // Utility.removeQuotations(tokens[1]);
 				String queryServerHost = "%" + tokens[2] + "%"; // Utility.removeQuotations(tokens[2]);
 				boolean includeFullRoom = "Y".equals(tokens[3]);
+				boolean queryHasPassword = "Y".equals(tokens[4]);
 
 				PreparedStatement stmt = includeFullRoom ? searchAllRoomStatement : searchNonFullRoomStatement;
 
@@ -432,6 +459,7 @@ public class RoomSearchEngine {
 					stmt.setString(1, queryServerHost);
 					stmt.setString(2, queryMasterName);
 					stmt.setString(3, queryTitle);
+					stmt.setBoolean(4, queryHasPassword);
 
 					ResultSet rs = stmt.executeQuery();
 
@@ -458,17 +486,12 @@ public class RoomSearchEngine {
 
 					rs.close();
 
-					if (sb.length() > 0) {
-						sb.deleteCharAt(sb.length() - 1);
-					} else {
-						sb.append(ProtocolConstants.Search.COMMAND_SEARCH);
-					}
+					sb.append(ProtocolConstants.Search.COMMAND_SEARCH);
 
 					state.getConnection().send(sb.toString());
 
 				} catch (SQLException e) {
 					log(Utility.makeStackTrace(e));
-					return false;
 				}
 
 				return false;

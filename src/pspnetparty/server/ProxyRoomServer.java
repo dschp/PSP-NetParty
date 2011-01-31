@@ -43,22 +43,22 @@ public class ProxyRoomServer {
 		IniParser parser = new IniParser(iniFileName);
 		IniParser.Section settings = parser.getSection(IniConstants.SECTION_SETTINGS);
 		
-		int port = settings.get(IniConstants.SERVER_PORT, 30000);
+		int port = settings.get(IniConstants.Server.PORT, 30000);
 		if (port < 1 || port > 65535) {
 			System.out.println("ポート番号が不正です: " + port);
 			return;
 		}
 		System.out.println("ポート: " + port);
 		
-		int maxRooms = settings.get(IniConstants.SERVER_MAX_ROOMS, 10);
+		int maxRooms = settings.get(IniConstants.Server.MAX_ROOMS, 10);
 		if (maxRooms < 1) {
 			System.out.println("部屋数が不正です: " + maxRooms);
 			return;
 		}
 		System.out.println("最大部屋数: " + maxRooms);
 		
-		settings.set(IniConstants.SERVER_PORT, Integer.toString(port));
-		settings.set(IniConstants.SERVER_MAX_ROOMS, Integer.toString(maxRooms));
+		settings.set(IniConstants.Server.PORT, Integer.toString(port));
+		settings.set(IniConstants.Server.MAX_ROOMS, Integer.toString(maxRooms));
 		
 		parser.saveToIni();
 		

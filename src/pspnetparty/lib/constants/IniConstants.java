@@ -24,25 +24,44 @@ public class IniConstants {
 
 	public static final String SECTION_SETTINGS = "Settings";
 
-	public static final String CLIENT_LOGIN_NAME = "UserName";
-	// public static final String CLIENT_SERVER_ADDRESS = "ServerAddress";
+	public static class Client {
+		private Client() {
+		}
 
-	public static final String CLIENT_WINDOW_WIDTH = "WindowWidth";
-	public static final String CLIENT_WINDOW_HEIGHT = "WindowHeight";
+		public static final String LOGIN_NAME = "UserName";
 
-	public static final String CLIENT_SERVER_LIST = "ServerList";
-	public static final String CLIENT_SERVER_HISTORY = "ServerHistory";
+		public static final String WINDOW_WIDTH = "WindowWidth";
+		public static final String WINDOW_HEIGHT = "WindowHeight";
 
-	public static final String CLIENT_LAST_LAN_ADAPTER = "LastLanAdapter";
+		public static final String MY_ROOM_HOST_NAME = "MyRoomHostName";
+		public static final String MY_ROOM_PORT = "MyRoomPort";
+		public static final String MY_ROOM_ALLOW_NO_MASTER_NAME = "MyRoomAllowNoMasterName";
 
-	public static final String SECTION_LAN_ADAPTERS = "LanAdapters";
+		public static final String ROOM_SERVER_LIST = "RoomServerList";
+		public static final String ROOM_SERVER_HISTORY = "RoomServerHistory";
+		public static final String PROXY_SERVER_LIST = "ProxyServerList";
+		public static final String PROXY_SERVER_HISTORY = "ProxyServerHistory";
+		public static final String ENTRY_SEARCH_SERVER_LIST = "EntrySearchServerList";
+		public static final String ENTRY_SEARCH_SERVER_HISTORY = "EntrySearchServerHistory";
+		public static final String QUERY_SEARCH_SERVER_LIST = "QuerySearchServerList";
+		public static final String QUERY_SEARCH_SERVER_HISTORY = "QuerySearchServerHistory";
 
-	public static final String SERVER_PORT = "Port";
-	public static final String SERVER_MAX_USERS = "MaxUsers";
-	public static final String SERVER_MAX_ROOMS = "MaxRooms";
-	
-	public static final String SERVER_DB_DRIVER = "DatabaseDriver";
-	public static final String SERVER_DB_URL = "DatabaseURL";
-	public static final String SERVER_DB_USER = "DatabaseUser";
-	public static final String SERVER_DB_PASSWORD = "DatabasePassword";
+		public static final String LAST_LAN_ADAPTER = "LastLanAdapter";
+
+		public static final String SECTION_LAN_ADAPTERS = "LanAdapters";
+	}
+
+	public static class Server {
+		private Server() {
+		}
+
+		public static final String PORT = "Port";
+		public static final String MAX_USERS = "MaxUsers";
+		public static final String MAX_ROOMS = "MaxRooms";
+
+		public static final String DB_DRIVER = "DatabaseDriver";
+		public static final String DB_URL = "DatabaseURL";
+		public static final String DB_USER = "DatabaseUser";
+		public static final String DB_PASSWORD = "DatabasePassword";
+	}
 }

@@ -28,8 +28,8 @@ import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
-import java.util.HashSet;
 import java.util.Iterator;
+import java.util.concurrent.ConcurrentHashMap;
 
 import pspnetparty.lib.constants.AppConstants;
 import pspnetparty.lib.constants.ProtocolConstants;
@@ -45,9 +45,11 @@ public class AsyncTcpServer<Type extends IClientState> implements IServer<Type> 
 	private ServerSocketChannel serverChannel;
 	private ByteBuffer headerBuffer = ByteBuffer.allocateDirect(Integer.SIZE / 8);
 
-	private HashSet<Connection> establishedConnections = new HashSet<Connection>();
+	private ConcurrentHashMap<Connection, Object> establishedConnections;
+	private final Object valueObject = new Object();
 
 	public AsyncTcpServer() {
+		establishedConnections = new ConcurrentHashMap<AsyncTcpServer<Type>.Connection, Object>(30, 0.75f, 2);
 	}
 
 	@Override
@@ -101,7 +103,6 @@ public class AsyncTcpServer<Type extends IClientState> implements IServer<Type> 
 										}
 									}
 								} catch (CancelledKeyException e) {
-									// AsyncTcpServer.this.handler.log(Utility.makeStackTrace(e));
 								}
 							}
 						}
@@ -135,11 +136,8 @@ public class AsyncTcpServer<Type extends IClientState> implements IServer<Type> 
 			} catch (IOException e) {
 			}
 		}
-		synchronized (establishedConnections) {
-			for (Connection conn : establishedConnections) {
-				conn.cleanResource();
-			}
-			establishedConnections.clear();
+		for (Connection conn : establishedConnections.keySet()) {
+			conn.disconnect();
 		}
 	}
 
@@ -157,6 +155,11 @@ public class AsyncTcpServer<Type extends IClientState> implements IServer<Type> 
 		@Override
 		public InetSocketAddress getRemoteAddress() {
 			return (InetSocketAddress) channel.socket().getRemoteSocketAddress();
+		}
+		
+		@Override
+		public InetSocketAddress getLocalAddress() {
+			return (InetSocketAddress) channel.socket().getLocalSocketAddress();
 		}
 
 		@Override
@@ -194,13 +197,8 @@ public class AsyncTcpServer<Type extends IClientState> implements IServer<Type> 
 
 		@Override
 		public void disconnect() {
-			synchronized (establishedConnections) {
-				establishedConnections.remove(this);
-			}
-			cleanResource();
-		}
-
-		private void cleanResource() {
+			if (establishedConnections.remove(this) == null)
+				return;
 			if (state == null)
 				return;
 
@@ -208,10 +206,8 @@ public class AsyncTcpServer<Type extends IClientState> implements IServer<Type> 
 			state = null;
 
 			try {
-				if (channel != null) {
+				if (channel.isOpen())
 					channel.close();
-					channel = null;
-				}
 			} catch (IOException e) {
 			}
 		}
@@ -226,7 +222,7 @@ public class AsyncTcpServer<Type extends IClientState> implements IServer<Type> 
 		channel.configureBlocking(false);
 		channel.register(selector, SelectionKey.OP_READ, conn);
 
-		establishedConnections.add(conn);
+		establishedConnections.put(conn, valueObject);
 	}
 
 	private void doRead(Connection conn) throws IOException {

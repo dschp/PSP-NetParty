@@ -27,9 +27,9 @@ import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 import java.nio.channels.SocketChannel;
 import java.nio.channels.UnresolvedAddressException;
-import java.util.HashSet;
 import java.util.Iterator;
-import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedQueue;
 
 import pspnetparty.lib.constants.AppConstants;
 import pspnetparty.lib.constants.ProtocolConstants;
@@ -40,14 +40,16 @@ public class AsyncTcpClient {
 	private static final int MAX_PACKET_SIZE = 100000;
 
 	private Selector selector;
-	private LinkedBlockingQueue<Connection> newConnectionQueue = new LinkedBlockingQueue<Connection>();
-	private HashSet<Connection> establishedConnections = new HashSet<Connection>();
+	private ConcurrentLinkedQueue<Connection> newConnectionQueue = new ConcurrentLinkedQueue<Connection>();
+	private ConcurrentHashMap<Connection, Object> establishedConnections;
+	private final Object valueObject = new Object();
+
+	private ByteBuffer readHeaderBuffer = ByteBuffer.allocateDirect(ProtocolConstants.INTEGER_BYTE_SIZE);
 
 	private Thread selectorThread;
-	private ByteBuffer readHeaderBuffer = ByteBuffer.allocateDirect(ProtocolConstants.INTEGER_BYTE_SIZE);
-	private Thread connectorThread;
 
 	public AsyncTcpClient() {
+		establishedConnections = new ConcurrentHashMap<AsyncTcpClient.Connection, Object>(16, 0.75f, 2);
 		try {
 			selector = Selector.open();
 		} catch (IOException e) {
@@ -59,76 +61,71 @@ public class AsyncTcpClient {
 			public void run() {
 				try {
 					while (selector.isOpen()) {
-						// System.out.println("LOOP");
-						synchronized (establishedConnections) {
-							while (establishedConnections.isEmpty())
-								establishedConnections.wait();
-						}
-						while (!establishedConnections.isEmpty())
-							if (selector.select(1000) > 0) {
-								// System.out.println("SELECT");
-								for (Iterator<SelectionKey> it = selector.selectedKeys().iterator(); it.hasNext();) {
-									SelectionKey key = it.next();
-									it.remove();
-									Connection connection = (Connection) key.attachment();
-									try {
-										if (key.isConnectable()) {
-											connection.connectReady();
-										} else if (key.isReadable()) {
-											connection.readReady();
-										}
-									} catch (CancelledKeyException e) {
-										connection.disconnect();
-									} catch (IOException e) {
-										connection.disconnect();
+						int s = selector.select();
+						// System.out.println("Select: " + s);
+						if (s > 0) {
+							for (Iterator<SelectionKey> it = selector.selectedKeys().iterator(); it.hasNext();) {
+								SelectionKey key = it.next();
+								it.remove();
+								Connection connection = (Connection) key.attachment();
+								try {
+									if (key.isConnectable()) {
+										connection.connectReady();
+									} else if (key.isReadable()) {
+										connection.readReady();
 									}
-									if (!connection.isConnected()) {
-										key.cancel();
-									}
+								} catch (CancelledKeyException e) {
+									connection.disconnect();
+								} catch (IOException e) {
+									connection.disconnect();
+								}
+								if (!connection.isConnected()) {
+									key.cancel();
 								}
 							}
+						}
+
+						Connection conn;
+						while ((conn = newConnectionQueue.poll()) != null)
+							conn.prepareConnect();
 					}
 				} catch (ClosedSelectorException e) {
 				} catch (IOException e) {
-				} catch (InterruptedException e) {
 				}
 			}
 		}, AsyncTcpClient.class.getName() + " Selector");
 		selectorThread.setDaemon(true);
+		selectorThread.start();
+	}
 
-		connectorThread = new Thread(new Runnable() {
-			@Override
-			public void run() {
-				try {
-					while (selector.isOpen()) {
-						Connection conn = newConnectionQueue.take();
+	public ISocketConnection connect(InetSocketAddress address, IAsyncClientHandler handler) throws IOException {
+		if (address == null || handler == null)
+			throw new IllegalArgumentException();
 
-						conn.channel = SocketChannel.open();
-						conn.channel.configureBlocking(false);
+		Connection conn = new Connection(address, handler);
+		newConnectionQueue.offer(conn);
+		selector.wakeup();
 
-						conn.channel.register(selector, SelectionKey.OP_CONNECT, conn);
-						try {
-							conn.channel.connect(conn.remoteAddress);
-						} catch (UnresolvedAddressException e) {
-							e.printStackTrace();
-							conn.handler.disconnectCallback(conn);
-							continue;
-						}
+		return conn;
+	}
 
-						synchronized (establishedConnections) {
-							if (!selectorThread.isAlive()) {
-								selectorThread.start();
-							}
-							establishedConnections.add(conn);
-							establishedConnections.notify();
-						}
-					}
-				} catch (IOException e) {
-				} catch (InterruptedException e) {
-				}
-			}
-		}, AsyncTcpClient.class.getName() + " Connector");
-		connectorThread.setDaemon(true);
+	public void dispose() {
+		if (!selector.isOpen())
+			return;
+		try {
+			selector.close();
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+		for (Connection conn : establishedConnections.keySet()) {
+			conn.disconnect();
+		}
+	}
+
+	@Override
+	protected void finalize() throws Throwable {
+		super.finalize();
+		dispose();
 	}
 
 	private class Connection implements ISocketConnection {
@@ -145,6 +142,25 @@ public class AsyncTcpClient {
 			this.handler = handler;
 		}
 
+		private void prepareConnect() {
+			try {
+				channel = SocketChannel.open();
+				channel.configureBlocking(false);
+
+				channel.register(selector, SelectionKey.OP_CONNECT, this);
+				channel.connect(remoteAddress);
+
+				establishedConnections.put(this, valueObject);
+				return;
+			} catch (UnresolvedAddressException e) {
+			} catch (RuntimeException e) {
+				handler.log(this, Utility.makeStackTrace(e));
+			} catch (IOException e) {
+				handler.log(this, Utility.makeStackTrace(e));
+			}
+			handler.disconnectCallback(this);
+		}
+
 		private void connectReady() throws IOException {
 			channel.finishConnect();
 			channel.register(selector, SelectionKey.OP_READ, this);
@@ -156,16 +172,12 @@ public class AsyncTcpClient {
 			if (readDataBuffer.position() == 0) {
 				readHeaderBuffer.clear();
 				if (channel.read(readHeaderBuffer) < 0) {
-					// throw new
-					// IOException("Server has disconnected.");
 					disconnect();
 					return;
 				}
 				readHeaderBuffer.flip();
 
 				int dataSize = readHeaderBuffer.getInt();
-				// System.out.println("Data size=" +
-				// dataSize);
 				if (dataSize < 1 || dataSize > MAX_PACKET_SIZE) {
 					readHeaderBuffer.position(0);
 					System.out.println(Utility.decode(readHeaderBuffer));
@@ -181,8 +193,6 @@ public class AsyncTcpClient {
 			}
 
 			if (channel.read(readDataBuffer) < 0) {
-				// throw new
-				// IOException("Server has disconnected.");
 				disconnect();
 				return;
 			}
@@ -202,25 +212,20 @@ public class AsyncTcpClient {
 
 		@Override
 		public boolean isConnected() {
-			return channel.isOpen();
+			return channel != null && channel.isOpen();
 		}
 
 		@Override
 		public void disconnect() {
-			synchronized (establishedConnections) {
-				if (!establishedConnections.remove(this))
-					return;
-			}
-			cleanResource();
-		}
-
-		private void cleanResource() {
+			if (establishedConnections.remove(this) == null)
+				return;
 			try {
 				handler.disconnectCallback(this);
 			} catch (RuntimeException re) {
 			}
 			try {
-				channel.close();
+				if (channel.isOpen())
+					channel.close();
 			} catch (IOException e) {
 			}
 		}
@@ -228,6 +233,11 @@ public class AsyncTcpClient {
 		@Override
 		public InetSocketAddress getRemoteAddress() {
 			return remoteAddress;
+		}
+		
+		@Override
+		public InetSocketAddress getLocalAddress() {
+			return (InetSocketAddress) channel.socket().getLocalSocketAddress();
 		}
 
 		@Override
@@ -244,7 +254,7 @@ public class AsyncTcpClient {
 
 		@Override
 		public void send(ByteBuffer buffer) {
-			if (!channel.isConnected())
+			if (!isConnected())
 				return;
 
 			try {
@@ -257,42 +267,6 @@ public class AsyncTcpClient {
 			} catch (IOException e) {
 			}
 		}
-	}
-
-	public ISocketConnection connect(InetSocketAddress address, IAsyncClientHandler handler) throws IOException {
-		if (address == null || handler == null)
-			throw new IllegalArgumentException();
-
-		synchronized (connectorThread) {
-			if (!connectorThread.isAlive())
-				connectorThread.start();
-		}
-
-		Connection conn = new Connection(address, handler);
-		newConnectionQueue.offer(conn);
-		return conn;
-	}
-
-	public void dispose() {
-		if (!selector.isOpen())
-			return;
-		synchronized (establishedConnections) {
-			for (Connection conn : establishedConnections) {
-				conn.cleanResource();
-			}
-			establishedConnections.clear();
-		}
-		try {
-			selector.close();
-		} catch (IOException e) {
-			e.printStackTrace();
-		}
-	}
-
-	@Override
-	protected void finalize() throws Throwable {
-		super.finalize();
-		dispose();
 	}
 
 	public static void main(String[] args) throws Exception {

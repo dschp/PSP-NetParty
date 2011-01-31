@@ -25,9 +25,9 @@ import java.nio.channels.ClosedSelectorException;
 import java.nio.channels.DatagramChannel;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
-import java.nio.channels.UnresolvedAddressException;
-import java.util.HashSet;
 import java.util.Iterator;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedQueue;
 
 import pspnetparty.lib.constants.AppConstants;
 
@@ -36,11 +36,14 @@ public class AsyncUdpClient {
 	private static final int BUFFER_SIZE = 20000;
 
 	private Selector selector;
-	private HashSet<Connection> connections = new HashSet<Connection>();
+	private ConcurrentLinkedQueue<Connection> newConnectionQueue = new ConcurrentLinkedQueue<Connection>();
+	private ConcurrentHashMap<Connection, Object> connections;
+	private final Object valueObject = new Object();
 
 	private Thread selectorThread;
 
 	public AsyncUdpClient() {
+		connections = new ConcurrentHashMap<AsyncUdpClient.Connection, Object>(16, 0.75f, 2);
 		try {
 			selector = Selector.open();
 		} catch (IOException e) {
@@ -52,37 +55,67 @@ public class AsyncUdpClient {
 			public void run() {
 				try {
 					while (selector.isOpen()) {
-						synchronized (connections) {
-							while (connections.isEmpty())
-								connections.wait();
-						}
-						while (!connections.isEmpty())
-							if (selector.select(1000) > 0) {
-								for (Iterator<SelectionKey> it = selector.selectedKeys().iterator(); it.hasNext();) {
-									SelectionKey key = it.next();
-									it.remove();
-									Connection connection = (Connection) key.attachment();
+						int s = selector.select();
+						// System.out.println("Select: " + s);
+						if (s > 0) {
+							for (Iterator<SelectionKey> it = selector.selectedKeys().iterator(); it.hasNext();) {
+								SelectionKey key = it.next();
+								it.remove();
+								Connection connection = (Connection) key.attachment();
 
-									try {
-										if (key.isReadable()) {
-											connection.readReady();
-										}
-									} catch (IOException e) {
-										connection.handler.log(connection, Utility.makeStackTrace(e));
-										key.cancel();
-										connection.disconnect();
+								try {
+									if (key.isReadable()) {
+										connection.readReady();
 									}
+								} catch (IOException e) {
+									connection.handler.log(connection, Utility.makeStackTrace(e));
+									key.cancel();
+									connection.disconnect();
 								}
 							}
+						}
+
+						Connection conn;
+						while ((conn = newConnectionQueue.poll()) != null)
+							conn.prepareConnect();
 					}
 				} catch (ClosedSelectorException e) {
 				} catch (IOException e) {
-				} catch (InterruptedException e) {
 				}
 			}
 		}, AsyncUdpClient.class.getName());
 		selectorThread.setDaemon(true);
-		// selectorThread.start();
+		selectorThread.start();
+	}
+
+	public ISocketConnection connect(InetSocketAddress address, IAsyncClientHandler handler) throws IOException {
+		if (address == null)
+			throw new IllegalArgumentException();
+
+		Connection conn = new Connection(address, handler);
+		newConnectionQueue.offer(conn);
+		selector.wakeup();
+
+		return conn;
+	}
+
+	public void dispose() {
+		if (!selector.isOpen())
+			return;
+		try {
+			selector.close();
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+		for (Connection conn : connections.keySet()) {
+			conn.disconnect();
+		}
+	}
+
+	@Override
+	protected void finalize() throws Throwable {
+		super.finalize();
+		dispose();
 	}
 
 	private class Connection implements ISocketConnection {
@@ -97,25 +130,25 @@ public class AsyncUdpClient {
 		public Connection(InetSocketAddress address, IAsyncClientHandler handler) throws IOException {
 			this.remoteAddress = address;
 			this.handler = handler;
+		}
 
-			channel = DatagramChannel.open();
-			channel.configureBlocking(false);
-			channel.register(selector, SelectionKey.OP_READ, this);
+		private void prepareConnect() {
 			try {
-				channel.connect(address);
+				channel = DatagramChannel.open();
+				channel.configureBlocking(false);
+
+				channel.register(selector, SelectionKey.OP_READ, this);
+				channel.connect(remoteAddress);
+
+				connections.put(this, valueObject);
+				handler.connectCallback(this);
+
+				return;
 			} catch (RuntimeException e) {
-				throw new IOException(e);
+				handler.log(this, Utility.makeStackTrace(e));
+			} catch (IOException e) {
 			}
-
-			handler.connectCallback(this);
-
-			synchronized (connections) {
-				if (!selectorThread.isAlive()) {
-					selectorThread.start();
-				}
-				connections.add(this);
-				connections.notify();
-			}
+			handler.disconnectCallback(this);
 		}
 
 		private void readReady() throws IOException {
@@ -128,14 +161,8 @@ public class AsyncUdpClient {
 
 		@Override
 		public void disconnect() {
-			synchronized (connections) {
-				if (!connections.remove(this))
-					return;
-			}
-			cleanResource();
-		}
-		
-		private void cleanResource() {
+			if (connections.remove(this) == null)
+				return;
 			try {
 				handler.disconnectCallback(this);
 			} catch (RuntimeException re) {
@@ -149,17 +176,22 @@ public class AsyncUdpClient {
 
 		@Override
 		public boolean isConnected() {
-			return channel.isOpen();
+			return channel != null && channel.isOpen();
 		}
 
 		@Override
 		public InetSocketAddress getRemoteAddress() {
 			return remoteAddress;
 		}
+		
+		@Override
+		public InetSocketAddress getLocalAddress() {
+			return (InetSocketAddress) channel.socket().getLocalSocketAddress();
+		}
 
 		@Override
 		public void send(ByteBuffer buffer) {
-			if (!channel.isOpen())
+			if (!isConnected())
 				return;
 
 			try {
@@ -180,35 +212,6 @@ public class AsyncUdpClient {
 			ByteBuffer buffer = AppConstants.CHARSET.encode(data);
 			send(buffer);
 		}
-	}
-
-	public ISocketConnection connect(InetSocketAddress address, IAsyncClientHandler handler) throws IOException {
-		if (address == null)
-			throw new IllegalArgumentException();
-
-		return new Connection(address, handler);
-	}
-
-	public void dispose() {
-		if (!selector.isOpen())
-			return;
-		synchronized (connections) {
-			for (Connection conn : connections) {
-				conn.cleanResource();
-			}
-			connections.clear();
-		}
-		try {
-			selector.close();
-		} catch (IOException e) {
-			e.printStackTrace();
-		}
-	}
-
-	@Override
-	protected void finalize() throws Throwable {
-		super.finalize();
-		dispose();
 	}
 
 	public static void main(String[] args) throws IOException {

@@ -41,9 +41,6 @@ public class ProtocolConstants {
 		public static final String COMMAND_CHAT = "CH";
 		public static final String COMMAND_ROOM_CREATE = "RC";
 		public static final String COMMAND_ROOM_UPDATE = "RU";
-		// public static final String COMMAND_ROOM_DELETE = "RD";
-		// public static final String COMMAND_ROOM_ENTER = "RE";
-		// public static final String COMMAND_ROOM_EXIT = "RX";
 		public static final String COMMAND_ROOM_KICK_PLAYER = "RK";
 		public static final String COMMAND_ROOM_MASTER_TRANSFER = "RT";
 
@@ -55,16 +52,11 @@ public class ProtocolConstants {
 		public static final String COMMAND_PINGBACK = "PB";
 		public static final String COMMAND_INFORM_PING = "IP";
 
-		public static final String COMMAND_CONFIRM_AUTH_CODE = "CAC";
-		public static final String NOTIFY_ROOM_MASTER_AUTH_CODE = "NRAC";
-
 		public static final String NOTIFY_SERVER_STATUS = "SS";
 		public static final String NOTIFY_USER_ENTERED = "NUE";
 		public static final String NOTIFY_USER_EXITED = "NUX";
 		public static final String NOTIFY_USER_LIST = "NUL";
-		// public static final String NOTIFY_ROOM_CREATED = "NRC";
 		public static final String NOTIFY_ROOM_DELETED = "NRD";
-		// public static final String NOTIFY_ROOM_LIST = "NRL";
 		public static final String NOTIFY_ROOM_UPDATED = "NRU";
 		public static final String NOTIFY_ROOM_PLAYER_KICKED = "NRK";
 
@@ -72,11 +64,17 @@ public class ProtocolConstants {
 
 		public static final String ERROR_LOGIN_DUPLICATED_NAME = "ERR_LI_DUP";
 		public static final String ERROR_LOGIN_BEYOND_CAPACITY = "ERR_LI_CAP";
+		public static final String ERROR_LOGIN_ROOM_NOT_EXIST = "ERR_LI_RNE";
 
+		public static final String ERROR_ROOM_CREATE_DUPLICATED_NAME = "ERR_RC_DUP";
 		public static final String ERROR_ROOM_CREATE_BEYOND_LIMIT = "ERR_RC_LIM";
 		public static final String ERROR_ROOM_ENTER_PASSWORD_FAIL = "ERR_RE_PWF";
 		public static final String ERROR_ROOM_ENTER_BEYOND_CAPACITY = "ERR_RE_CAP";
 		public static final String ERROR_ROOM_TRANSFER_DUPLICATED_NAME = "ERR_RT_DUP";
+
+		public static final String COMMAND_CONFIRM_AUTH_CODE = "CAC";
+		public static final String NOTIFY_ROOM_MASTER_AUTH_CODE = "NRAC";
+		public static final String ERROR_CONFIRM_INVALID_AUTH_CODE = "ERR_CAC_NG";
 	}
 
 	public class Search {
@@ -96,7 +94,7 @@ public class ProtocolConstants {
 		public static final String COMMAND_UPDATE_PLAYER_COUNT = "C";
 
 		public static final String COMMAND_SEARCH = "S";
-		
+
 		public static final String ERROR_MASTER_TCP_PORT = "ERR_RM_TCP";
 		public static final String ERROR_MASTER_UDP_PORT = "ERR_RM_UDP";
 		public static final String ERROR_MASTER_INVALID_AUTH_CODE = "ERR_RM_IAC";
