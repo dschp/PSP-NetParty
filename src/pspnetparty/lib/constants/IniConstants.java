@@ -63,5 +63,7 @@ public class IniConstants {
 		public static final String DB_URL = "DatabaseURL";
 		public static final String DB_USER = "DatabaseUser";
 		public static final String DB_PASSWORD = "DatabasePassword";
+
+		public static final String DB_PING_SQL = "DatabasePingSQL";
 	}
 }

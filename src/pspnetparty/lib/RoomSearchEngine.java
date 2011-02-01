@@ -49,9 +49,11 @@ public class RoomSearchEngine {
 	private PreparedStatement searchAllRoomStatement;
 	private PreparedStatement getAllRoomStatement;
 
+	private PreparedStatement pingStatement;
+
 	private int descriptionMaxLength = 100;
 
-	public RoomSearchEngine(Connection dbConn, ILogger logger) throws SQLException {
+	public RoomSearchEngine(Connection dbConn, ILogger logger, String pingSQL) throws SQLException {
 		// this.dbConnection = dbConn;
 		this.logger = logger;
 
@@ -64,6 +66,26 @@ public class RoomSearchEngine {
 		Statement stmt = dbConn.createStatement();
 		stmt.executeUpdate("DELETE FROM rooms");
 		stmt.close();
+
+		if (!Utility.isEmpty(pingSQL)) {
+			pingStatement = dbConn.prepareStatement(pingSQL);
+			Thread pingThread = new Thread(new Runnable() {
+				@Override
+				public void run() {
+					try {
+						while (searchServer.isListening()) {
+							pingStatement.execute();
+							Thread.sleep(600000);
+						}
+					} catch (SQLException e) {
+						RoomSearchEngine.this.logger.log(Utility.makeStackTrace(e));
+					} catch (InterruptedException e) {
+					}
+				}
+			}, RoomSearchEngine.class.getName() + " PingThread");
+			pingThread.setDaemon(true);
+			pingThread.start();
+		}
 
 		String sql;
 		sql = String.format("INSERT INTO rooms (%s,%s,%s,%s,%s,%s,%s) VALUES (?,?,?,?,?,?,?)", Search.DB_COLUMN_ADDRESS,
@@ -89,7 +111,7 @@ public class RoomSearchEngine {
 		sql = String.format("SELECT * FROM rooms WHERE %s LIKE ? AND %s LIKE ? AND %s LIKE ? AND %s = ?", Search.DB_COLUMN_ADDRESS,
 				Search.DB_COLUMN_MASTER_NAME, Search.DB_COLUMN_TITLE, Search.DB_COLUMN_HAS_PASSWORD);
 		searchAllRoomStatement = dbConn.prepareStatement(sql);
-		
+
 		getAllRoomStatement = dbConn.prepareStatement("SELECT * FROM rooms");
 	}
 
@@ -108,7 +130,7 @@ public class RoomSearchEngine {
 			return;
 		searchServer.stopListening();
 	}
-	
+
 	@Override
 	public String toString() {
 		StringBuilder sb;
@@ -272,7 +294,7 @@ public class RoomSearchEngine {
 					String[] address = tokens[1].split(":");
 					final String hostname = makeHostName(address[0], state);
 					final int port = Integer.parseInt(address[1]);
-					
+
 					final String masterName = tokens[2];
 					final String title = tokens[3];
 

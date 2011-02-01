@@ -58,6 +58,7 @@ public class RoomSearchServer {
 		String url = settings.get(IniConstants.Server.DB_URL, "");
 		String user = settings.get(IniConstants.Server.DB_USER, "");
 		String password = settings.get(IniConstants.Server.DB_PASSWORD, "");
+		String pingSQL = settings.get(IniConstants.Server.DB_PING_SQL, "");
 
 		boolean hasDbSettingError = false;
 		if (Utility.isEmpty(driver)) {
@@ -90,7 +91,7 @@ public class RoomSearchServer {
 				public void log(String message) {
 					System.out.println(message);
 				}
-			});
+			}, pingSQL);
 			engine.start(port);
 
 			BufferedReader reader = new BufferedReader(new InputStreamReader(System.in));

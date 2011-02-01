@@ -17,9 +17,10 @@ CREATE TABLE `rooms` (
 
 JDBCドライバーをdatabase.jarとリネームして
 RoomSearchServer.jarやPspNetParty.jarと同じフォルダに置いてください
-DatabaseDriver、DatabaseURL、DatabaseUser、DatabasePasswordを
+DatabaseDriver、DatabaseURL、DatabaseUser、DatabasePassword、DatabasePingSQLを
 それぞれ設定すれば完了です
 
 以下はmysqlでの設定例です
 DatabaseDriver=com.mysql.jdbc.Driver
 DatabaseURL=jdbc:mysql://ホスト名/DB名
+DatabasePingSQL=SELECT 1
