@@ -168,7 +168,7 @@ public class PlayClient {
 	private ComboHistoryManager proxyServerHistoryManager;
 	private ComboHistoryManager entrySearchServerHistoryManager;
 	private ComboHistoryManager querySearchServerHistoryManager;
-	
+
 	private ComboHistoryManager queryRoomTitleHistoryManager;
 	private ComboHistoryManager queryRoomMasterNameHistoryManager;
 	private ComboHistoryManager queryRoomAddressHistoryManager;
@@ -214,7 +214,7 @@ public class PlayClient {
 		ComboHistoryManager.addList(window.searchServerAddressCombo, serverList);
 		serverList = iniSettingSection.get(IniConstants.Client.QUERY_SEARCH_SERVER_HISTORY, "").split(",");
 		querySearchServerHistoryManager = new ComboHistoryManager(window.searchServerAddressCombo, serverList, MAX_SERVER_HISTORY);
-		
+
 		queryRoomTitleHistoryManager = new ComboHistoryManager(window.searchFormTitleCombo, null, 20);
 		queryRoomMasterNameHistoryManager = new ComboHistoryManager(window.searchFormMasterNameCombo, null, 20);
 		queryRoomAddressHistoryManager = new ComboHistoryManager(window.searchFormServerNameCombo, null, 20);
@@ -284,11 +284,11 @@ public class PlayClient {
 		private SashForm roomSubSashForm;
 		private StyledText roomChatLogText;
 		private SashForm roomInfoSashForm;
-		private TableViewer roomPlayerListViewer;
+		private TableViewer roomPlayerListTable;
 		private TableColumn roomPlayerNameColumn;
 		private TableColumn roomPlayerPingColumn;
 		private Composite packetMonitorContainer;
-		private TableViewer packetMonitorTableViewer;
+		private TableViewer packetMonitorTable;
 		private TabItem configTab;
 		private Composite configContainer;
 		private Label configUserNameLabel;
@@ -314,6 +314,8 @@ public class PlayClient {
 		private MenuItem roomPlayerMasterTransferMenuItem;
 		private Menu statusServerAddressMenu;
 		private MenuItem statusServerAddressCopy;
+		private Menu packetMonitorMenu;
+		private MenuItem packetMonitorMenuClear;
 
 		private Window() {
 			initializeComponents();
@@ -425,22 +427,27 @@ public class PlayClient {
 			TableColumn searchResultRoomsAddressColumn = new TableColumn(searchResultRoomsTable.getTable(), SWT.LEFT);
 			searchResultRoomsAddressColumn.setText("部屋アドレス");
 			searchResultRoomsAddressColumn.setWidth(150);
+			SwtUtils.installSorter(searchResultRoomsTable, searchResultRoomsAddressColumn, new PlayRoom.AddressSorter());
 
 			TableColumn searchResultRoomsMasterNameColumn = new TableColumn(searchResultRoomsTable.getTable(), SWT.LEFT);
 			searchResultRoomsMasterNameColumn.setText("部屋主");
 			searchResultRoomsMasterNameColumn.setWidth(120);
+			SwtUtils.installSorter(searchResultRoomsTable, searchResultRoomsMasterNameColumn, new PlayRoom.MasterNameSorter());
 
 			TableColumn searchResultRoomsTitleColumn = new TableColumn(searchResultRoomsTable.getTable(), SWT.LEFT);
 			searchResultRoomsTitleColumn.setText("部屋名");
 			searchResultRoomsTitleColumn.setWidth(200);
+			SwtUtils.installSorter(searchResultRoomsTable, searchResultRoomsTitleColumn, new PlayRoom.TitleSorter());
 
 			TableColumn searchResultRoomsCapacityColumn = new TableColumn(searchResultRoomsTable.getTable(), SWT.CENTER);
 			searchResultRoomsCapacityColumn.setText("定員");
 			searchResultRoomsCapacityColumn.setWidth(65);
+			SwtUtils.installSorter(searchResultRoomsTable, searchResultRoomsCapacityColumn, new PlayRoom.CapacitySorter());
 
 			TableColumn searchResultRoomsHasPasswordColumn = new TableColumn(searchResultRoomsTable.getTable(), SWT.CENTER);
 			searchResultRoomsHasPasswordColumn.setText("鍵");
 			searchResultRoomsHasPasswordColumn.setWidth(40);
+			SwtUtils.installSorter(searchResultRoomsTable, searchResultRoomsHasPasswordColumn, new PlayRoom.HasPasswordSorter());
 
 			TableColumn searchResultRoomsDescriptionColumn = new TableColumn(searchResultRoomsTable.getTable(), SWT.LEFT);
 			searchResultRoomsDescriptionColumn.setText("詳細・備考");
@@ -675,55 +682,63 @@ public class PlayClient {
 			packetMonitorContainer = new Composite(roomSubSashForm, SWT.NONE);
 			packetMonitorContainer.setLayout(new FillLayout());
 
-			packetMonitorTableViewer = new TableViewer(packetMonitorContainer, SWT.SINGLE | SWT.BORDER | SWT.FULL_SELECTION);
-			packetMonitorTableViewer.getTable().setHeaderVisible(true);
+			packetMonitorTable = new TableViewer(packetMonitorContainer, SWT.SINGLE | SWT.BORDER | SWT.FULL_SELECTION);
+			packetMonitorTable.getTable().setHeaderVisible(true);
 
-			TableColumn packetMonitorIsMineColumn = new TableColumn(packetMonitorTableViewer.getTable(), SWT.CENTER);
+			TableColumn packetMonitorIsMineColumn = new TableColumn(packetMonitorTable.getTable(), SWT.CENTER);
 			packetMonitorIsMineColumn.setText("");
 			packetMonitorIsMineColumn.setWidth(25);
+			SwtUtils.installSorter(packetMonitorTable, packetMonitorIsMineColumn, new TraficStatistics.MineSorter());
 
-			TableColumn packetMonitorMacAddressColumn = new TableColumn(packetMonitorTableViewer.getTable(), SWT.LEFT);
+			TableColumn packetMonitorMacAddressColumn = new TableColumn(packetMonitorTable.getTable(), SWT.LEFT);
 			packetMonitorMacAddressColumn.setText("MACアドレス");
 			packetMonitorMacAddressColumn.setWidth(100);
+			SwtUtils.installSorter(packetMonitorTable, packetMonitorMacAddressColumn, new TraficStatistics.MacAddressSorter());
 
-			TableColumn packetMonitorInSpeedColumn = new TableColumn(packetMonitorTableViewer.getTable(), SWT.RIGHT);
+			TableColumn packetMonitorInSpeedColumn = new TableColumn(packetMonitorTable.getTable(), SWT.RIGHT);
 			packetMonitorInSpeedColumn.setText("In (Kbps)");
 			packetMonitorInSpeedColumn.setWidth(80);
+			SwtUtils.installSorter(packetMonitorTable, packetMonitorInSpeedColumn, new TraficStatistics.InSpeedSorter());
 
-			TableColumn packetMonitorOutSpeedColumn = new TableColumn(packetMonitorTableViewer.getTable(), SWT.RIGHT);
+			TableColumn packetMonitorOutSpeedColumn = new TableColumn(packetMonitorTable.getTable(), SWT.RIGHT);
 			packetMonitorOutSpeedColumn.setText("Out (Kbps)");
 			packetMonitorOutSpeedColumn.setWidth(80);
+			SwtUtils.installSorter(packetMonitorTable, packetMonitorOutSpeedColumn, new TraficStatistics.OutSpeedSorter());
 
-			TableColumn packetMonitorTotalInBytesColumn = new TableColumn(packetMonitorTableViewer.getTable(), SWT.RIGHT);
+			TableColumn packetMonitorTotalInBytesColumn = new TableColumn(packetMonitorTable.getTable(), SWT.RIGHT);
 			packetMonitorTotalInBytesColumn.setText("In 累積バイト");
 			packetMonitorTotalInBytesColumn.setWidth(100);
+			SwtUtils.installSorter(packetMonitorTable, packetMonitorTotalInBytesColumn, new TraficStatistics.TotalInSorter());
 
-			TableColumn packetMonitorTotalOutBytesColumn = new TableColumn(packetMonitorTableViewer.getTable(), SWT.RIGHT);
+			TableColumn packetMonitorTotalOutBytesColumn = new TableColumn(packetMonitorTable.getTable(), SWT.RIGHT);
 			packetMonitorTotalOutBytesColumn.setText("Out 累積バイト");
 			packetMonitorTotalOutBytesColumn.setWidth(100);
+			SwtUtils.installSorter(packetMonitorTable, packetMonitorTotalOutBytesColumn, new TraficStatistics.TotalOutSorter());
 
-			packetMonitorTableViewer.setContentProvider(new TraficStatistics.ContentProvider());
-			packetMonitorTableViewer.setLabelProvider(new TraficStatistics.LabelProvider());
+			packetMonitorTable.setContentProvider(new TraficStatistics.ContentProvider());
+			packetMonitorTable.setLabelProvider(new TraficStatistics.LabelProvider());
 
 			roomInfoSashForm = new SashForm(roomSubSashForm, SWT.SMOOTH | SWT.HORIZONTAL);
 
 			roomChatLogText = new StyledText(roomInfoSashForm, SWT.MULTI | SWT.V_SCROLL | SWT.BORDER | SWT.READ_ONLY | SWT.WRAP);
 			roomChatLogText.setMargins(3, 1, 3, 1);
 
-			roomPlayerListViewer = new TableViewer(roomInfoSashForm, SWT.SINGLE | SWT.BORDER);
-			roomPlayerListViewer.getTable().setHeaderVisible(true);
+			roomPlayerListTable = new TableViewer(roomInfoSashForm, SWT.SINGLE | SWT.BORDER);
+			roomPlayerListTable.getTable().setHeaderVisible(true);
 
-			roomPlayerNameColumn = new TableColumn(roomPlayerListViewer.getTable(), SWT.LEFT);
+			roomPlayerNameColumn = new TableColumn(roomPlayerListTable.getTable(), SWT.LEFT);
 			roomPlayerNameColumn.setText("名前");
 			roomPlayerNameColumn.setWidth(100);
+			SwtUtils.installSorter(roomPlayerListTable, roomPlayerNameColumn, new Player.NameSorter());
 
-			roomPlayerPingColumn = new TableColumn(roomPlayerListViewer.getTable(), SWT.RIGHT);
+			roomPlayerPingColumn = new TableColumn(roomPlayerListTable.getTable(), SWT.RIGHT);
 			roomPlayerPingColumn.setText("PING");
 			roomPlayerPingColumn.setWidth(50);
+			SwtUtils.installSorter(roomPlayerListTable, roomPlayerPingColumn, new Player.PingSorter());
 
-			roomPlayerListViewer.setContentProvider(new Player.PlayerListContentProvider());
-			roomPlayerListViewer.setLabelProvider(new Player.RoomPlayerLabelProvider());
-			roomPlayerListViewer.setInput(roomPlayerMap);
+			roomPlayerListTable.setContentProvider(new Player.PlayerListContentProvider());
+			roomPlayerListTable.setLabelProvider(new Player.RoomPlayerLabelProvider());
+			roomPlayerListTable.setInput(roomPlayerMap);
 
 			configTab = new TabItem(mainTabFolder, SWT.NONE);
 			configTab.setText("設定");
@@ -774,7 +789,7 @@ public class PlayClient {
 			configRoomServerHostNameText.setLayoutData(new GridData(300, SWT.DEFAULT));
 
 			configRoomServerAllowEmptyMasterNameCheck = new Button(configRoomServerGroup, SWT.CHECK | SWT.FLAT);
-			configRoomServerAllowEmptyMasterNameCheck.setText("アドレスの部屋主名を省略でもログインできるようにする (ホスト名:ポート)");
+			configRoomServerAllowEmptyMasterNameCheck.setText("アドレスの部屋主名を省略でもログインできるようにする");
 			configRoomServerAllowEmptyMasterNameCheck.setSelection(roomEngine.isAllowEmptyMasterNameLogin());
 			configRoomServerAllowEmptyMasterNameCheck.setLayoutData(new GridData(SWT.LEFT, SWT.CENTER, false, false, 2, 1));
 
@@ -1142,7 +1157,7 @@ public class PlayClient {
 		window.roomPlayerKickMenuItem.addListener(SWT.Selection, new Listener() {
 			@Override
 			public void handleEvent(Event event) {
-				IStructuredSelection selection = (IStructuredSelection) window.roomPlayerListViewer.getSelection();
+				IStructuredSelection selection = (IStructuredSelection) window.roomPlayerListTable.getSelection();
 				Player player = (Player) selection.getFirstElement();
 				if (player == null)
 					return;
@@ -1151,7 +1166,7 @@ public class PlayClient {
 				switch (currentRoomState) {
 				case RoomMaster:
 					roomEngine.kickPlayer(kickedName);
-					removePlayer(window.roomPlayerListViewer, kickedName);
+					removePlayer(window.roomPlayerListTable, kickedName);
 					appendLogTo(window.roomChatLogText, kickedName + " を部屋から追い出しました", window.colorRoomInfo);
 					break;
 				case ProxyRoomMaster:
@@ -1168,7 +1183,7 @@ public class PlayClient {
 		window.roomPlayerMasterTransferMenuItem.addListener(SWT.Selection, new Listener() {
 			@Override
 			public void handleEvent(Event event) {
-				IStructuredSelection selection = (IStructuredSelection) window.roomPlayerListViewer.getSelection();
+				IStructuredSelection selection = (IStructuredSelection) window.roomPlayerListTable.getSelection();
 				Player player = (Player) selection.getFirstElement();
 				if (player == null)
 					return;
@@ -1184,15 +1199,15 @@ public class PlayClient {
 			}
 		});
 
-		window.roomPlayerListViewer.getTable().setMenu(window.roomPlayerMenu);
-		window.roomPlayerListViewer.getTable().addMenuDetectListener(new MenuDetectListener() {
+		window.roomPlayerListTable.getTable().setMenu(window.roomPlayerMenu);
+		window.roomPlayerListTable.getTable().addMenuDetectListener(new MenuDetectListener() {
 			@Override
 			public void menuDetected(MenuDetectEvent e) {
 				boolean isMasterAndOtherSelected = false;
 				switch (currentRoomState) {
 				case RoomMaster:
 				case ProxyRoomMaster:
-					IStructuredSelection selection = (IStructuredSelection) window.roomPlayerListViewer.getSelection();
+					IStructuredSelection selection = (IStructuredSelection) window.roomPlayerListTable.getSelection();
 					Player player = (Player) selection.getFirstElement();
 					if (player != null && !roomMasterName.equals(player.getName())) {
 						isMasterAndOtherSelected = true;
@@ -1239,6 +1254,35 @@ public class PlayClient {
 				}
 			}
 		});
+
+		window.packetMonitorMenu = new Menu(shell, SWT.POP_UP);
+
+		window.packetMonitorMenuClear = new MenuItem(window.packetMonitorMenu, SWT.PUSH);
+		window.packetMonitorMenuClear.setText("累積バイトをクリア");
+		window.packetMonitorMenuClear.addListener(SWT.Selection, new Listener() {
+			@Override
+			public void handleEvent(Event event) {
+				synchronized (traficStatsMap) {
+					Iterator<Entry<String, TraficStatistics>> iter = traficStatsMap.entrySet().iterator();
+					while (iter.hasNext()) {
+						Entry<String, TraficStatistics> entry = iter.next();
+						TraficStatistics stats = entry.getValue();
+
+						stats.totalInBytes = 0;
+						stats.totalOutBytes = 0;
+					}
+				}
+				window.packetMonitorTable.refresh();
+			}
+		});
+
+		window.packetMonitorTable.getTable().setMenu(window.packetMonitorMenu);
+		window.packetMonitorTable.getTable().addMenuDetectListener(new MenuDetectListener() {
+			@Override
+			public void menuDetected(MenuDetectEvent e) {
+				window.packetMonitorMenuClear.setEnabled(traficStatsMap.size() > 0);
+			}
+		});
 	}
 
 	private void initializeBackgroundThreads() {
@@ -1251,8 +1295,8 @@ public class PlayClient {
 					@Override
 					public void run() {
 						try {
-							window.packetMonitorTableViewer.setInput(traficStatsMap);
-							window.packetMonitorTableViewer.refresh();
+							window.packetMonitorTable.setInput(traficStatsMap);
+							window.packetMonitorTable.refresh();
 						} catch (SWTException e) {
 						}
 					}
@@ -1264,7 +1308,7 @@ public class PlayClient {
 							synchronized (traficStatsMap) {
 								traficStatsMap.clear();
 							}
-							window.packetMonitorTableViewer.setInput(traficStatsMap);
+							window.packetMonitorTable.setInput(traficStatsMap);
 						} catch (SWTException e) {
 						}
 					}
@@ -1532,7 +1576,7 @@ public class PlayClient {
 			window.roomFormServerModePortSpinner.setEnabled(false);
 			window.roomFormServerModePortButton.setEnabled(false);
 			window.roomFormModeSelectionCombo.setEnabled(false);
-			addPlayer(window.roomPlayerListViewer, loginUserName);
+			addPlayer(window.roomPlayerListTable, loginUserName);
 		} catch (BindException e) {
 			appendLogTo(window.roomChatLogText, "すでに同じポートが使用されています", window.colorLogError);
 		}
@@ -1572,8 +1616,8 @@ public class PlayClient {
 		}
 
 		String hostname = tokens[0];
-		if ("localhost".equals(hostname)) {
-			hostname = "";
+		InetSocketAddress socketAddress = new InetSocketAddress(hostname, port);
+		if (socketAddress.getAddress().isLoopbackAddress()) {
 			roomServerAddressPort = ":" + port;
 			if (roomMasterName.equals("")) {
 				window.roomFormClientModeAddressCombo.setText(roomServerAddressPort);
@@ -1583,8 +1627,6 @@ public class PlayClient {
 		} else {
 			roomServerAddressPort = hostname + ":" + port;
 		}
-
-		InetSocketAddress socketAddress = new InetSocketAddress(hostname, port);
 		try {
 			roomConnection = tcpClient.connect(socketAddress, roomClientHandler);
 			goTo(RoomState.ConnectingToRoomServer);
@@ -1632,15 +1674,14 @@ public class PlayClient {
 		}
 
 		String hostname = tokens[0];
-		if ("localhost".equals(hostname)) {
+		InetSocketAddress socketAddress = new InetSocketAddress(hostname, port);
+		if (socketAddress.getAddress().isLoopbackAddress()) {
 			hostname = "";
 			roomServerAddressPort = ":" + port;
 			window.roomFormProxyModeAddressCombo.setText(roomServerAddressPort);
 		} else {
 			roomServerAddressPort = address;
 		}
-
-		InetSocketAddress socketAddress = new InetSocketAddress(hostname, port);
 		try {
 			roomConnection = tcpClient.connect(socketAddress, roomClientHandler);
 			roomMasterName = loginUserName;
@@ -1727,6 +1768,8 @@ public class PlayClient {
 
 			searchResultRoomList.clear();
 			window.searchResultRoomsTable.refresh();
+			window.searchResultRoomsTable.setSorter(null);
+			window.searchResultRoomsTable.getTable().setSortDirection(SWT.NONE);
 
 			InetSocketAddress socketAddress = new InetSocketAddress(tokens[0], port);
 			ISocketConnection connection = tcpClient.connect(socketAddress, searchQueryHandler);
@@ -1970,7 +2013,7 @@ public class PlayClient {
 						return;
 
 					player.setPing(ping);
-					window.roomPlayerListViewer.refresh(player);
+					window.roomPlayerListTable.refresh(player);
 				} catch (SWTException e) {
 				}
 			}
@@ -2043,7 +2086,7 @@ public class PlayClient {
 						window.statusBarContainer.layout();
 
 						roomPlayerMap.clear();
-						window.roomPlayerListViewer.refresh();
+						window.roomPlayerListTable.refresh();
 
 						window.roomFormEditButton.setEnabled(false);
 
@@ -2393,7 +2436,7 @@ public class PlayClient {
 					} else if (result == searchSuccess) {
 						updateSearchResultStatus("検索結果: " + searchResultRoomList.size() + "件", window.colorBlack);
 						querySearchServerHistoryManager.addCurrentItem();
-						
+
 						queryRoomTitleHistoryManager.addCurrentItem();
 						queryRoomMasterNameHistoryManager.addCurrentItem();
 						queryRoomAddressHistoryManager.addCurrentItem();
@@ -2468,13 +2511,13 @@ public class PlayClient {
 
 		@Override
 		public void playerEntered(String player) {
-			addPlayer(window.roomPlayerListViewer, player);
+			addPlayer(window.roomPlayerListTable, player);
 			appendLogTo(window.roomChatLogText, player + " が入室しました", window.colorLogInfo);
 		}
 
 		@Override
 		public void playerExited(String player) {
-			removePlayer(window.roomPlayerListViewer, player);
+			removePlayer(window.roomPlayerListTable, player);
 			appendLogTo(window.roomChatLogText, player + " が退室しました", window.colorLogInfo);
 		}
 
@@ -2526,6 +2569,8 @@ public class PlayClient {
 			handlers.put(ProtocolConstants.Room.ERROR_LOGIN_DUPLICATED_NAME, new ErrorLoginDuplicatedNameHandler());
 			handlers.put(ProtocolConstants.Room.ERROR_LOGIN_ROOM_NOT_EXIST, new ErrorLoginRoomNotExistHandler());
 			handlers.put(ProtocolConstants.Room.ERROR_LOGIN_BEYOND_CAPACITY, new ErrorLoginBeyondCapacityHandler());
+			handlers.put(ProtocolConstants.Room.ERROR_ROOM_INVALID_DATA_ENTRY, new ErrorRoomInvalidDataEntryHandler());
+			handlers.put(ProtocolConstants.Room.ERROR_ROOM_PASSWORD_NOT_ALLOWED, new ErrorRoomPasswordNotAllowedHandler());
 			handlers.put(ProtocolConstants.Room.ERROR_ROOM_ENTER_PASSWORD_FAIL, new ErrorRoomEnterPasswordFailHandler());
 			handlers.put(ProtocolConstants.Room.ERROR_ROOM_ENTER_BEYOND_CAPACITY, new ErrorRoomEnterBeyondCapacityHandler());
 			handlers.put(ProtocolConstants.Room.ERROR_ROOM_CREATE_DUPLICATED_NAME, new ErrorRoomCreateDuplicatedNameHandler());
@@ -2665,7 +2710,7 @@ public class PlayClient {
 						goTo(RoomState.ProxyRoomMaster);
 
 						window.roomFormMasterText.setText(loginUserName);
-						addPlayer(window.roomPlayerListViewer, loginUserName);
+						addPlayer(window.roomPlayerListTable, loginUserName);
 						updateServerAddress();
 
 						proxyServerHistoryManager.addCurrentItem();
@@ -2727,7 +2772,7 @@ public class PlayClient {
 				switch (currentRoomState) {
 				case ProxyRoomMaster:
 				case RoomParticipant:
-					addPlayer(window.roomPlayerListViewer, name);
+					addPlayer(window.roomPlayerListTable, name);
 					appendLogTo(window.roomChatLogText, name + " が入室しました", window.colorLogInfo);
 					break;
 				}
@@ -2740,7 +2785,7 @@ public class PlayClient {
 				switch (currentRoomState) {
 				case ProxyRoomMaster:
 				case RoomParticipant:
-					removePlayer(window.roomPlayerListViewer, name);
+					removePlayer(window.roomPlayerListTable, name);
 					appendLogTo(window.roomChatLogText, name + " が退室しました", window.colorLogInfo);
 					break;
 				}
@@ -2754,7 +2799,7 @@ public class PlayClient {
 				switch (currentRoomState) {
 				case RoomParticipant:
 				case ProxyRoomMaster:
-					replacePlayerList(window.roomPlayerListViewer, players);
+					replacePlayerList(window.roomPlayerListTable, players);
 					break;
 				}
 			}
@@ -2781,7 +2826,7 @@ public class PlayClient {
 					goTo(RoomState.Offline);
 					appendLogTo(window.roomChatLogText, "部屋から追い出されました", window.colorRoomInfo);
 				} else {
-					removePlayer(window.roomPlayerListViewer, kickedPlayer);
+					removePlayer(window.roomPlayerListTable, kickedPlayer);
 					if (currentRoomState == RoomState.RoomMaster) {
 						appendLogTo(window.roomChatLogText, kickedPlayer + " を部屋から追い出しました", window.colorRoomInfo);
 					} else {
@@ -2872,6 +2917,20 @@ public class PlayClient {
 			public void process(String message) {
 				appendLogTo(window.roomChatLogText, "部屋パスワードが違います", window.colorRoomInfo);
 				promptPassword();
+			}
+		}
+
+		private class ErrorRoomInvalidDataEntryHandler implements CommandHandler {
+			@Override
+			public void process(String argument) {
+				appendLogTo(window.roomChatLogText, "部屋の情報に不正な値があります", window.colorLogError);
+			}
+		}
+
+		private class ErrorRoomPasswordNotAllowedHandler implements CommandHandler {
+			@Override
+			public void process(String argument) {
+				appendLogTo(window.roomChatLogText, "このサーバーではパスワードが禁止されています", window.colorLogError);
 			}
 		}
 
@@ -3013,12 +3072,12 @@ public class PlayClient {
 			srcStats = traficStatsMap.get(srcMac);
 
 			if (srcStats == null) {
-				srcStats = new TraficStatistics(false);
+				srcStats = new TraficStatistics(srcMac, false);
 				traficStatsMap.put(srcMac, srcStats);
 			}
 
 			if (destStats == null) {
-				destStats = new TraficStatistics(!Utility.isMacBroadCastAddress(destMac));
+				destStats = new TraficStatistics(destMac, !Utility.isMacBroadCastAddress(destMac));
 				traficStatsMap.put(destMac, destStats);
 			}
 		}
@@ -3027,7 +3086,7 @@ public class PlayClient {
 		srcStats.currentInBytes += packet.limit();
 		srcStats.totalInBytes += packet.limit();
 
-		destStats.lastModified = System.currentTimeMillis();
+		destStats.lastModified = srcStats.lastModified;
 		destStats.currentInBytes += packet.limit();
 		destStats.totalInBytes += packet.limit();
 
@@ -3054,7 +3113,7 @@ public class PlayClient {
 				destStats = traficStatsMap.get(destMac);
 
 				if (srcStats == null) {
-					srcStats = new TraficStatistics(true);
+					srcStats = new TraficStatistics(srcMac, true);
 					traficStatsMap.put(srcMac, srcStats);
 				} else if (!srcStats.isMine) {
 					// サーバーから送られてきた他PSPからのパケットの再キャプチャなのでスルー
@@ -3062,7 +3121,7 @@ public class PlayClient {
 				}
 
 				if (destStats == null) {
-					destStats = new TraficStatistics(false);
+					destStats = new TraficStatistics(destMac, false);
 					traficStatsMap.put(destMac, destStats);
 				} else if (destStats.isMine) {
 					// 手元のPSP同士の通信なのでスルー
@@ -3076,11 +3135,11 @@ public class PlayClient {
 			srcStats.currentOutBytes += packetLength;
 			srcStats.totalOutBytes += packetLength;
 
-			if (tunnelIsLinked) {
-				destStats.lastModified = System.currentTimeMillis();
-				destStats.currentOutBytes += packetLength;
-				destStats.totalOutBytes += packetLength;
+			destStats.lastModified = srcStats.lastModified;
+			destStats.currentOutBytes += packetLength;
+			destStats.totalOutBytes += packetLength;
 
+			if (tunnelIsLinked) {
 				// System.out.printf("%s => %s  [%d]", srcMac, destMac,
 				// packetLength);
 				// System.out.println(packet.toHexdump());

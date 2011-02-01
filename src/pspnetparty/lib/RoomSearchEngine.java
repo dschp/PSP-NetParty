@@ -49,8 +49,6 @@ public class RoomSearchEngine {
 	private PreparedStatement searchAllRoomStatement;
 	private PreparedStatement getAllRoomStatement;
 
-	private PreparedStatement pingStatement;
-
 	private int descriptionMaxLength = 100;
 
 	public RoomSearchEngine(Connection dbConn, ILogger logger, String pingSQL) throws SQLException {
@@ -68,7 +66,7 @@ public class RoomSearchEngine {
 		stmt.close();
 
 		if (!Utility.isEmpty(pingSQL)) {
-			pingStatement = dbConn.prepareStatement(pingSQL);
+			final PreparedStatement pingStatement = dbConn.prepareStatement(pingSQL);
 			Thread pingThread = new Thread(new Runnable() {
 				@Override
 				public void run() {

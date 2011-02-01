@@ -78,6 +78,7 @@ public class RoomSearchServer {
 		System.out.println("DBドライバー: " + driver);
 		System.out.println("DB URL: " + url);
 		System.out.println("DBユーザー: " + user);
+		System.out.println("Ping SQL: " + pingSQL);
 		Class.forName(driver);
 
 		parser.saveToIni();

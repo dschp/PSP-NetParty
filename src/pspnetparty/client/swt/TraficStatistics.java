@@ -15,41 +15,43 @@ GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
-*/
+ */
 package pspnetparty.client.swt;
 
 import java.util.HashMap;
-import java.util.Map.Entry;
 
 import org.eclipse.jface.viewers.ILabelProviderListener;
 import org.eclipse.jface.viewers.IStructuredContentProvider;
 import org.eclipse.jface.viewers.ITableLabelProvider;
 import org.eclipse.jface.viewers.Viewer;
+import org.eclipse.jface.viewers.ViewerSorter;
 import org.eclipse.swt.graphics.Image;
 
 public class TraficStatistics {
-	
+
+	public String macAddress;
+	public boolean isMine;
+
 	public long lastModified;
 	public int currentInBytes;
 	public int currentOutBytes;
-	
+
 	public double currentInKbps;
 	public double currentOutKbps;
 
 	public long totalInBytes;
 	public long totalOutBytes;
-	
-	public boolean isMine;
-	
-	public TraficStatistics(boolean isMine) {
+
+	public TraficStatistics(String macAddress, boolean isMine) {
+		this.macAddress = macAddress;
 		this.isMine = isMine;
 	}
-	
+
 	public void clearTotal() {
 		totalInBytes = 0;
 		totalOutBytes = 0;
 	}
-	
+
 	public static class ContentProvider implements IStructuredContentProvider {
 
 		@Override
@@ -64,10 +66,10 @@ public class TraficStatistics {
 		public Object[] getElements(Object input) {
 			@SuppressWarnings("unchecked")
 			HashMap<String, TraficStatistics> map = (HashMap<String, TraficStatistics>) input;
-			return map.entrySet().toArray();
+			return map.values().toArray();
 		}
 	}
-	
+
 	public static class LabelProvider implements ITableLabelProvider {
 
 		@Override
@@ -94,25 +96,80 @@ public class TraficStatistics {
 
 		@Override
 		public String getColumnText(Object element, int index) {
-			@SuppressWarnings("unchecked")
-			Entry<String, TraficStatistics> entry = (Entry<String, TraficStatistics>) element;
-			
+			TraficStatistics stats = (TraficStatistics) element;
+
 			switch (index) {
 			case 0:
-				return entry.getValue().isMine ? "自" : "";
+				return stats.isMine ? "自" : "";
 			case 1:
-				return entry.getKey();
+				return stats.macAddress;
 			case 2:
-				return String.format("%.1f", entry.getValue().currentInKbps);
+				return String.format("%.1f", stats.currentInKbps);
 			case 3:
-				return String.format("%.1f", entry.getValue().currentOutKbps);
+				return String.format("%.1f", stats.currentOutKbps);
 			case 4:
-				return Long.toString(entry.getValue().totalInBytes);
+				return Long.toString(stats.totalInBytes);
 			case 5:
-				return Long.toString(entry.getValue().totalOutBytes);
+				return Long.toString(stats.totalOutBytes);
 			}
-			
+
 			return "";
+		}
+	}
+
+	public static class MineSorter extends ViewerSorter {
+		@Override
+		public int compare(Viewer viewer, Object e1, Object e2) {
+			TraficStatistics s1 = (TraficStatistics) e1;
+			TraficStatistics s2 = (TraficStatistics) e2;
+			if (s1.isMine == s2.isMine)
+				return 0;
+			return s1.isMine ? 1 : -1;
+		}
+	}
+
+	public static class MacAddressSorter extends ViewerSorter {
+		@Override
+		public int compare(Viewer viewer, Object e1, Object e2) {
+			TraficStatistics s1 = (TraficStatistics) e1;
+			TraficStatistics s2 = (TraficStatistics) e2;
+			return s1.macAddress.compareTo(s2.macAddress);
+		}
+	}
+
+	public static class InSpeedSorter extends ViewerSorter {
+		@Override
+		public int compare(Viewer viewer, Object e1, Object e2) {
+			TraficStatistics s1 = (TraficStatistics) e1;
+			TraficStatistics s2 = (TraficStatistics) e2;
+			return Double.compare(s1.currentInKbps, s2.currentInKbps);
+		}
+	}
+
+	public static class OutSpeedSorter extends ViewerSorter {
+		@Override
+		public int compare(Viewer viewer, Object e1, Object e2) {
+			TraficStatistics s1 = (TraficStatistics) e1;
+			TraficStatistics s2 = (TraficStatistics) e2;
+			return Double.compare(s1.currentOutKbps, s2.currentOutKbps);
+		}
+	}
+
+	public static class TotalInSorter extends ViewerSorter {
+		@Override
+		public int compare(Viewer viewer, Object e1, Object e2) {
+			TraficStatistics s1 = (TraficStatistics) e1;
+			TraficStatistics s2 = (TraficStatistics) e2;
+			return Long.valueOf(s1.totalInBytes).compareTo(s2.totalInBytes);
+		}
+	}
+
+	public static class TotalOutSorter extends ViewerSorter {
+		@Override
+		public int compare(Viewer viewer, Object e1, Object e2) {
+			TraficStatistics s1 = (TraficStatistics) e1;
+			TraficStatistics s2 = (TraficStatistics) e2;
+			return Long.valueOf(s1.totalOutBytes).compareTo(s2.totalOutBytes);
 		}
 	}
 }

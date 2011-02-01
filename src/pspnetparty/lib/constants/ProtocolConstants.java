@@ -66,6 +66,8 @@ public class ProtocolConstants {
 		public static final String ERROR_LOGIN_BEYOND_CAPACITY = "ERR_LI_CAP";
 		public static final String ERROR_LOGIN_ROOM_NOT_EXIST = "ERR_LI_RNE";
 
+		public static final String ERROR_ROOM_INVALID_DATA_ENTRY = "ERR_RM_IDE";
+		public static final String ERROR_ROOM_PASSWORD_NOT_ALLOWED = "ERR_RM_PNA";
 		public static final String ERROR_ROOM_CREATE_DUPLICATED_NAME = "ERR_RC_DUP";
 		public static final String ERROR_ROOM_CREATE_BEYOND_LIMIT = "ERR_RC_LIM";
 		public static final String ERROR_ROOM_ENTER_PASSWORD_FAIL = "ERR_RE_PWF";

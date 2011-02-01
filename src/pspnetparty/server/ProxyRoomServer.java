@@ -31,7 +31,7 @@ import pspnetparty.lib.constants.IniConstants;
 public class ProxyRoomServer {
 	public static void main(String[] args) throws IOException {
 		System.out.printf("%s 部屋代理サーバー  version %s\n", AppConstants.APP_NAME, AppConstants.VERSION);
-		
+
 		String iniFileName = "ProxyRoomServer.ini";
 		switch (args.length) {
 		case 1:
@@ -39,29 +39,30 @@ public class ProxyRoomServer {
 			break;
 		}
 		System.out.println("設定INIファイル名: " + iniFileName);
-		
+
 		IniParser parser = new IniParser(iniFileName);
 		IniParser.Section settings = parser.getSection(IniConstants.SECTION_SETTINGS);
-		
+
 		int port = settings.get(IniConstants.Server.PORT, 30000);
 		if (port < 1 || port > 65535) {
 			System.out.println("ポート番号が不正です: " + port);
 			return;
 		}
 		System.out.println("ポート: " + port);
-		
+
 		int maxRooms = settings.get(IniConstants.Server.MAX_ROOMS, 10);
 		if (maxRooms < 1) {
 			System.out.println("部屋数が不正です: " + maxRooms);
 			return;
 		}
 		System.out.println("最大部屋数: " + maxRooms);
-		
-		settings.set(IniConstants.Server.PORT, Integer.toString(port));
-		settings.set(IniConstants.Server.MAX_ROOMS, Integer.toString(maxRooms));
-		
+
+		boolean passwordAllowed = "Yes".equals(settings.get(IniConstants.Server.ROOM_PASSWORD_ALLOWED, "Yes"));
+		settings.set(IniConstants.Server.ROOM_PASSWORD_ALLOWED, passwordAllowed ? "Yes" : "No");
+		System.out.println("パスワード: " + (passwordAllowed ? "許可" : "禁止"));
+
 		parser.saveToIni();
-		
+
 		ProxyRoomEngine engine = new ProxyRoomEngine(new ILogger() {
 			@Override
 			public void log(String message) {
@@ -69,6 +70,7 @@ public class ProxyRoomServer {
 			}
 		});
 		engine.setMaxRooms(maxRooms);
+		engine.setPasswordAllowed(passwordAllowed);
 
 		engine.start(port);
 

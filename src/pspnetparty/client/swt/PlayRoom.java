@@ -24,6 +24,7 @@ import org.eclipse.jface.viewers.ILabelProviderListener;
 import org.eclipse.jface.viewers.IStructuredContentProvider;
 import org.eclipse.jface.viewers.ITableLabelProvider;
 import org.eclipse.jface.viewers.Viewer;
+import org.eclipse.jface.viewers.ViewerSorter;
 import org.eclipse.swt.graphics.Image;
 
 public class PlayRoom {
@@ -168,6 +169,51 @@ public class PlayRoom {
 			}
 
 			return result;
+		}
+	}
+
+	public static class AddressSorter extends ViewerSorter {
+		@Override
+		public int compare(Viewer viewer, Object e1, Object e2) {
+			PlayRoom r1 = (PlayRoom) e1;
+			PlayRoom r2 = (PlayRoom) e2;
+			return r1.address.compareTo(r2.address);
+		}
+	}
+
+	public static class MasterNameSorter extends ViewerSorter {
+		@Override
+		public int compare(Viewer viewer, Object e1, Object e2) {
+			PlayRoom r1 = (PlayRoom) e1;
+			PlayRoom r2 = (PlayRoom) e2;
+			return r1.masterName.compareTo(r2.masterName);
+		}
+	}
+
+	public static class TitleSorter extends ViewerSorter {
+		@Override
+		public int compare(Viewer viewer, Object e1, Object e2) {
+			PlayRoom r1 = (PlayRoom) e1;
+			PlayRoom r2 = (PlayRoom) e2;
+			return r1.title.compareTo(r2.title);
+		}
+	}
+
+	public static class CapacitySorter extends ViewerSorter {
+		@Override
+		public int compare(Viewer viewer, Object e1, Object e2) {
+			PlayRoom r1 = (PlayRoom) e1;
+			PlayRoom r2 = (PlayRoom) e2;
+			return Integer.valueOf(r1.currentPlayerCount).compareTo(r2.currentPlayerCount);
+		}
+	}
+
+	public static class HasPasswordSorter extends ViewerSorter {
+		@Override
+		public int compare(Viewer viewer, Object e1, Object e2) {
+			PlayRoom r1 = (PlayRoom) e1;
+			PlayRoom r2 = (PlayRoom) e2;
+			return Boolean.valueOf(r1.hasPassword).compareTo(r2.hasPassword);
 		}
 	}
 }

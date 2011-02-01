@@ -58,6 +58,7 @@ public class IniConstants {
 		public static final String PORT = "Port";
 		public static final String MAX_USERS = "MaxUsers";
 		public static final String MAX_ROOMS = "MaxRooms";
+		public static final String ROOM_PASSWORD_ALLOWED = "RoomPasswordAllowed";
 
 		public static final String DB_DRIVER = "DatabaseDriver";
 		public static final String DB_URL = "DatabaseURL";

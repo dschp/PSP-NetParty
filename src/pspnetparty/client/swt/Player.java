@@ -15,7 +15,7 @@ GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
-*/
+ */
 package pspnetparty.client.swt;
 
 import java.util.HashMap;
@@ -24,6 +24,7 @@ import org.eclipse.jface.viewers.ILabelProviderListener;
 import org.eclipse.jface.viewers.IStructuredContentProvider;
 import org.eclipse.jface.viewers.ITableLabelProvider;
 import org.eclipse.jface.viewers.Viewer;
+import org.eclipse.jface.viewers.ViewerSorter;
 import org.eclipse.swt.graphics.Image;
 
 public class Player {
@@ -141,6 +142,24 @@ public class Player {
 			}
 
 			return result;
+		}
+	}
+
+	public static class NameSorter extends ViewerSorter {
+		@Override
+		public int compare(Viewer viewer, Object e1, Object e2) {
+			Player p1 = (Player) e1;
+			Player p2 = (Player) e2;
+			return p1.name.compareTo(p2.name);
+		}
+	}
+
+	public static class PingSorter extends ViewerSorter {
+		@Override
+		public int compare(Viewer viewer, Object e1, Object e2) {
+			Player p1 = (Player) e1;
+			Player p2 = (Player) e2;
+			return Integer.valueOf(p1.ping).compareTo(p2.ping);
 		}
 	}
 }

@@ -45,6 +45,7 @@ public class ProxyRoomEngine {
 	private TunnelHandler tunnelHandler;
 
 	private int maxRooms = 20;
+	private boolean passwordAllowed = true;
 
 	private boolean isStarted = false;
 	private ILogger logger;
@@ -91,6 +92,14 @@ public class ProxyRoomEngine {
 	public void setMaxRooms(int maxRooms) {
 		if (maxRooms > 0)
 			this.maxRooms = maxRooms;
+	}
+
+	public boolean isPasswordAllowed() {
+		return passwordAllowed;
+	}
+
+	public void setPasswordAllowed(boolean passwordAllowed) {
+		this.passwordAllowed = passwordAllowed;
 	}
 
 	@Override
@@ -348,25 +357,40 @@ public class ProxyRoomEngine {
 			public boolean process(PlayerState state, String argument) {
 				// RC masterName maxPlayers title "password" "description"
 				String[] tokens = argument.split(" ");
-				if (tokens.length != 5)
+				if (tokens.length != 5) {
+					state.getConnection().send(ProtocolConstants.Room.ERROR_ROOM_INVALID_DATA_ENTRY);
 					return false;
+				}
+
+				String password = Utility.removeQuotations(tokens[3]);
+				if (!passwordAllowed && !Utility.isEmpty(password)) {
+					state.getConnection().send(ProtocolConstants.Room.ERROR_ROOM_PASSWORD_NOT_ALLOWED);
+					return false;
+				}
 
 				String name = tokens[0];
-				if (name.length() == 0)
+				if (name.length() == 0) {
+					state.getConnection().send(ProtocolConstants.Room.ERROR_ROOM_INVALID_DATA_ENTRY);
 					return false;
+				}
 
 				int maxPlayers;
 				try {
 					maxPlayers = Integer.parseInt(tokens[1]);
-					if (maxPlayers < 2 || maxPlayers > ProtocolConstants.Room.MAX_ROOM_PLAYERS)
+					if (maxPlayers < 2 || maxPlayers > ProtocolConstants.Room.MAX_ROOM_PLAYERS) {
+						state.getConnection().send(ProtocolConstants.Room.ERROR_ROOM_INVALID_DATA_ENTRY);
 						return false;
+					}
 				} catch (NumberFormatException e) {
+					state.getConnection().send(ProtocolConstants.Room.ERROR_ROOM_INVALID_DATA_ENTRY);
 					return false;
 				}
 
 				String title = tokens[2];
-				if (title.length() == 0)
+				if (title.length() == 0) {
+					state.getConnection().send(ProtocolConstants.Room.ERROR_ROOM_INVALID_DATA_ENTRY);
 					return false;
+				}
 
 				Room newRoom = null;
 				String errorMsg = null;
@@ -390,7 +414,7 @@ public class ProxyRoomEngine {
 				newRoom.roomMaster = state;
 				newRoom.title = title;
 				newRoom.maxPlayers = maxPlayers;
-				newRoom.password = Utility.removeQuotations(tokens[3]);
+				newRoom.password = password;
 				newRoom.description = Utility.removeQuotations(tokens[4]);
 
 				playerRoomMap.put(state, newRoom);
@@ -582,12 +606,19 @@ public class ProxyRoomEngine {
 
 				// RU maxPlayers title "password" "description"
 				String[] tokens = argument.split(" ");
-				if (tokens.length != 4)
+				if (tokens.length != 4) {
+					state.getConnection().send(ProtocolConstants.Room.ERROR_ROOM_INVALID_DATA_ENTRY);
 					return true;
+				}
+				String password = Utility.removeQuotations(tokens[2]);
+				if (!passwordAllowed && !Utility.isEmpty(password)) {
+					state.getConnection().send(ProtocolConstants.Room.ERROR_ROOM_PASSWORD_NOT_ALLOWED);
+					return true;
+				}
 
 				room.maxPlayers = Math.min(Integer.parseInt(tokens[0]), ProtocolConstants.Room.MAX_ROOM_PLAYERS);
 				room.title = tokens[1];
-				room.password = Utility.removeQuotations(tokens[2]);
+				room.password = password;
 				room.description = Utility.removeQuotations(tokens[3]);
 
 				state.getConnection().send(ProtocolConstants.Room.COMMAND_ROOM_UPDATE);

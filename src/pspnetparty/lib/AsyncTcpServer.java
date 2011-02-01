@@ -237,7 +237,7 @@ public class AsyncTcpServer<Type extends IClientState> implements IServer<Type> 
 			// System.out.println("Data size=" + dataSize);
 			if (dataSize < 1 || dataSize > MAX_PACKET_SIZE) {
 				headerBuffer.position(0);
-				System.out.println(Utility.decode(headerBuffer));
+				//System.out.println(Utility.decode(headerBuffer));
 				throw new IOException("Too big data size: " + dataSize);
 			}
 
