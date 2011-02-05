@@ -121,19 +121,24 @@ public class RoomEngine {
 	}
 
 	private void appendRoomInfo(StringBuilder sb) {
-		sb.append(' ').append(masterName);
-		sb.append(' ').append(maxPlayers);
-		sb.append(' ').append(title);
-		sb.append(" \"").append(password).append('"');
-		sb.append(" \"").append(description).append('"');
+		sb.append(ProtocolConstants.ARGUMENT_SEPARATOR);
+		sb.append(masterName);
+		sb.append(ProtocolConstants.ARGUMENT_SEPARATOR);
+		sb.append(maxPlayers);
+		sb.append(ProtocolConstants.ARGUMENT_SEPARATOR);
+		sb.append(title);
+		sb.append(ProtocolConstants.ARGUMENT_SEPARATOR);
+		sb.append(password);
+		sb.append(ProtocolConstants.ARGUMENT_SEPARATOR);
+		sb.append(description);
 	}
 
 	private void appendNotifyUserList(StringBuilder sb) {
 		sb.append(ProtocolConstants.Room.NOTIFY_USER_LIST);
-		sb.append(' ').append(masterName);
+		sb.append(ProtocolConstants.ARGUMENT_SEPARATOR).append(masterName);
 		for (Entry<String, PlayerState> entry : playersByName.entrySet()) {
 			PlayerState state = entry.getValue();
-			sb.append(' ').append(state.name);
+			sb.append(ProtocolConstants.ARGUMENT_SEPARATOR).append(state.name);
 		}
 	}
 
@@ -164,7 +169,7 @@ public class RoomEngine {
 		kickedPlayer = playersByName.remove(name);
 		if (kickedPlayer == null)
 			return;
-		final String notify = ProtocolConstants.Room.NOTIFY_ROOM_PLAYER_KICKED + " " + name;
+		final String notify = ProtocolConstants.Room.NOTIFY_ROOM_PLAYER_KICKED + ProtocolConstants.ARGUMENT_SEPARATOR + name;
 
 		forEachParticipant(new IClientStateAction<PlayerState>() {
 			@Override
@@ -176,7 +181,7 @@ public class RoomEngine {
 		if (kickedPlayer.tunnelState != null)
 			notYetLinkedTunnels.remove(kickedPlayer.tunnelState.getConnection().getRemoteAddress());
 
-		kickedPlayer.getConnection().send(ProtocolConstants.Room.NOTIFY_ROOM_PLAYER_KICKED + " " + name);
+		kickedPlayer.getConnection().send(ProtocolConstants.Room.NOTIFY_ROOM_PLAYER_KICKED + ProtocolConstants.ARGUMENT_SEPARATOR + name);
 		kickedPlayer.getConnection().disconnect();
 	}
 
@@ -186,7 +191,7 @@ public class RoomEngine {
 
 	private void processChat(String player, String text) {
 		String chatText = String.format("<%s> %s", player, text);
-		final String chatMessage = ProtocolConstants.Room.COMMAND_CHAT + " " + chatText;
+		final String chatMessage = ProtocolConstants.Room.COMMAND_CHAT + ProtocolConstants.ARGUMENT_SEPARATOR + chatText;
 		forEachParticipant(new IClientStateAction<PlayerState>() {
 			@Override
 			public void action(PlayerState p) {
@@ -294,7 +299,7 @@ public class RoomEngine {
 			if (!Utility.isEmpty(state.name)) {
 				playersByName.remove(state.name);
 
-				final String notify = ProtocolConstants.Room.NOTIFY_USER_EXITED + " " + state.name;
+				final String notify = ProtocolConstants.Room.NOTIFY_USER_EXITED + ProtocolConstants.ARGUMENT_SEPARATOR + state.name;
 				forEachParticipant(new IClientStateAction<PlayerState>() {
 					@Override
 					public void action(PlayerState p) {
@@ -310,7 +315,7 @@ public class RoomEngine {
 			boolean sessionContinue = false;
 
 			for (String message : data.getMessages()) {
-				int commandEndIndex = message.indexOf(' ');
+				int commandEndIndex = message.indexOf(ProtocolConstants.ARGUMENT_SEPARATOR);
 				String command, argument;
 				if (commandEndIndex > 0) {
 					command = message.substring(0, commandEndIndex);
@@ -333,7 +338,8 @@ public class RoomEngine {
 		}
 
 		private class ProtocolMatchHandler implements IServerMessageHandler<PlayerState> {
-			String errorMessage = ProtocolConstants.ERROR_PROTOCOL_MISMATCH + " " + ProtocolConstants.PROTOCOL_NUMBER;
+			String errorMessage = ProtocolConstants.ERROR_PROTOCOL_MISMATCH + ProtocolConstants.ARGUMENT_SEPARATOR
+					+ ProtocolConstants.PROTOCOL_NUMBER;
 
 			@Override
 			public boolean process(PlayerState state, String argument) {
@@ -351,7 +357,7 @@ public class RoomEngine {
 			@Override
 			public boolean process(PlayerState state, String argument) {
 				// CAC masterName authCode
-				String[] tokens = argument.split(" ");
+				String[] tokens = argument.split(ProtocolConstants.ARGUMENT_SEPARATOR, -1);
 				if (tokens.length != 2)
 					return false;
 
@@ -370,14 +376,14 @@ public class RoomEngine {
 			@Override
 			public boolean process(final PlayerState state, String argument) {
 				// LI loginName "masterName" password
-				String[] tokens = argument.split(" ");
+				String[] tokens = argument.split(ProtocolConstants.ARGUMENT_SEPARATOR, -1);
 
 				String loginName = tokens[0];
 				if (loginName.length() == 0) {
 					return false;
 				}
 
-				String loginRoomMasterName = Utility.removeQuotations(tokens[1]);
+				String loginRoomMasterName = tokens[1];
 				if (loginRoomMasterName.length() == 0) {
 					if (!allowEmptyMasterNameLogin) {
 						return false;
@@ -417,7 +423,7 @@ public class RoomEngine {
 				state.messageHandlers = sessionHandlers;
 				state.name = loginName;
 
-				final String notify = ProtocolConstants.Room.NOTIFY_USER_ENTERED + " " + loginName;
+				final String notify = ProtocolConstants.Room.NOTIFY_USER_ENTERED + ProtocolConstants.ARGUMENT_SEPARATOR + loginName;
 				forEachParticipant(new IClientStateAction<PlayerState>() {
 					@Override
 					public void action(PlayerState p) {
@@ -459,7 +465,7 @@ public class RoomEngine {
 		private class PingHandler implements IServerMessageHandler<PlayerState> {
 			@Override
 			public boolean process(PlayerState state, String argument) {
-				state.getConnection().send(ProtocolConstants.Room.COMMAND_PINGBACK + " " + argument);
+				state.getConnection().send(ProtocolConstants.Room.COMMAND_PINGBACK + ProtocolConstants.ARGUMENT_SEPARATOR + argument);
 				return true;
 			}
 		}
@@ -469,7 +475,8 @@ public class RoomEngine {
 			public boolean process(final PlayerState state, String argument) {
 				try {
 					int ping = Integer.parseInt(argument);
-					final String message = ProtocolConstants.Room.COMMAND_INFORM_PING + " " + state.name + " " + argument;
+					final String message = ProtocolConstants.Room.COMMAND_INFORM_PING + ProtocolConstants.ARGUMENT_SEPARATOR + state.name
+							+ ProtocolConstants.ARGUMENT_SEPARATOR + argument;
 					forEachParticipant(new IClientStateAction<PlayerState>() {
 						@Override
 						public void action(PlayerState p) {

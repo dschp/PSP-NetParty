@@ -20,13 +20,10 @@ package pspnetparty.server;
 
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
-import java.sql.Connection;
-import java.sql.DriverManager;
 
 import pspnetparty.lib.ILogger;
 import pspnetparty.lib.IniParser;
 import pspnetparty.lib.RoomSearchEngine;
-import pspnetparty.lib.Utility;
 import pspnetparty.lib.constants.AppConstants;
 import pspnetparty.lib.constants.IniConstants;
 
@@ -52,63 +49,43 @@ public class RoomSearchServer {
 		}
 		System.out.println("ポート: " + port);
 
-		settings.set(IniConstants.Server.PORT, Integer.toString(port));
-
-		String driver = settings.get(IniConstants.Server.DB_DRIVER, "");
-		String url = settings.get(IniConstants.Server.DB_URL, "");
-		String user = settings.get(IniConstants.Server.DB_USER, "");
-		String password = settings.get(IniConstants.Server.DB_PASSWORD, "");
-		String pingSQL = settings.get(IniConstants.Server.DB_PING_SQL, "");
-
-		boolean hasDbSettingError = false;
-		if (Utility.isEmpty(driver)) {
-			System.out.println("データベースドライバーが指定されていません");
-			hasDbSettingError = true;
-		}
-		if (Utility.isEmpty(url)) {
-			System.out.println("データベースURLが指定されていません");
-			hasDbSettingError = true;
-		}
-
-		if (hasDbSettingError) {
-			parser.saveToIni();
+		int maxSearchResults = settings.get(IniConstants.Server.MAX_SEARCH_RESULTS, 50);
+		if (maxSearchResults < 1) {
+			System.out.println("最大検索件数が不正です: " + maxSearchResults);
 			return;
 		}
+		System.out.println("最大検索件数: " + maxSearchResults);
 
-		System.out.println("DBドライバー: " + driver);
-		System.out.println("DB URL: " + url);
-		System.out.println("DBユーザー: " + user);
-		System.out.println("Ping SQL: " + pingSQL);
-		Class.forName(driver);
+		int descriptionMaxLength = settings.get(IniConstants.Server.DESCRIPTION_MAX_LENGTH, 100);
+		if (descriptionMaxLength < 1) {
+			System.out.println("部屋の詳細・備考の最大サイズが不正です: " + descriptionMaxLength);
+			return;
+		}
+		System.out.println("部屋の詳細・備考の最大サイズ: " + descriptionMaxLength);
 
 		parser.saveToIni();
 
-		Connection dbConn = null;
-		try {
-			dbConn = DriverManager.getConnection(url, user, password);
-
-			RoomSearchEngine engine = new RoomSearchEngine(dbConn, new ILogger() {
-				@Override
-				public void log(String message) {
-					System.out.println(message);
-				}
-			}, pingSQL);
-			engine.start(port);
-
-			BufferedReader reader = new BufferedReader(new InputStreamReader(System.in));
-			String line;
-			while ((line = reader.readLine()) != null) {
-				if ("list".equalsIgnoreCase(line)) {
-					System.out.println(engine.toString());
-				} else if ("shutdown".equalsIgnoreCase(line)) {
-					break;
-				}
+		RoomSearchEngine engine = new RoomSearchEngine(new ILogger() {
+			@Override
+			public void log(String message) {
+				System.out.println(message);
 			}
+		});
+		engine.setDescriptionMaxLength(descriptionMaxLength);
+		engine.setMaxSearchResults(maxSearchResults);
 
-			engine.stop();
-		} finally {
-			if (dbConn != null && !dbConn.isClosed())
-				dbConn.close();
+		engine.start(port);
+
+		BufferedReader reader = new BufferedReader(new InputStreamReader(System.in));
+		String line;
+		while ((line = reader.readLine()) != null) {
+			if ("list".equalsIgnoreCase(line)) {
+				System.out.println(engine.toString());
+			} else if ("shutdown".equalsIgnoreCase(line)) {
+				break;
+			}
 		}
+
+		engine.stop();
 	}
 }

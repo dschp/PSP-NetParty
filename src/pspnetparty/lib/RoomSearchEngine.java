@@ -20,12 +20,24 @@ package pspnetparty.lib;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.SQLException;
-import java.sql.Statement;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map.Entry;
+import java.util.concurrent.ConcurrentHashMap;
+
+import org.apache.lucene.analysis.cjk.CJKAnalyzer;
+import org.apache.lucene.document.Document;
+import org.apache.lucene.document.Field;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriter.MaxFieldLength;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.queryParser.QueryParser;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.ScoreDoc;
+import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.store.RAMDirectory;
+import org.apache.lucene.util.Version;
 
 import pspnetparty.lib.constants.ProtocolConstants;
 import pspnetparty.lib.constants.ProtocolConstants.Search;
@@ -40,77 +52,47 @@ public class RoomSearchEngine {
 	private AsyncTcpClient tcpClient;
 	private AsyncUdpClient udpClient;
 
-	private PreparedStatement insertRoomStatement;
-	private PreparedStatement updateRoomStatement;
-	private PreparedStatement updatePlayerCountStatement;
-	private PreparedStatement deleteRoomStatement;
+	private ConcurrentHashMap<String, PlayRoom> playRoomEntries = new ConcurrentHashMap<String, PlayRoom>();
 
-	private PreparedStatement searchNonFullRoomStatement;
-	private PreparedStatement searchAllRoomStatement;
-	private PreparedStatement getAllRoomStatement;
+	private RAMDirectory ramDirectory;
+	private IndexWriter indexWriter;
+	private IndexSearcher indexSearcher;
+	private QueryParser searchParser;
 
 	private int descriptionMaxLength = 100;
+	private int maxSearchResults = 50;
 
-	public RoomSearchEngine(Connection dbConn, ILogger logger, String pingSQL) throws SQLException {
-		// this.dbConnection = dbConn;
+	private int updateCount = 0;
+
+	public RoomSearchEngine(ILogger logger) throws IOException {
 		this.logger = logger;
 
 		searchServer = new AsyncTcpServer<SearchState>();
 		searchHandler = new SearchHandler();
 
-		tcpClient = new AsyncTcpClient();
+		tcpClient = new AsyncTcpClient(4000);
 		udpClient = new AsyncUdpClient();
 
-		Statement stmt = dbConn.createStatement();
-		stmt.executeUpdate("DELETE FROM rooms");
-		stmt.close();
+		ramDirectory = new RAMDirectory();
+		indexWriter = new IndexWriter(ramDirectory, new CJKAnalyzer(Version.LUCENE_30, new HashSet<String>()), true,
+				MaxFieldLength.UNLIMITED);
+		searchParser = new QueryParser(Version.LUCENE_30, "title", indexWriter.getAnalyzer());
+	}
 
-		if (!Utility.isEmpty(pingSQL)) {
-			final PreparedStatement pingStatement = dbConn.prepareStatement(pingSQL);
-			Thread pingThread = new Thread(new Runnable() {
-				@Override
-				public void run() {
-					try {
-						while (searchServer.isListening()) {
-							pingStatement.execute();
-							Thread.sleep(600000);
-						}
-					} catch (SQLException e) {
-						RoomSearchEngine.this.logger.log(Utility.makeStackTrace(e));
-					} catch (InterruptedException e) {
-					}
-				}
-			}, RoomSearchEngine.class.getName() + " PingThread");
-			pingThread.setDaemon(true);
-			pingThread.start();
-		}
+	public int getDescriptionMaxLength() {
+		return descriptionMaxLength;
+	}
 
-		String sql;
-		sql = String.format("INSERT INTO rooms (%s,%s,%s,%s,%s,%s,%s) VALUES (?,?,?,?,?,?,?)", Search.DB_COLUMN_ADDRESS,
-				Search.DB_COLUMN_MASTER_NAME, Search.DB_COLUMN_TITLE, Search.DB_COLUMN_CURRENT_PLAYERS, Search.DB_COLUMN_MAX_PLAYERS,
-				Search.DB_COLUMN_HAS_PASSWORD, Search.DB_COLUMN_DESCRIPTION);
-		insertRoomStatement = dbConn.prepareStatement(sql);
+	public void setDescriptionMaxLength(int descriptionMaxLength) {
+		this.descriptionMaxLength = descriptionMaxLength;
+	}
 
-		sql = String.format("UPDATE rooms SET %s=?, %s=?, %s=?, %s=? WHERE %s=?", Search.DB_COLUMN_TITLE, Search.DB_COLUMN_MAX_PLAYERS,
-				Search.DB_COLUMN_HAS_PASSWORD, Search.DB_COLUMN_DESCRIPTION, Search.DB_COLUMN_ADDRESS);
-		updateRoomStatement = dbConn.prepareStatement(sql);
+	public int getMaxSearchResults() {
+		return maxSearchResults;
+	}
 
-		sql = String.format("UPDATE rooms SET %s=? WHERE %s=?", Search.DB_COLUMN_CURRENT_PLAYERS, Search.DB_COLUMN_ADDRESS);
-		updatePlayerCountStatement = dbConn.prepareStatement(sql);
-
-		sql = String.format("DELETE FROM rooms WHERE %s = ?", Search.DB_COLUMN_ADDRESS);
-		deleteRoomStatement = dbConn.prepareStatement(sql);
-
-		sql = String.format("SELECT * FROM rooms WHERE %s LIKE ? AND %s LIKE ? AND %s LIKE ? AND %s = ? AND %s < %s",
-				Search.DB_COLUMN_ADDRESS, Search.DB_COLUMN_MASTER_NAME, Search.DB_COLUMN_TITLE, Search.DB_COLUMN_HAS_PASSWORD,
-				Search.DB_COLUMN_CURRENT_PLAYERS, Search.DB_COLUMN_MAX_PLAYERS);
-		searchNonFullRoomStatement = dbConn.prepareStatement(sql);
-
-		sql = String.format("SELECT * FROM rooms WHERE %s LIKE ? AND %s LIKE ? AND %s LIKE ? AND %s = ?", Search.DB_COLUMN_ADDRESS,
-				Search.DB_COLUMN_MASTER_NAME, Search.DB_COLUMN_TITLE, Search.DB_COLUMN_HAS_PASSWORD);
-		searchAllRoomStatement = dbConn.prepareStatement(sql);
-
-		getAllRoomStatement = dbConn.prepareStatement("SELECT * FROM rooms");
+	public void setMaxSearchResults(int maxSearchResults) {
+		this.maxSearchResults = maxSearchResults;
 	}
 
 	public void start(int port) throws IOException {
@@ -131,24 +113,40 @@ public class RoomSearchEngine {
 
 	@Override
 	public String toString() {
-		StringBuilder sb;
-		try {
-			ResultSet rs = getAllRoomStatement.executeQuery();
+		StringBuilder sb = new StringBuilder();
+		for (Entry<String, PlayRoom> entry : playRoomEntries.entrySet()) {
+			PlayRoom room = entry.getValue();
 
-			sb = new StringBuilder();
-			while (rs.next()) {
-				sb.append(rs.getString(Search.DB_COLUMN_ADDRESS)).append('\t');
-				sb.append(rs.getString(Search.DB_COLUMN_MASTER_NAME)).append('\t');
-				sb.append(rs.getString(Search.DB_COLUMN_TITLE)).append('\t');
-				sb.append(rs.getInt(Search.DB_COLUMN_CURRENT_PLAYERS));
-				sb.append(" / ");
-				sb.append(rs.getInt(Search.DB_COLUMN_MAX_PLAYERS));
-				sb.append('\n');
-			}
-		} catch (SQLException e) {
-			return Utility.makeStackTrace(e);
+			sb.append(room.getRoomAddress()).append('\t');
+			sb.append(room.getMasterName()).append('\t');
+			sb.append(room.getTitle()).append('\t');
+			sb.append(room.getCurrentPlayers());
+			sb.append(" / ");
+			sb.append(room.getMaxPlayers());
+			sb.append('\n');
 		}
 		return sb.toString();
+	}
+
+	private void updateRoomEntry(PlayRoom room) throws IOException {
+		Document doc = new Document();
+		doc.add(new Field("address", room.getRoomAddress(), Field.Store.YES, Field.Index.NOT_ANALYZED_NO_NORMS));
+		doc.add(new Field("title", room.getTitle().replace("　", " "), Field.Store.NO, Field.Index.ANALYZED));
+		doc.add(new Field("masterName", room.getMasterName().replace("　", " "), Field.Store.NO, Field.Index.ANALYZED));
+		doc.add(new Field("serverAddress", room.getServerAddress(), Field.Store.NO, Field.Index.ANALYZED));
+		doc.add(new Field("hasPassword", room.hasPassword() ? "y" : "n", Field.Store.NO, Field.Index.NOT_ANALYZED));
+
+		indexWriter.updateDocument(new Term("address", room.getRoomAddress()), doc);
+		// indexWriter.addDocument(doc);
+
+		indexWriter.commit();
+		updateCount++;
+		if (updateCount > 10) {
+			indexWriter.optimize();
+			updateCount = 0;
+		}
+
+		indexSearcher = null;
 	}
 
 	private class SearchHandler implements IAsyncServerHandler<SearchState> {
@@ -195,11 +193,17 @@ public class RoomSearchEngine {
 
 		@Override
 		public void disposeState(SearchState state) {
-			if (!Utility.isEmpty(state.address)) {
+			if (state.entryRoom != null) {
+				String address = state.entryRoom.getRoomAddress();
+				playRoomEntries.remove(address);
+
 				try {
-					deleteRoomStatement.setString(1, state.address);
-					deleteRoomStatement.executeUpdate();
-				} catch (SQLException e) {
+					indexWriter.deleteDocuments(new Term("address", address));
+					indexWriter.commit();
+
+					indexSearcher = null;
+
+				} catch (IOException e) {
 					log(Utility.makeStackTrace(e));
 				}
 			}
@@ -210,7 +214,7 @@ public class RoomSearchEngine {
 			boolean sessionContinue = false;
 
 			for (String message : data.getMessages()) {
-				int commandEndIndex = message.indexOf(' ');
+				int commandEndIndex = message.indexOf(ProtocolConstants.ARGUMENT_SEPARATOR);
 				String command, argument;
 				if (commandEndIndex > 0) {
 					command = message.substring(0, commandEndIndex);
@@ -236,8 +240,116 @@ public class RoomSearchEngine {
 			return sessionContinue;
 		}
 
+		private boolean checkRoomEntry(final SearchState state, final InetSocketAddress address, final PlayRoom room, final String authCode) {
+			try {
+				tcpClient.connect(address, new IAsyncClientHandler() {
+					boolean tcpReadSuccess = false;
+
+					@Override
+					public void log(ISocketConnection connection, String message) {
+						logger.log(connection.getRemoteAddress().toString());
+						logger.log(message);
+					}
+
+					@Override
+					public void connectCallback(ISocketConnection connection) {
+						StringBuilder sb = new StringBuilder();
+						sb.append(ProtocolConstants.Room.PROTOCOL_NAME);
+						sb.append(ProtocolConstants.ARGUMENT_SEPARATOR);
+						sb.append(ProtocolConstants.PROTOCOL_NUMBER);
+						sb.append(ProtocolConstants.MESSAGE_SEPARATOR);
+
+						sb.append(ProtocolConstants.Room.COMMAND_CONFIRM_AUTH_CODE);
+						sb.append(ProtocolConstants.ARGUMENT_SEPARATOR);
+						sb.append(room.getMasterName());
+						sb.append(ProtocolConstants.ARGUMENT_SEPARATOR);
+						sb.append(authCode);
+
+						connection.send(sb.toString());
+					}
+
+					@Override
+					public void readCallback(ISocketConnection connection, PacketData data) {
+						String message = data.getMessage();
+						if (ProtocolConstants.Room.COMMAND_CONFIRM_AUTH_CODE.equals(message)) {
+							try {
+								udpClient.connect(address, new IAsyncClientHandler() {
+									boolean udpReadSuccess = false;
+
+									@Override
+									public void log(ISocketConnection connection, String message) {
+										logger.log(connection.getRemoteAddress().toString());
+										logger.log(message);
+									}
+
+									@Override
+									public void connectCallback(ISocketConnection connection) {
+										connection.send(ProtocolConstants.Room.TUNNEL_DUMMY_PACKET);
+									}
+
+									@Override
+									public void readCallback(ISocketConnection connection, PacketData data) {
+										String message = data.getMessage();
+										if (!Utility.isEmpty(message)) {
+											udpReadSuccess = true;
+										}
+										connection.disconnect();
+									}
+
+									@Override
+									public void disconnectCallback(ISocketConnection connection) {
+										if (udpReadSuccess) {
+											try {
+												updateRoomEntry(room);
+
+												state.getConnection().send(Search.COMMAND_ENTRY);
+												state.entryRoom = room;
+												playRoomEntries.put(room.getRoomAddress(), room);
+
+												state.messageHandlers = masterHandlers;
+											} catch (IOException e) {
+												state.getConnection().send(Search.ERROR_MASTER_DATABASE_ENTRY);
+												state.getConnection().disconnect();
+											}
+										} else {
+											state.getConnection().send(Search.ERROR_MASTER_UDP_PORT);
+											state.getConnection().disconnect();
+										}
+									}
+								});
+							} catch (IOException e) {
+								state.getConnection().send(Search.ERROR_MASTER_UDP_PORT);
+								state.getConnection().disconnect();
+							}
+						} else {
+							state.getConnection().send(Search.ERROR_MASTER_INVALID_AUTH_CODE);
+							state.getConnection().disconnect();
+						}
+
+						tcpReadSuccess = true;
+						connection.disconnect();
+					}
+
+					@Override
+					public void disconnectCallback(ISocketConnection connection) {
+						if (!tcpReadSuccess) {
+							state.getConnection().send(Search.ERROR_MASTER_TCP_PORT);
+							state.getConnection().disconnect();
+						}
+					}
+				});
+
+				return true;
+			} catch (IOException e) {
+				state.getConnection().send(Search.ERROR_MASTER_TCP_PORT);
+				return false;
+			}
+
+		}
+
 		private class ProtocolMatchHandler implements IServerMessageHandler<SearchState> {
-			String errorMessage = ProtocolConstants.ERROR_PROTOCOL_MISMATCH + " " + ProtocolConstants.PROTOCOL_NUMBER;
+			String errorMessage = ProtocolConstants.ERROR_PROTOCOL_MISMATCH + ProtocolConstants.ARGUMENT_SEPARATOR
+					+ ProtocolConstants.PROTOCOL_NUMBER;
 
 			@Override
 			public boolean process(SearchState state, String argument) {
@@ -280,9 +392,8 @@ public class RoomSearchEngine {
 			@Override
 			public boolean process(final SearchState state, String argument) {
 				// R authCode hostName:port masterName title currentPlayers
-				// maxPlayers hasPassword
-				// "description"
-				final String[] tokens = argument.split(" ");
+				// maxPlayers hasPassword description
+				final String[] tokens = argument.split(ProtocolConstants.ARGUMENT_SEPARATOR, -1);
 				if (tokens.length != 8)
 					return false;
 
@@ -290,130 +401,24 @@ public class RoomSearchEngine {
 					final String authCode = tokens[0];
 
 					String[] address = tokens[1].split(":");
-					final String hostname = makeHostName(address[0], state);
-					final int port = Integer.parseInt(address[1]);
+					String hostname = makeHostName(address[0], state);
+					int port = Integer.parseInt(address[1]);
 
-					final String masterName = tokens[2];
-					final String title = tokens[3];
+					String masterName = tokens[2];
+					String title = tokens[3];
 
-					final int currentPlayers = Integer.parseInt(tokens[4]);
-					final int maxPlayers = Integer.parseInt(tokens[5]);
-					final boolean hasPassword = "Y".equals(tokens[6]);
-					final String description = Utility.trim(Utility.removeQuotations(tokens[7]), descriptionMaxLength);
+					int currentPlayers = Integer.parseInt(tokens[4]);
+					int maxPlayers = Integer.parseInt(tokens[5]);
+					boolean hasPassword = "Y".equals(tokens[6]);
+					String description = Utility.trim(tokens[7], descriptionMaxLength);
 
-					final InetSocketAddress socketAddress = new InetSocketAddress(hostname, port);
+					PlayRoom room = new PlayRoom(hostname + ":" + port, masterName, title, hasPassword, currentPlayers, maxPlayers);
+					room.setDescription(description);
 
-					tcpClient.connect(socketAddress, new IAsyncClientHandler() {
-						boolean tcpReadSuccess = false;
+					InetSocketAddress socketAddress = new InetSocketAddress(hostname, port);
 
-						@Override
-						public void log(ISocketConnection connection, String message) {
-							logger.log(connection.getRemoteAddress().toString());
-							logger.log(message);
-						}
-
-						@Override
-						public void connectCallback(ISocketConnection connection) {
-							StringBuilder sb = new StringBuilder();
-							sb.append(ProtocolConstants.Room.PROTOCOL_NAME);
-							sb.append(' ').append(ProtocolConstants.PROTOCOL_NUMBER);
-							sb.append(ProtocolConstants.MESSAGE_SEPARATOR);
-							sb.append(ProtocolConstants.Room.COMMAND_CONFIRM_AUTH_CODE);
-							sb.append(' ').append(masterName);
-							sb.append(' ').append(authCode);
-
-							connection.send(sb.toString());
-						}
-
-						@Override
-						public void readCallback(ISocketConnection connection, PacketData data) {
-							String message = data.getMessage();
-							if (ProtocolConstants.Room.COMMAND_CONFIRM_AUTH_CODE.equals(message)) {
-								try {
-									udpClient.connect(socketAddress, new IAsyncClientHandler() {
-										boolean udpReadSuccess = false;
-
-										@Override
-										public void log(ISocketConnection connection, String message) {
-											logger.log(connection.getRemoteAddress().toString());
-											logger.log(message);
-										}
-
-										@Override
-										public void connectCallback(ISocketConnection connection) {
-											connection.send(" ");
-										}
-
-										@Override
-										public void readCallback(ISocketConnection connection, PacketData data) {
-											String message = data.getMessage();
-											if (!Utility.isEmpty(message)) {
-												udpReadSuccess = true;
-											}
-											connection.disconnect();
-										}
-
-										@Override
-										public void disconnectCallback(ISocketConnection connection) {
-											if (udpReadSuccess) {
-												try {
-													String address = hostname + ":" + port + ":" + masterName;
-
-													insertRoomStatement.setString(1, address);
-													insertRoomStatement.setString(2, masterName);
-													insertRoomStatement.setString(3, title);
-													insertRoomStatement.setInt(4, currentPlayers);
-													insertRoomStatement.setInt(5, maxPlayers);
-													insertRoomStatement.setBoolean(6, hasPassword);
-													insertRoomStatement.setString(7, description);
-
-													int c = insertRoomStatement.executeUpdate();
-													if (c != 1) {
-														logger.log("Room register failed.");
-													}
-
-													state.getConnection().send(Search.COMMAND_ENTRY);
-													state.address = address;
-													state.messageHandlers = masterHandlers;
-
-												} catch (SQLException e) {
-													logger.log(Utility.makeStackTrace(e));
-													state.getConnection().send(Search.ERROR_MASTER_DATABASE_ENTRY);
-													state.getConnection().disconnect();
-												}
-											} else {
-												state.getConnection().send(Search.ERROR_MASTER_UDP_PORT);
-												state.getConnection().disconnect();
-											}
-										}
-									});
-								} catch (IOException e) {
-									state.getConnection().send(Search.ERROR_MASTER_UDP_PORT);
-									state.getConnection().disconnect();
-								}
-							} else {
-								state.getConnection().send(Search.ERROR_MASTER_INVALID_AUTH_CODE);
-								state.getConnection().disconnect();
-							}
-
-							tcpReadSuccess = true;
-							connection.disconnect();
-						}
-
-						@Override
-						public void disconnectCallback(ISocketConnection connection) {
-							if (!tcpReadSuccess) {
-								state.getConnection().send(Search.ERROR_MASTER_TCP_PORT);
-								state.getConnection().disconnect();
-							}
-						}
-					});
-
-					return true;
+					return checkRoomEntry(state, socketAddress, room, authCode);
 				} catch (NumberFormatException e) {
-					return false;
-				} catch (IOException e) {
-					state.getConnection().send(Search.ERROR_MASTER_TCP_PORT);
 					return false;
 				}
 			}
@@ -422,19 +427,32 @@ public class RoomSearchEngine {
 		private class RoomUpdateHandler implements IServerMessageHandler<SearchState> {
 			@Override
 			public boolean process(SearchState state, String argument) {
-				// U title maxPlayers hasPassword "description"
-				String[] tokens = argument.split(" ");
-				try {
-					updateRoomStatement.setString(1, tokens[0]);
-					updateRoomStatement.setInt(2, Integer.parseInt(tokens[1]));
-					updateRoomStatement.setBoolean(3, "Y".equals(tokens[2]));
-					updateRoomStatement.setString(4, Utility.trim(Utility.removeQuotations(tokens[3]), descriptionMaxLength));
-					updateRoomStatement.setString(5, state.address);
+				if (state.entryRoom == null)
+					return false;
 
-					updateRoomStatement.executeUpdate();
+				// U title maxPlayers hasPassword description
+				String[] tokens = argument.split(ProtocolConstants.ARGUMENT_SEPARATOR, -1);
+				if (tokens.length != 4)
+					return false;
+
+				try {
+					String title = tokens[0];
+					int maxPlayers = Integer.parseInt(tokens[1]);
+					boolean hasPassword = "Y".equals(tokens[2]);
+					String description = Utility.trim(tokens[3], descriptionMaxLength);
+
+					PlayRoom room = state.entryRoom;
+					room.setTitle(title);
+					room.setMaxPlayers(maxPlayers);
+					room.setHasPassword(hasPassword);
+					room.setDescription(description);
+
+					updateRoomEntry(room);
+
 					return true;
 				} catch (NumberFormatException e) {
-				} catch (SQLException e) {
+				} catch (IOException e) {
+					log(Utility.makeStackTrace(e));
 				}
 				return false;
 			}
@@ -443,16 +461,15 @@ public class RoomSearchEngine {
 		private class RoomUpdatePlayerCountHandler implements IServerMessageHandler<SearchState> {
 			@Override
 			public boolean process(SearchState state, String argument) {
-				// C playerCount
-				try {
-					int playerCount = Integer.parseInt(argument);
-					updatePlayerCountStatement.setInt(1, playerCount);
-					updatePlayerCountStatement.setString(2, state.address);
+				if (state.entryRoom == null)
+					return false;
 
-					updatePlayerCountStatement.executeUpdate();
+				try {
+					// C playerCount
+					int playerCount = Integer.parseInt(argument);
+					state.entryRoom.setCurrentPlayers(playerCount);
 					return true;
 				} catch (NumberFormatException e) {
-				} catch (SQLException e) {
 				}
 				return false;
 			}
@@ -461,61 +478,96 @@ public class RoomSearchEngine {
 		private class RoomSearchHandler implements IServerMessageHandler<SearchState> {
 			@Override
 			public boolean process(SearchState state, String argument) {
-				// S title masterName serverHostName includeFullRoom hasPassword
+				// S title masterName serverHostName hasPassword
 
-				String[] tokens = argument.split(" ");
-				if (tokens.length != 5)
+				String[] tokens = argument.split(ProtocolConstants.ARGUMENT_SEPARATOR, -1);
+				if (tokens.length != 4)
 					return false;
 
-				String queryTitle = "%" + tokens[0] + "%"; // Utility.removeQuotations(tokens[0]);
-				String queryMasterName = "%" + tokens[1] + "%"; // Utility.removeQuotations(tokens[1]);
-				String queryServerHost = "%" + tokens[2] + "%"; // Utility.removeQuotations(tokens[2]);
-				boolean includeFullRoom = "Y".equals(tokens[3]);
-				boolean queryHasPassword = "Y".equals(tokens[4]);
+				String title = tokens[0].replace("　", " ").replaceAll(" {2,}", " ").trim();
+				String masterName = tokens[1].replace("　", " ").replaceAll(" {2,}", " ").trim();
+				String serverName = tokens[2].trim();
+				boolean queryHasPassword = "Y".equals(tokens[3]);
 
-				PreparedStatement stmt = includeFullRoom ? searchAllRoomStatement : searchNonFullRoomStatement;
+				StringBuilder queryBuilder = new StringBuilder();
+				if (!Utility.isEmpty(title)) {
+					appendQuery(queryBuilder, "title", title);
+				}
+				if (!Utility.isEmpty(masterName)) {
+					appendQuery(queryBuilder, "masterName", masterName);
+				}
+				if (!Utility.isEmpty(serverName)) {
+					if (queryBuilder.length() > 0)
+						queryBuilder.append(" AND ");
+					queryBuilder.append("serverAddress:").append(QueryParser.escape(serverName));//.append('*');
+				}
+
+				if (queryBuilder.length() > 0)
+					queryBuilder.append(" AND ");
+				queryBuilder.append("hasPassword:").append(queryHasPassword ? 'y' : 'n');
 
 				try {
-					stmt.setString(1, queryServerHost);
-					stmt.setString(2, queryMasterName);
-					stmt.setString(3, queryTitle);
-					stmt.setBoolean(4, queryHasPassword);
+					Query query = searchParser.parse(queryBuilder.toString());
+					//logger.log(query.toString());
 
-					ResultSet rs = stmt.executeQuery();
+					if (indexSearcher == null)
+						indexSearcher = new IndexSearcher(ramDirectory);
+
+					TopDocs docs = indexSearcher.search(query, maxSearchResults);
+					ScoreDoc[] hits = docs.scoreDocs;
 
 					StringBuilder sb = new StringBuilder();
-					while (rs.next()) {
-						String address = rs.getString(Search.DB_COLUMN_ADDRESS);
-						String master = rs.getString(Search.DB_COLUMN_MASTER_NAME);
-						String title = rs.getString(Search.DB_COLUMN_TITLE);
-						int currentPlayers = rs.getInt(Search.DB_COLUMN_CURRENT_PLAYERS);
-						int maxPlayers = rs.getInt(Search.DB_COLUMN_MAX_PLAYERS);
-						String description = rs.getString(Search.DB_COLUMN_DESCRIPTION);
-						boolean hasPassword = rs.getBoolean(Search.DB_COLUMN_HAS_PASSWORD);
+					for (int i = 0; i < hits.length; i++) {
+						Document d = indexSearcher.doc(hits[i].doc);
+						String address = d.get("address");
+						PlayRoom room = playRoomEntries.get(address);
+						if (room == null) {
+							logger.log("Defunct document: id=" + address);
+							continue;
+						}
 
 						sb.append(ProtocolConstants.Search.COMMAND_SEARCH);
-						sb.append(' ').append(address);
-						sb.append(' ').append(master);
-						sb.append(' ').append(title);
-						sb.append(' ').append(currentPlayers);
-						sb.append(' ').append(maxPlayers);
-						sb.append(' ').append(hasPassword ? "Y" : "N");
-						sb.append(" \"").append(description).append('"');
+						sb.append(ProtocolConstants.ARGUMENT_SEPARATOR);
+						sb.append(room.getServerAddress());
+						sb.append(ProtocolConstants.ARGUMENT_SEPARATOR);
+						sb.append(room.getMasterName());
+						sb.append(ProtocolConstants.ARGUMENT_SEPARATOR);
+						sb.append(room.getTitle());
+						sb.append(ProtocolConstants.ARGUMENT_SEPARATOR);
+						sb.append(room.getCurrentPlayers());
+						sb.append(ProtocolConstants.ARGUMENT_SEPARATOR);
+						sb.append(room.getMaxPlayers());
+						sb.append(ProtocolConstants.ARGUMENT_SEPARATOR);
+						sb.append(room.hasPassword() ? "Y" : "N");
+						sb.append(ProtocolConstants.ARGUMENT_SEPARATOR);
+						sb.append(room.getDescription());
 						sb.append(ProtocolConstants.MESSAGE_SEPARATOR);
 					}
 
-					rs.close();
-
 					sb.append(ProtocolConstants.Search.COMMAND_SEARCH);
-
 					state.getConnection().send(sb.toString());
 
-				} catch (SQLException e) {
+				} catch (IOException e) {
+					log(Utility.makeStackTrace(e));
+				} catch (Exception e) {
 					log(Utility.makeStackTrace(e));
 				}
-
 				return false;
 			}
+		}
+	}
+
+	private static void appendQuery(StringBuilder sb, String field, String query) {
+		String[] tokens = query.split(" ");
+		for (String s : tokens) {
+			if (Utility.isEmpty(s))
+				continue;
+			if (sb.length() > 0)
+				sb.append(" AND ");
+			sb.append(field).append(':');
+			sb.append(QueryParser.escape(s));
+			if (s.matches("[\\x20-\\x7E]+"))
+				sb.append('*');
 		}
 	}
 }

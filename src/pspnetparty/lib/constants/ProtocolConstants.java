@@ -25,7 +25,8 @@ public class ProtocolConstants {
 	public static final String PROTOCOL_NUMBER = "4";
 	public static final String ERROR_PROTOCOL_MISMATCH = "ERR_PROT_MIS";
 
-	public static final String MESSAGE_SEPARATOR = "\t";
+	public static final String ARGUMENT_SEPARATOR = "\t";
+	public static final String MESSAGE_SEPARATOR = "\f";// "\t";
 	public static final int INTEGER_BYTE_SIZE = Integer.SIZE / 8;
 
 	public class Room {
@@ -33,6 +34,7 @@ public class ProtocolConstants {
 		}
 
 		public static final int MAX_ROOM_PLAYERS = 16;
+		public static final String TUNNEL_DUMMY_PACKET = " ";
 
 		public static final String PROTOCOL_NAME = "PNP_ROOM";
 
@@ -101,13 +103,5 @@ public class ProtocolConstants {
 		public static final String ERROR_MASTER_UDP_PORT = "ERR_RM_UDP";
 		public static final String ERROR_MASTER_INVALID_AUTH_CODE = "ERR_RM_IAC";
 		public static final String ERROR_MASTER_DATABASE_ENTRY = "ERR_RM_DBE";
-
-		public static final String DB_COLUMN_ADDRESS = "address";
-		public static final String DB_COLUMN_MASTER_NAME = "master_name";
-		public static final String DB_COLUMN_TITLE = "title";
-		public static final String DB_COLUMN_CURRENT_PLAYERS = "current_players";
-		public static final String DB_COLUMN_MAX_PLAYERS = "max_players";
-		public static final String DB_COLUMN_HAS_PASSWORD = "has_password";
-		public static final String DB_COLUMN_DESCRIPTION = "description";
 	}
 }

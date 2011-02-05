@@ -58,13 +58,6 @@ public class Utility {
 		return str1.equals(str2);
 	}
 
-	public static String removeQuotations(String string) {
-		if (string == null || string.length() < 3)
-			return "";
-		else
-			return string.substring(1, string.length() - 1);
-	}
-	 
 	public static String trim(String string, int maxLength) {
 		if (string == null)
 			return "";

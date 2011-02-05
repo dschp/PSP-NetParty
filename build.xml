@@ -2,15 +2,29 @@
 	<property file="build.properties">
 	</property>
 
-	<path id="build.classpath">
+	<path id="build.classpath.swt">
 		<fileset dir="${basedir}">
 			<include name="lib_swt/*.jar" />
 			<include name="*.jar" />
 		</fileset>
 	</path>
+	<pathconvert property="manifest.classpath.swt" pathsep=" ">
+		<path refid="build.classpath.swt" />
+		<mapper>
+			<chainedmapper>
+				<flattenmapper />
+				<globmapper from="*.jar" to="lib/*.jar" />
+			</chainedmapper>
+		</mapper>
+	</pathconvert>
 
-	<pathconvert property="manifest.classpath" pathsep=" ">
-		<path refid="build.classpath" />
+	<path id="build.classpath.search">
+		<fileset dir="${basedir}">
+			<include name="lib_lucene/*.jar" />
+		</fileset>
+	</path>
+	<pathconvert property="manifest.classpath.search" pathsep=" ">
+		<path refid="build.classpath.search" />
 		<mapper>
 			<chainedmapper>
 				<flattenmapper />
@@ -31,7 +45,7 @@
 		<jar basedir="bin" jarfile="${publish_directory}/PlayClient.jar" includes="pspnetparty/client/swt/**">
 			<manifest>
 				<attribute name="Main-Class" value="pspnetparty.client.swt.PlayClient" />
-				<attribute name="Class-Path" value="PlayClient.jar PspNetParty.jar ${manifest.classpath}" />
+				<attribute name="Class-Path" value="PlayClient.jar PspNetParty.jar ${manifest.classpath.swt}" />
 			</manifest>
 		</jar>
 	</target>
@@ -49,7 +63,7 @@
 		<jar basedir="bin" jarfile="${publish_directory}/RoomSearchServer.jar" includes="pspnetparty/server/RoomSearchServer*">
 			<manifest>
 				<attribute name="Main-Class" value="pspnetparty.server.RoomSearchServer" />
-				<attribute name="Class-Path" value="RoomSearchServer.jar PspNetParty.jar database.jar" />
+				<attribute name="Class-Path" value="RoomSearchServer.jar PspNetParty.jar ${manifest.classpath.search}" />
 			</manifest>
 		</jar>
 	</target>

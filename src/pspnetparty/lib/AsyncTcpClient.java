@@ -36,8 +36,8 @@ import pspnetparty.lib.constants.ProtocolConstants;
 
 public class AsyncTcpClient {
 
-	private static final int INITIAL_READ_BUFFER_SIZE = 2000;
-	private static final int MAX_PACKET_SIZE = 100000;
+	private final int initialReadBufferSize;
+	private final int maxPacketSize;
 
 	private Selector selector;
 	private ConcurrentLinkedQueue<Connection> newConnectionQueue = new ConcurrentLinkedQueue<Connection>();
@@ -48,7 +48,10 @@ public class AsyncTcpClient {
 
 	private Thread selectorThread;
 
-	public AsyncTcpClient() {
+	public AsyncTcpClient(int maxPacketSize) {
+		this.maxPacketSize = maxPacketSize;
+		this.initialReadBufferSize = Math.min(maxPacketSize, 2000);
+		
 		establishedConnections = new ConcurrentHashMap<AsyncTcpClient.Connection, Object>(16, 0.75f, 2);
 		try {
 			selector = Selector.open();
@@ -134,7 +137,7 @@ public class AsyncTcpClient {
 		private InetSocketAddress remoteAddress;
 		private IAsyncClientHandler handler;
 
-		private ByteBuffer readDataBuffer = ByteBuffer.allocateDirect(INITIAL_READ_BUFFER_SIZE);
+		private ByteBuffer readDataBuffer = ByteBuffer.allocateDirect(initialReadBufferSize);
 		private PacketData packetData = new PacketData(readDataBuffer);
 
 		public Connection(InetSocketAddress address, IAsyncClientHandler handler) throws IOException {
@@ -178,7 +181,7 @@ public class AsyncTcpClient {
 				readHeaderBuffer.flip();
 
 				int dataSize = readHeaderBuffer.getInt();
-				if (dataSize < 1 || dataSize > MAX_PACKET_SIZE) {
+				if (dataSize < 1 || dataSize > maxPacketSize) {
 					readHeaderBuffer.position(0);
 					System.out.println(Utility.decode(readHeaderBuffer));
 					throw new IOException("Too big data size: " + dataSize);
@@ -270,7 +273,7 @@ public class AsyncTcpClient {
 	}
 
 	public static void main(String[] args) throws Exception {
-		final AsyncTcpClient client = new AsyncTcpClient();
+		final AsyncTcpClient client = new AsyncTcpClient(100000);
 		final InetSocketAddress address = new InetSocketAddress("localhost", 30000);
 		final ISocketConnection conn = client.connect(address, new IAsyncClientHandler() {
 			@Override

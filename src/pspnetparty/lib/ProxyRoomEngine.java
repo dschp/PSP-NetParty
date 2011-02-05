@@ -144,20 +144,25 @@ public class ProxyRoomEngine {
 		}
 
 		private void appendRoomInfo(StringBuilder sb) {
-			sb.append(' ').append(roomMaster.name);
-			sb.append(' ').append(maxPlayers);
-			sb.append(' ').append(title);
-			sb.append(" \"").append(password).append('"');
-			sb.append(" \"").append(description).append('"');
+			sb.append(ProtocolConstants.ARGUMENT_SEPARATOR);
+			sb.append(roomMaster.name);
+			sb.append(ProtocolConstants.ARGUMENT_SEPARATOR);
+			sb.append(maxPlayers);
+			sb.append(ProtocolConstants.ARGUMENT_SEPARATOR);
+			sb.append(title);
+			sb.append(ProtocolConstants.ARGUMENT_SEPARATOR);
+			sb.append(password);
+			sb.append(ProtocolConstants.ARGUMENT_SEPARATOR);
+			sb.append(description);
 		}
 
 		private void appendNotifyUserList(StringBuilder sb) {
 			sb.append(ProtocolConstants.Room.NOTIFY_USER_LIST);
-			sb.append(' ').append(roomMaster.name);
+			sb.append(ProtocolConstants.ARGUMENT_SEPARATOR).append(roomMaster.name);
 			for (Entry<String, PlayerState> entry : playersByName.entrySet()) {
 				PlayerState state = entry.getValue();
 				if (state != roomMaster)
-					sb.append(' ').append(state.name);
+					sb.append(ProtocolConstants.ARGUMENT_SEPARATOR).append(state.name);
 			}
 		}
 	}
@@ -250,7 +255,8 @@ public class ProxyRoomEngine {
 				} else {
 					StringBuilder sb = new StringBuilder();
 					sb.append(ProtocolConstants.Room.NOTIFY_USER_EXITED);
-					sb.append(' ').append(name);
+					sb.append(ProtocolConstants.ARGUMENT_SEPARATOR);
+					sb.append(name);
 					sb.append(ProtocolConstants.MESSAGE_SEPARATOR);
 					sb.append(ProtocolConstants.Room.NOTIFY_ROOM_UPDATED);
 					room.appendRoomInfo(sb);
@@ -267,12 +273,13 @@ public class ProxyRoomEngine {
 
 					room.roomMasterAuthCode = Utility.makeAuthCode();
 					sb.append(ProtocolConstants.Room.NOTIFY_ROOM_MASTER_AUTH_CODE);
-					sb.append(' ').append(room.roomMasterAuthCode);
+					sb.append(ProtocolConstants.ARGUMENT_SEPARATOR);
+					sb.append(room.roomMasterAuthCode);
 
 					newRoomMaster.getConnection().send(sb.toString());
 				}
 			} else {
-				final String notify = ProtocolConstants.Room.NOTIFY_USER_EXITED + " " + name;
+				final String notify = ProtocolConstants.Room.NOTIFY_USER_EXITED + ProtocolConstants.ARGUMENT_SEPARATOR + name;
 				room.forEachPlayer(new IClientStateAction<PlayerState>() {
 					@Override
 					public void action(PlayerState p) {
@@ -287,7 +294,7 @@ public class ProxyRoomEngine {
 			boolean sessionContinue = false;
 
 			for (String message : data.getMessages()) {
-				int commandEndIndex = message.indexOf(' ');
+				int commandEndIndex = message.indexOf(ProtocolConstants.ARGUMENT_SEPARATOR);
 				String command, argument;
 				if (commandEndIndex > 0) {
 					command = message.substring(0, commandEndIndex);
@@ -314,7 +321,8 @@ public class ProxyRoomEngine {
 		}
 
 		private class RoomProtocolHandler implements IServerMessageHandler<PlayerState> {
-			String errorMessage = ProtocolConstants.ERROR_PROTOCOL_MISMATCH + " " + ProtocolConstants.PROTOCOL_NUMBER;
+			String errorMessage = ProtocolConstants.ERROR_PROTOCOL_MISMATCH + ProtocolConstants.ARGUMENT_SEPARATOR
+					+ ProtocolConstants.PROTOCOL_NUMBER;
 
 			@Override
 			public boolean process(PlayerState state, String argument) {
@@ -332,7 +340,7 @@ public class ProxyRoomEngine {
 			@Override
 			public boolean process(PlayerState state, String argument) {
 				// CAC masterName authCode
-				String[] tokens = argument.split(" ");
+				String[] tokens = argument.split(ProtocolConstants.ARGUMENT_SEPARATOR, -1);
 				if (tokens.length != 2)
 					return false;
 
@@ -355,14 +363,14 @@ public class ProxyRoomEngine {
 		private class RoomCreateHandler implements IServerMessageHandler<PlayerState> {
 			@Override
 			public boolean process(PlayerState state, String argument) {
-				// RC masterName maxPlayers title "password" "description"
-				String[] tokens = argument.split(" ");
+				// RC masterName maxPlayers title password description
+				String[] tokens = argument.split(ProtocolConstants.ARGUMENT_SEPARATOR, -1);
 				if (tokens.length != 5) {
 					state.getConnection().send(ProtocolConstants.Room.ERROR_ROOM_INVALID_DATA_ENTRY);
 					return false;
 				}
 
-				String password = Utility.removeQuotations(tokens[3]);
+				String password = tokens[3];
 				if (!passwordAllowed && !Utility.isEmpty(password)) {
 					state.getConnection().send(ProtocolConstants.Room.ERROR_ROOM_PASSWORD_NOT_ALLOWED);
 					return false;
@@ -415,7 +423,7 @@ public class ProxyRoomEngine {
 				newRoom.title = title;
 				newRoom.maxPlayers = maxPlayers;
 				newRoom.password = password;
-				newRoom.description = Utility.removeQuotations(tokens[4]);
+				newRoom.description = tokens[4];
 
 				playerRoomMap.put(state, newRoom);
 
@@ -428,7 +436,8 @@ public class ProxyRoomEngine {
 
 				newRoom.roomMasterAuthCode = Utility.makeAuthCode();
 				sb.append(ProtocolConstants.Room.NOTIFY_ROOM_MASTER_AUTH_CODE);
-				sb.append(' ').append(newRoom.roomMasterAuthCode);
+				sb.append(ProtocolConstants.ARGUMENT_SEPARATOR);
+				sb.append(newRoom.roomMasterAuthCode);
 
 				state.getConnection().send(sb.toString());
 
@@ -440,7 +449,7 @@ public class ProxyRoomEngine {
 			@Override
 			public boolean process(final PlayerState state, String argument) {
 				// LI loginName "masterName" password
-				String[] tokens = argument.split(" ");
+				String[] tokens = argument.split(ProtocolConstants.ARGUMENT_SEPARATOR, -1);
 
 				if (tokens.length < 2)
 					return false;
@@ -450,7 +459,7 @@ public class ProxyRoomEngine {
 					return false;
 				}
 
-				String masterName = Utility.removeQuotations(tokens[1]);
+				String masterName = tokens[1];
 				if (Utility.isEmpty(masterName)) {
 					// default room
 					masterName = "";
@@ -496,7 +505,7 @@ public class ProxyRoomEngine {
 
 				playerRoomMap.put(state, room);
 
-				final String notify = ProtocolConstants.Room.NOTIFY_USER_ENTERED + " " + loginName;
+				final String notify = ProtocolConstants.Room.NOTIFY_USER_ENTERED + ProtocolConstants.ARGUMENT_SEPARATOR + loginName;
 				room.forEachPlayer(new IClientStateAction<PlayerState>() {
 					@Override
 					public void action(PlayerState p) {
@@ -533,7 +542,12 @@ public class ProxyRoomEngine {
 				if (room == null)
 					return false;
 
-				final String message = String.format("%s <%s> %s", ProtocolConstants.Room.COMMAND_CHAT, state.name, argument);
+				StringBuilder sb = new StringBuilder();
+				sb.append(ProtocolConstants.Room.COMMAND_CHAT);
+				sb.append(ProtocolConstants.ARGUMENT_SEPARATOR);
+				sb.append('<').append(state.name).append("> ");
+				sb.append(argument);
+				final String message = sb.toString();
 				room.forEachPlayer(new IClientStateAction<PlayerState>() {
 					@Override
 					public void action(PlayerState p) {
@@ -547,7 +561,7 @@ public class ProxyRoomEngine {
 		private class PingHandler implements IServerMessageHandler<PlayerState> {
 			@Override
 			public boolean process(PlayerState state, String argument) {
-				state.getConnection().send(ProtocolConstants.Room.COMMAND_PINGBACK + " " + argument);
+				state.getConnection().send(ProtocolConstants.Room.COMMAND_PINGBACK + ProtocolConstants.ARGUMENT_SEPARATOR + argument);
 				return true;
 			}
 		}
@@ -561,7 +575,8 @@ public class ProxyRoomEngine {
 
 				try {
 					Integer.parseInt(argument);
-					final String message = ProtocolConstants.Room.COMMAND_INFORM_PING + " " + state.name + " " + argument;
+					final String message = ProtocolConstants.Room.COMMAND_INFORM_PING + ProtocolConstants.ARGUMENT_SEPARATOR + state.name
+							+ ProtocolConstants.ARGUMENT_SEPARATOR + argument;
 					room.forEachPlayer(new IClientStateAction<PlayerState>() {
 						@Override
 						public void action(PlayerState p) {
@@ -605,12 +620,12 @@ public class ProxyRoomEngine {
 					return false;
 
 				// RU maxPlayers title "password" "description"
-				String[] tokens = argument.split(" ");
+				String[] tokens = argument.split(ProtocolConstants.ARGUMENT_SEPARATOR, -1);
 				if (tokens.length != 4) {
 					state.getConnection().send(ProtocolConstants.Room.ERROR_ROOM_INVALID_DATA_ENTRY);
 					return true;
 				}
-				String password = Utility.removeQuotations(tokens[2]);
+				String password = tokens[2];
 				if (!passwordAllowed && !Utility.isEmpty(password)) {
 					state.getConnection().send(ProtocolConstants.Room.ERROR_ROOM_PASSWORD_NOT_ALLOWED);
 					return true;
@@ -619,7 +634,7 @@ public class ProxyRoomEngine {
 				room.maxPlayers = Math.min(Integer.parseInt(tokens[0]), ProtocolConstants.Room.MAX_ROOM_PLAYERS);
 				room.title = tokens[1];
 				room.password = password;
-				room.description = Utility.removeQuotations(tokens[3]);
+				room.description = tokens[3];
 
 				state.getConnection().send(ProtocolConstants.Room.COMMAND_ROOM_UPDATE);
 
@@ -660,7 +675,7 @@ public class ProxyRoomEngine {
 						return true;
 				}
 
-				final String notify = ProtocolConstants.Room.NOTIFY_ROOM_PLAYER_KICKED + " " + name;
+				final String notify = ProtocolConstants.Room.NOTIFY_ROOM_PLAYER_KICKED + ProtocolConstants.ARGUMENT_SEPARATOR + name;
 
 				room.forEachPlayer(new IClientStateAction<PlayerState>() {
 					@Override
@@ -669,7 +684,8 @@ public class ProxyRoomEngine {
 					}
 				});
 
-				kickedPlayer.getConnection().send(ProtocolConstants.Room.NOTIFY_ROOM_PLAYER_KICKED + " " + name);
+				kickedPlayer.getConnection().send(
+						ProtocolConstants.Room.NOTIFY_ROOM_PLAYER_KICKED + ProtocolConstants.ARGUMENT_SEPARATOR + name);
 				kickedPlayer.getConnection().disconnect();
 
 				return true;
@@ -712,14 +728,17 @@ public class ProxyRoomEngine {
 				});
 
 				room.roomMasterAuthCode = Utility.makeAuthCode();
-				newRoomMaster.getConnection().send(ProtocolConstants.Room.NOTIFY_ROOM_MASTER_AUTH_CODE + " " + room.roomMasterAuthCode);
+				newRoomMaster.getConnection().send(
+						ProtocolConstants.Room.NOTIFY_ROOM_MASTER_AUTH_CODE + ProtocolConstants.ARGUMENT_SEPARATOR
+								+ room.roomMasterAuthCode);
 
 				return true;
 			}
 		}
 
 		private class SearchProtocolHandler implements IServerMessageHandler<PlayerState> {
-			String errorMessage = ProtocolConstants.ERROR_PROTOCOL_MISMATCH + " " + ProtocolConstants.PROTOCOL_NUMBER;
+			String errorMessage = ProtocolConstants.ERROR_PROTOCOL_MISMATCH + ProtocolConstants.ARGUMENT_SEPARATOR
+					+ ProtocolConstants.PROTOCOL_NUMBER;
 
 			@Override
 			public boolean process(PlayerState state, String argument) {
@@ -755,13 +774,20 @@ public class ProxyRoomEngine {
 					Room room = entry.getValue();
 
 					sb.append(ProtocolConstants.Search.COMMAND_SEARCH);
-					sb.append(" :").append(address.getPort()).append(':').append(masterName);
-					sb.append(' ').append(masterName);
-					sb.append(' ').append(room.title);
-					sb.append(' ').append(room.playersByName.size());
-					sb.append(' ').append(room.maxPlayers);
-					sb.append(' ').append(!Utility.isEmpty(room.password) ? "Y" : "N");
-					sb.append(" \"").append(room.description.replace("\n", " ")).append('"');
+					sb.append(ProtocolConstants.ARGUMENT_SEPARATOR);
+					sb.append(":").append(address.getPort());
+					sb.append(ProtocolConstants.ARGUMENT_SEPARATOR);
+					sb.append(masterName);
+					sb.append(ProtocolConstants.ARGUMENT_SEPARATOR);
+					sb.append(room.title);
+					sb.append(ProtocolConstants.ARGUMENT_SEPARATOR);
+					sb.append(room.playersByName.size());
+					sb.append(ProtocolConstants.ARGUMENT_SEPARATOR);
+					sb.append(room.maxPlayers);
+					sb.append(ProtocolConstants.ARGUMENT_SEPARATOR);
+					sb.append(!Utility.isEmpty(room.password) ? "Y" : "N");
+					sb.append(ProtocolConstants.ARGUMENT_SEPARATOR);
+					sb.append(room.description.replace("\n", " "));
 					sb.append(ProtocolConstants.MESSAGE_SEPARATOR);
 				}
 				sb.append(ProtocolConstants.Search.COMMAND_SEARCH);

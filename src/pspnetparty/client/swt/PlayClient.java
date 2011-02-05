@@ -95,6 +95,7 @@ import pspnetparty.lib.IRoomMasterHandler;
 import pspnetparty.lib.ISocketConnection;
 import pspnetparty.lib.IniParser;
 import pspnetparty.lib.PacketData;
+import pspnetparty.lib.PlayRoom;
 import pspnetparty.lib.RoomEngine;
 import pspnetparty.lib.Utility;
 import pspnetparty.lib.constants.AppConstants;
@@ -129,9 +130,11 @@ public class PlayClient {
 	private String roomMasterName;
 	private String roomServerAddressPort;
 
+	private int lastUpdatedMaxPlayers = DEFAULT_MAX_PLAYERS;
+
 	private RoomEngine roomEngine;
 
-	private AsyncTcpClient tcpClient = new AsyncTcpClient();
+	private AsyncTcpClient tcpClient = new AsyncTcpClient(1000000);
 	private AsyncUdpClient udpClient = new AsyncUdpClient();
 
 	private RoomClientHandler roomClientHandler = new RoomClientHandler();
@@ -233,7 +236,6 @@ public class PlayClient {
 		private Label searchServerAddressLabel;
 		private Combo searchServerAddressCombo;
 		private Button searchFormHasPassword;
-		private Button searchFormIncludeFullRoom;
 		private Label searchFormTitleLabel;
 		private Combo searchFormTitleCombo;
 		private Label searchFormMasterNameLabel;
@@ -370,7 +372,7 @@ public class PlayClient {
 
 			searchContainer = new Composite(mainTabFolder, SWT.NONE);
 			searchTab.setControl(searchContainer);
-			gridLayout = new GridLayout(8, false);
+			gridLayout = new GridLayout(7, false);
 			gridLayout.horizontalSpacing = 3;
 			gridLayout.verticalSpacing = 3;
 			gridLayout.marginWidth = 0;
@@ -385,20 +387,16 @@ public class PlayClient {
 			searchServerAddressCombo = new Combo(searchContainer, SWT.BORDER);
 			searchServerAddressCombo.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false, 5, 1));
 
-			searchFormIncludeFullRoom = new Button(searchContainer, SWT.CHECK);
-			searchFormIncludeFullRoom.setText("満室含む");
-			searchFormIncludeFullRoom.setLayoutData(new GridData(SWT.RIGHT, SWT.CENTER, false, false));
-
 			searchFormHasPassword = new Button(searchContainer, SWT.CHECK);
 			searchFormHasPassword.setText("鍵付き");
 			searchFormHasPassword.setLayoutData(new GridData(SWT.CENTER, SWT.CENTER, false, false));
 
-			searchFormTitleLabel = new Label(searchContainer, SWT.NONE);
-			searchFormTitleLabel.setText("部屋名");
-			searchFormTitleLabel.setLayoutData(new GridData(SWT.RIGHT, SWT.CENTER, false, false));
+			searchFormServerNameLabel = new Label(searchContainer, SWT.NONE);
+			searchFormServerNameLabel.setText("部屋サーバ名");
+			searchFormServerNameLabel.setLayoutData(new GridData(SWT.RIGHT, SWT.CENTER, false, false));
 
-			searchFormTitleCombo = new Combo(searchContainer, SWT.BORDER);
-			searchFormTitleCombo.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+			searchFormServerNameCombo = new Combo(searchContainer, SWT.BORDER);
+			searchFormServerNameCombo.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
 
 			searchFormMasterNameLabel = new Label(searchContainer, SWT.NONE);
 			searchFormMasterNameLabel.setText("部屋主名");
@@ -407,47 +405,47 @@ public class PlayClient {
 			searchFormMasterNameCombo = new Combo(searchContainer, SWT.BORDER);
 			searchFormMasterNameCombo.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
 
-			searchFormServerNameLabel = new Label(searchContainer, SWT.NONE);
-			searchFormServerNameLabel.setText("部屋アドレス");
-			searchFormServerNameLabel.setLayoutData(new GridData(SWT.RIGHT, SWT.CENTER, false, false));
+			searchFormTitleLabel = new Label(searchContainer, SWT.NONE);
+			searchFormTitleLabel.setText("部屋名");
+			searchFormTitleLabel.setLayoutData(new GridData(SWT.RIGHT, SWT.CENTER, false, false));
 
-			searchFormServerNameCombo = new Combo(searchContainer, SWT.BORDER);
-			searchFormServerNameCombo.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+			searchFormTitleCombo = new Combo(searchContainer, SWT.BORDER);
+			searchFormTitleCombo.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
 
 			searchServerSubmitButton = new Button(searchContainer, SWT.PUSH);
 			searchServerSubmitButton.setText("検索する");
-			searchServerSubmitButton.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, false, false, 2, 1));
+			searchServerSubmitButton.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, false, false, 1, 1));
 
 			searchResultRoomsTable = new TableViewer(searchContainer, SWT.SINGLE | SWT.BORDER | SWT.FULL_SELECTION);
 			searchResultRoomsTable.getTable().setHeaderVisible(true);
-			searchResultRoomsTable.getTable().setLayoutData(new GridData(SWT.FILL, SWT.FILL, true, true, 8, 1));
+			searchResultRoomsTable.getTable().setLayoutData(new GridData(SWT.FILL, SWT.FILL, true, true, 7, 1));
 			searchResultRoomsTable.setContentProvider(new ArrayContentProvider());
-			searchResultRoomsTable.setLabelProvider(new PlayRoom.PlayRoomLabelProvider());
+			searchResultRoomsTable.setLabelProvider(new PlayRoomUtils.LabelProvider());
 
 			TableColumn searchResultRoomsAddressColumn = new TableColumn(searchResultRoomsTable.getTable(), SWT.LEFT);
 			searchResultRoomsAddressColumn.setText("部屋アドレス");
 			searchResultRoomsAddressColumn.setWidth(150);
-			SwtUtils.installSorter(searchResultRoomsTable, searchResultRoomsAddressColumn, new PlayRoom.AddressSorter());
+			SwtUtils.installSorter(searchResultRoomsTable, searchResultRoomsAddressColumn, new PlayRoomUtils.AddressSorter());
 
 			TableColumn searchResultRoomsMasterNameColumn = new TableColumn(searchResultRoomsTable.getTable(), SWT.LEFT);
 			searchResultRoomsMasterNameColumn.setText("部屋主");
 			searchResultRoomsMasterNameColumn.setWidth(120);
-			SwtUtils.installSorter(searchResultRoomsTable, searchResultRoomsMasterNameColumn, new PlayRoom.MasterNameSorter());
+			SwtUtils.installSorter(searchResultRoomsTable, searchResultRoomsMasterNameColumn, new PlayRoomUtils.MasterNameSorter());
 
 			TableColumn searchResultRoomsTitleColumn = new TableColumn(searchResultRoomsTable.getTable(), SWT.LEFT);
 			searchResultRoomsTitleColumn.setText("部屋名");
 			searchResultRoomsTitleColumn.setWidth(200);
-			SwtUtils.installSorter(searchResultRoomsTable, searchResultRoomsTitleColumn, new PlayRoom.TitleSorter());
+			SwtUtils.installSorter(searchResultRoomsTable, searchResultRoomsTitleColumn, new PlayRoomUtils.TitleSorter());
 
 			TableColumn searchResultRoomsCapacityColumn = new TableColumn(searchResultRoomsTable.getTable(), SWT.CENTER);
 			searchResultRoomsCapacityColumn.setText("定員");
 			searchResultRoomsCapacityColumn.setWidth(65);
-			SwtUtils.installSorter(searchResultRoomsTable, searchResultRoomsCapacityColumn, new PlayRoom.CapacitySorter());
+			SwtUtils.installSorter(searchResultRoomsTable, searchResultRoomsCapacityColumn, new PlayRoomUtils.CapacitySorter());
 
 			TableColumn searchResultRoomsHasPasswordColumn = new TableColumn(searchResultRoomsTable.getTable(), SWT.CENTER);
 			searchResultRoomsHasPasswordColumn.setText("鍵");
 			searchResultRoomsHasPasswordColumn.setWidth(40);
-			SwtUtils.installSorter(searchResultRoomsTable, searchResultRoomsHasPasswordColumn, new PlayRoom.HasPasswordSorter());
+			SwtUtils.installSorter(searchResultRoomsTable, searchResultRoomsHasPasswordColumn, new PlayRoomUtils.HasPasswordSorter());
 
 			TableColumn searchResultRoomsDescriptionColumn = new TableColumn(searchResultRoomsTable.getTable(), SWT.LEFT);
 			searchResultRoomsDescriptionColumn.setText("詳細・備考");
@@ -1023,7 +1021,9 @@ public class PlayClient {
 						window.roomFormSearchServerButton.setSelection(false);
 						return;
 					}
-					connectToSearchServerAsMaster();
+					if (!connectToSearchServerAsMaster()) {
+						window.roomFormSearchServerButton.setSelection(false);
+					}
 				}
 			}
 		});
@@ -1061,7 +1061,7 @@ public class PlayClient {
 				if (room == null)
 					return;
 
-				window.roomFormClientModeAddressCombo.setText(room.getAddress());
+				window.roomFormClientModeAddressCombo.setText(room.getRoomAddress());
 				connectToRoomServerAsParticipant();
 			}
 		});
@@ -1098,7 +1098,28 @@ public class PlayClient {
 			}
 		});
 
-		VerifyListener notAcceptSpaceTabListener = new VerifyListener() {
+		VerifyListener notAcceptControlCharListener = new VerifyListener() {
+			@Override
+			public void verifyText(VerifyEvent e) {
+				switch (e.character) {
+				case '\t':
+					e.doit = false;
+					break;
+				case '\0':
+					e.text = e.text.replace("\t", "").trim();
+					break;
+				}
+			}
+		};
+		window.roomFormTitleText.addVerifyListener(notAcceptControlCharListener);
+		window.roomFormPasswordText.addVerifyListener(notAcceptControlCharListener);
+		window.roomFormDescriptionText.addVerifyListener(notAcceptControlCharListener);
+
+		window.configUserNameText.addVerifyListener(notAcceptControlCharListener);
+		window.searchFormTitleCombo.addVerifyListener(notAcceptControlCharListener);
+		window.searchFormMasterNameCombo.addVerifyListener(notAcceptControlCharListener);
+
+		VerifyListener notAcceptSpaceControlCharListener = new VerifyListener() {
 			@Override
 			public void verifyText(VerifyEvent e) {
 				if (" ".equals(e.text)) {
@@ -1109,27 +1130,19 @@ public class PlayClient {
 						e.doit = false;
 						break;
 					case '\0':
-						e.text = e.text.replace(" ", "").replace("\t", "").trim();
+						e.text = e.text.replace("\t", "").trim();
 						break;
 					}
 				}
 			}
 		};
-		window.roomFormTitleText.addVerifyListener(notAcceptSpaceTabListener);
-		window.roomFormPasswordText.addVerifyListener(notAcceptSpaceTabListener);
-		window.roomFormDescriptionText.addVerifyListener(notAcceptSpaceTabListener);
+		window.roomFormClientModeAddressCombo.addVerifyListener(notAcceptSpaceControlCharListener);
+		window.roomFormProxyModeAddressCombo.addVerifyListener(notAcceptSpaceControlCharListener);
+		window.roomFormSearchServerCombo.addVerifyListener(notAcceptSpaceControlCharListener);
 
-		window.roomFormClientModeAddressCombo.addVerifyListener(notAcceptSpaceTabListener);
-		window.roomFormProxyModeAddressCombo.addVerifyListener(notAcceptSpaceTabListener);
-		window.roomFormSearchServerCombo.addVerifyListener(notAcceptSpaceTabListener);
-
-		window.searchServerAddressCombo.addVerifyListener(notAcceptSpaceTabListener);
-		window.searchFormTitleCombo.addVerifyListener(notAcceptSpaceTabListener);
-		window.searchFormMasterNameCombo.addVerifyListener(notAcceptSpaceTabListener);
-		window.searchFormServerNameCombo.addVerifyListener(notAcceptSpaceTabListener);
-
-		window.configUserNameText.addVerifyListener(notAcceptSpaceTabListener);
-		window.configRoomServerHostNameText.addVerifyListener(notAcceptSpaceTabListener);
+		window.searchServerAddressCombo.addVerifyListener(notAcceptSpaceControlCharListener);
+		window.searchFormServerNameCombo.addVerifyListener(notAcceptSpaceControlCharListener);
+		window.configRoomServerHostNameText.addVerifyListener(notAcceptSpaceControlCharListener);
 
 		ModifyListener roomEditFormModifyDetectListener = new ModifyListener() {
 			@Override
@@ -1166,11 +1179,11 @@ public class PlayClient {
 				switch (currentRoomState) {
 				case RoomMaster:
 					roomEngine.kickPlayer(kickedName);
-					removePlayer(window.roomPlayerListTable, kickedName);
-					appendLogTo(window.roomChatLogText, kickedName + " を部屋から追い出しました", window.colorRoomInfo);
+					removeKickedPlayer(kickedName);
 					break;
 				case ProxyRoomMaster:
-					roomConnection.send(ProtocolConstants.Room.COMMAND_ROOM_KICK_PLAYER + " " + kickedName);
+					roomConnection
+							.send(ProtocolConstants.Room.COMMAND_ROOM_KICK_PLAYER + ProtocolConstants.ARGUMENT_SEPARATOR + kickedName);
 					break;
 				}
 			}
@@ -1191,7 +1204,8 @@ public class PlayClient {
 				String newMasterName = player.getName();
 				switch (currentRoomState) {
 				case ProxyRoomMaster:
-					roomConnection.send(ProtocolConstants.Room.COMMAND_ROOM_MASTER_TRANSFER + " " + newMasterName);
+					roomConnection.send(ProtocolConstants.Room.COMMAND_ROOM_MASTER_TRANSFER + ProtocolConstants.ARGUMENT_SEPARATOR
+							+ newMasterName);
 					if (searchEntryConnection != null && searchEntryConnection.isConnected())
 						searchEntryConnection.send(ProtocolConstants.Search.COMMAND_LOGOUT);
 					break;
@@ -1429,7 +1443,8 @@ public class PlayClient {
 							// case RoomMaster:
 							case RoomParticipant:
 							case ProxyRoomMaster:
-								roomConnection.send(ProtocolConstants.Room.COMMAND_PING + " " + System.currentTimeMillis());
+								roomConnection.send(ProtocolConstants.Room.COMMAND_PING + ProtocolConstants.ARGUMENT_SEPARATOR
+										+ System.currentTimeMillis());
 							}
 
 							Thread.sleep(5000);
@@ -1454,7 +1469,7 @@ public class PlayClient {
 						Thread.sleep(20000);
 
 						while (tunnelConnection.isConnected()) {
-							tunnelConnection.send(" ");
+							tunnelConnection.send(ProtocolConstants.Room.TUNNEL_DUMMY_PACKET);
 							Thread.sleep(20000);
 						}
 					}
@@ -1524,15 +1539,14 @@ public class PlayClient {
 	}
 
 	private void appendRoomInfo(StringBuilder sb) {
-		sb.append(' ');
+		sb.append(ProtocolConstants.ARGUMENT_SEPARATOR);
 		sb.append(window.roomFormMaxPlayersSpiner.getText());
-		sb.append(' ');
+		sb.append(ProtocolConstants.ARGUMENT_SEPARATOR);
 		sb.append(window.roomFormTitleText.getText());
-		sb.append(" \"");
+		sb.append(ProtocolConstants.ARGUMENT_SEPARATOR);
 		sb.append(window.roomFormPasswordText.getText());
-		sb.append("\" \"");
+		sb.append(ProtocolConstants.ARGUMENT_SEPARATOR);
 		sb.append(window.roomFormDescriptionText.getText());
-		sb.append('"');
 	}
 
 	private boolean checkConfigUserName() {
@@ -1573,12 +1587,15 @@ public class PlayClient {
 			roomMasterName = loginUserName;
 			roomServerAddressPort = window.configRoomServerHostNameText.getText() + ":" + port;
 
+			lastUpdatedMaxPlayers = window.roomFormMaxPlayersSpiner.getSelection();
+
 			window.roomFormServerModePortSpinner.setEnabled(false);
 			window.roomFormServerModePortButton.setEnabled(false);
 			window.roomFormModeSelectionCombo.setEnabled(false);
-			addPlayer(window.roomPlayerListTable, loginUserName);
 		} catch (BindException e) {
 			appendLogTo(window.roomChatLogText, "すでに同じポートが使用されています", window.colorLogError);
+		} catch (RuntimeException e) {
+			appendLogTo(window.logText, Utility.makeStackTrace(e));
 		}
 	}
 
@@ -1615,26 +1632,28 @@ public class PlayClient {
 			return;
 		}
 
-		String hostname = tokens[0];
-		InetSocketAddress socketAddress = new InetSocketAddress(hostname, port);
-		if (socketAddress.getAddress().isLoopbackAddress()) {
-			roomServerAddressPort = ":" + port;
-			if (roomMasterName.equals("")) {
-				window.roomFormClientModeAddressCombo.setText(roomServerAddressPort);
-			} else {
-				window.roomFormClientModeAddressCombo.setText(roomServerAddressPort + ":" + roomMasterName);
-			}
-		} else {
-			roomServerAddressPort = hostname + ":" + port;
-		}
 		try {
+			String hostname = tokens[0];
+			InetSocketAddress socketAddress = new InetSocketAddress(hostname, port);
+			if (socketAddress.getAddress().isLoopbackAddress()) {
+				roomServerAddressPort = ":" + port;
+				if (roomMasterName.equals("")) {
+					window.roomFormClientModeAddressCombo.setText(roomServerAddressPort);
+				} else {
+					window.roomFormClientModeAddressCombo.setText(roomServerAddressPort + ":" + roomMasterName);
+				}
+			} else {
+				roomServerAddressPort = hostname + ":" + port;
+			}
 			roomConnection = tcpClient.connect(socketAddress, roomClientHandler);
 			goTo(RoomState.ConnectingToRoomServer);
+			return;
 		} catch (UnresolvedAddressException e) {
 			appendLogTo(window.roomChatLogText, "アドレスが解決しません", window.colorRed);
+		} catch (RuntimeException e) {
+			appendLogTo(window.logText, Utility.makeStackTrace(e));
 		} catch (IOException e) {
 			appendLogTo(window.logText, Utility.makeStackTrace(e));
-			return;
 		}
 	}
 
@@ -1673,33 +1692,39 @@ public class PlayClient {
 			return;
 		}
 
-		String hostname = tokens[0];
-		InetSocketAddress socketAddress = new InetSocketAddress(hostname, port);
-		if (socketAddress.getAddress().isLoopbackAddress()) {
-			hostname = "";
-			roomServerAddressPort = ":" + port;
-			window.roomFormProxyModeAddressCombo.setText(roomServerAddressPort);
-		} else {
-			roomServerAddressPort = address;
-		}
 		try {
+			String hostname = tokens[0];
+			InetSocketAddress socketAddress = new InetSocketAddress(hostname, port);
+			if (socketAddress.getAddress().isLoopbackAddress()) {
+				hostname = "";
+				roomServerAddressPort = ":" + port;
+				window.roomFormProxyModeAddressCombo.setText(roomServerAddressPort);
+			} else {
+				roomServerAddressPort = address;
+			}
 			roomConnection = tcpClient.connect(socketAddress, roomClientHandler);
 			roomMasterName = loginUserName;
 			goTo(RoomState.ConnectingToProxyServer);
+			return;
 		} catch (IOException e) {
 			appendLogTo(window.logText, Utility.makeStackTrace(e));
-			return;
+		} catch (RuntimeException e) {
+			appendLogTo(window.logText, Utility.makeStackTrace(e));
 		}
 	}
 
-	private void connectToSearchServerAsMaster() {
+	private boolean connectToSearchServerAsMaster() {
 		switch (currentRoomState) {
 		case RoomMaster:
 		case ProxyRoomMaster:
+			if (roomPlayerMap.size() == lastUpdatedMaxPlayers) {
+				appendLogTo(window.roomChatLogText, "部屋が満員なので検索には登録できません", window.colorLogError);
+				return false;
+			}
 			String address = window.roomFormSearchServerCombo.getText();
 			if (Utility.isEmpty(address)) {
 				appendLogTo(window.roomChatLogText, "検索サーバーアドレスを入力してください", window.colorLogError);
-				return;
+				return false;
 			}
 
 			String[] tokens = address.split(":");
@@ -1709,7 +1734,7 @@ public class PlayClient {
 				break;
 			default:
 				appendLogTo(window.roomChatLogText, "検索サーバーアドレスが正しくありません", window.colorLogError);
-				return;
+				return false;
 			}
 
 			int port;
@@ -1717,24 +1742,25 @@ public class PlayClient {
 				port = Integer.parseInt(tokens[1]);
 			} catch (NumberFormatException e) {
 				appendLogTo(window.roomChatLogText, "検索サーバーアドレスが正しくありません", window.colorLogError);
-				return;
+				return false;
 			}
 
 			try {
+				InetSocketAddress socketAddress = new InetSocketAddress(tokens[0], port);
+
+				searchEntryConnection = tcpClient.connect(socketAddress, searchEntryHandler);
+
 				window.roomFormSearchServerCombo.setEnabled(false);
 				window.roomFormSearchServerButton.setEnabled(false);
-
-				InetSocketAddress socketAddress = new InetSocketAddress(tokens[0], port);
-				searchEntryConnection = tcpClient.connect(socketAddress, searchEntryHandler);
+				return true;
 			} catch (IOException e) {
-				window.roomFormSearchServerCombo.setEnabled(true);
-				window.roomFormSearchServerButton.setEnabled(true);
-
+				appendLogTo(window.logText, Utility.makeStackTrace(e));
+			} catch (RuntimeException e) {
 				appendLogTo(window.logText, Utility.makeStackTrace(e));
 			}
 			break;
-		default:
 		}
+		return false;
 	}
 
 	private void connectToSearchServerAsParticipant() {
@@ -1763,6 +1789,9 @@ public class PlayClient {
 		}
 
 		try {
+			InetSocketAddress socketAddress = new InetSocketAddress(tokens[0], port);
+			ISocketConnection connection = tcpClient.connect(socketAddress, searchQueryHandler);
+
 			window.searchServerSubmitButton.setEnabled(false);
 			window.statusSearchResultLabel.setText("");
 
@@ -1770,11 +1799,10 @@ public class PlayClient {
 			window.searchResultRoomsTable.refresh();
 			window.searchResultRoomsTable.setSorter(null);
 			window.searchResultRoomsTable.getTable().setSortDirection(SWT.NONE);
-
-			InetSocketAddress socketAddress = new InetSocketAddress(tokens[0], port);
-			ISocketConnection connection = tcpClient.connect(socketAddress, searchQueryHandler);
 		} catch (IOException e) {
 			window.searchServerSubmitButton.setEnabled(true);
+			appendLogTo(window.logText, Utility.makeStackTrace(e));
+		} catch (RuntimeException e) {
 			appendLogTo(window.logText, Utility.makeStackTrace(e));
 		}
 	}
@@ -1811,6 +1839,8 @@ public class PlayClient {
 			break;
 		}
 
+		lastUpdatedMaxPlayers = window.roomFormMaxPlayersSpiner.getSelection();
+
 		return true;
 	}
 
@@ -1824,7 +1854,7 @@ public class PlayClient {
 				break;
 			case RoomParticipant:
 			case ProxyRoomMaster:
-				roomConnection.send(ProtocolConstants.Room.COMMAND_CHAT + " " + command);
+				roomConnection.send(ProtocolConstants.Room.COMMAND_CHAT + ProtocolConstants.ARGUMENT_SEPARATOR + command);
 				window.roomChatText.setText("");
 				break;
 			default:
@@ -1962,6 +1992,7 @@ public class PlayClient {
 		Runnable run = new Runnable() {
 			@Override
 			public void run() {
+				appendLogTo(window.roomChatLogText, name + " が入室しました", window.colorLogInfo);
 				try {
 					Player player = new Player(name);
 					@SuppressWarnings("unchecked")
@@ -2002,6 +2033,24 @@ public class PlayClient {
 		asyncExec(run);
 	}
 
+	private void removeExitingPlayer(String name) {
+		appendLogTo(window.roomChatLogText, name + " が退室しました", window.colorLogInfo);
+		removePlayer(window.roomPlayerListTable, name);
+	}
+
+	private void removeKickedPlayer(String name) {
+		switch (currentRoomState) {
+		case RoomMaster:
+		case ProxyRoomMaster:
+			appendLogTo(window.roomChatLogText, name + " を部屋から追い出しました", window.colorRoomInfo);
+			break;
+		case RoomParticipant:
+			appendLogTo(window.roomChatLogText, name + " は部屋から追い出されました", window.colorRoomInfo);
+			break;
+		}
+		removePlayer(window.roomPlayerListTable, name);
+	}
+
 	private void updatePlayerPing(final String name, final int ping) {
 		Runnable run = new Runnable() {
 			@Override
@@ -2029,8 +2078,8 @@ public class PlayClient {
 					String masterName = tokens[0];
 					int maxPlayers = Integer.parseInt(tokens[1]);
 					String title = tokens[2];
-					String password = Utility.removeQuotations(tokens[3]);
-					String description = Utility.removeQuotations(tokens[4]);
+					String password = tokens[3];
+					String description = tokens[4];
 
 					isRoomInfoUpdating = true;
 
@@ -2212,10 +2261,14 @@ public class PlayClient {
 			StringBuilder sb = new StringBuilder();
 
 			sb.append(ProtocolConstants.Search.COMMAND_UPDATE);
-			sb.append(' ').append(window.roomFormTitleText.getText());
-			sb.append(' ').append(window.roomFormMaxPlayersSpiner.getSelection());
-			sb.append(' ').append(window.roomFormPasswordText.getText().length() > 0 ? "Y" : "N");
-			sb.append(" \"").append(window.roomFormDescriptionText.getText()).append('"');
+			sb.append(ProtocolConstants.ARGUMENT_SEPARATOR);
+			sb.append(window.roomFormTitleText.getText());
+			sb.append(ProtocolConstants.ARGUMENT_SEPARATOR);
+			sb.append(window.roomFormMaxPlayersSpiner.getSelection());
+			sb.append(ProtocolConstants.ARGUMENT_SEPARATOR);
+			sb.append(window.roomFormPasswordText.getText().length() > 0 ? "Y" : "N");
+			sb.append(ProtocolConstants.ARGUMENT_SEPARATOR);
+			sb.append(window.roomFormDescriptionText.getText());
 
 			searchEntryConnection.send(sb.toString());
 		}
@@ -2223,7 +2276,13 @@ public class PlayClient {
 
 	private void updateMasterSearchPlayerCount() {
 		if (searchEntryConnection != null && searchEntryConnection.isConnected()) {
-			searchEntryConnection.send(ProtocolConstants.Search.COMMAND_UPDATE_PLAYER_COUNT + " " + roomPlayerMap.size());
+			if (roomPlayerMap.size() >= lastUpdatedMaxPlayers) {
+				appendLogTo(window.roomChatLogText, "部屋が満員になりましたので、検索登録を解除します", window.colorServerInfo);
+				searchEntryConnection.send(ProtocolConstants.Search.COMMAND_LOGOUT);
+			} else {
+				searchEntryConnection.send(ProtocolConstants.Search.COMMAND_UPDATE_PLAYER_COUNT + ProtocolConstants.ARGUMENT_SEPARATOR
+						+ roomPlayerMap.size());
+			}
 		}
 	}
 
@@ -2238,6 +2297,7 @@ public class PlayClient {
 
 		private SearchEntryHandler() {
 			handlers.put(Search.COMMAND_ENTRY, new RoomEntryHandler());
+			handlers.put(ProtocolConstants.ERROR_PROTOCOL_MISMATCH, new ErrorProtocolMismatchHandler());
 			handlers.put(Search.ERROR_MASTER_TCP_PORT, new ErrorTcpPortHandler());
 			handlers.put(Search.ERROR_MASTER_UDP_PORT, new ErrorUdpPortHandler());
 			handlers.put(Search.ERROR_MASTER_INVALID_AUTH_CODE, new ErrorInvalidAuthCodeHandler());
@@ -2252,22 +2312,32 @@ public class PlayClient {
 					StringBuilder sb = new StringBuilder();
 
 					sb.append(ProtocolConstants.Search.PROTOCOL_NAME);
-					sb.append(' ').append(ProtocolConstants.PROTOCOL_NUMBER);
+					sb.append(ProtocolConstants.ARGUMENT_SEPARATOR);
+					sb.append(ProtocolConstants.PROTOCOL_NUMBER);
 					sb.append(ProtocolConstants.MESSAGE_SEPARATOR);
 
 					sb.append(ProtocolConstants.Search.COMMAND_LOGIN);
-					sb.append(' ').append(ProtocolConstants.Search.MODE_MASTER);
+					sb.append(ProtocolConstants.ARGUMENT_SEPARATOR);
+					sb.append(ProtocolConstants.Search.MODE_MASTER);
 					sb.append(ProtocolConstants.MESSAGE_SEPARATOR);
 
 					sb.append(ProtocolConstants.Search.COMMAND_ENTRY);
-					sb.append(' ').append(roomMasterAuthCode);
-					sb.append(' ').append(roomServerAddressPort);
-					sb.append(' ').append(loginUserName);
-					sb.append(' ').append(window.roomFormTitleText.getText());
-					sb.append(' ').append(roomPlayerMap.size());
-					sb.append(' ').append(window.roomFormMaxPlayersSpiner.getSelection());
-					sb.append(' ').append(window.roomFormPasswordText.getText().length() > 0 ? "Y" : "N");
-					sb.append(" \"").append(window.roomFormDescriptionText.getText()).append('"');
+					sb.append(ProtocolConstants.ARGUMENT_SEPARATOR);
+					sb.append(roomMasterAuthCode);
+					sb.append(ProtocolConstants.ARGUMENT_SEPARATOR);
+					sb.append(roomServerAddressPort);
+					sb.append(ProtocolConstants.ARGUMENT_SEPARATOR);
+					sb.append(loginUserName);
+					sb.append(ProtocolConstants.ARGUMENT_SEPARATOR);
+					sb.append(window.roomFormTitleText.getText());
+					sb.append(ProtocolConstants.ARGUMENT_SEPARATOR);
+					sb.append(roomPlayerMap.size());
+					sb.append(ProtocolConstants.ARGUMENT_SEPARATOR);
+					sb.append(window.roomFormMaxPlayersSpiner.getSelection());
+					sb.append(ProtocolConstants.ARGUMENT_SEPARATOR);
+					sb.append(window.roomFormPasswordText.getText().length() > 0 ? "Y" : "N");
+					sb.append(ProtocolConstants.ARGUMENT_SEPARATOR);
+					sb.append(window.roomFormDescriptionText.getText());
 
 					searchEntryConnection.send(sb.toString());
 				}
@@ -2311,7 +2381,7 @@ public class PlayClient {
 		public void readCallback(ISocketConnection connection, PacketData data) {
 			try {
 				for (String message : data.getMessages()) {
-					int commandEndIndex = message.indexOf(' ');
+					int commandEndIndex = message.indexOf(ProtocolConstants.ARGUMENT_SEPARATOR);
 					String command, argument;
 					if (commandEndIndex > 0) {
 						command = message.substring(0, commandEndIndex);
@@ -2347,6 +2417,14 @@ public class PlayClient {
 						appendLogTo(window.roomChatLogText, "検索サーバーに登録しました", window.colorRoomInfo);
 					}
 				});
+			}
+		}
+
+		private class ErrorProtocolMismatchHandler implements CommandHandler {
+			@Override
+			public void process(String num) {
+				String message = String.format("サーバーとのプロトコルナンバーが一致ないので接続できません サーバー:%s クライアント:%s", num, ProtocolConstants.PROTOCOL_NUMBER);
+				appendLogTo(window.roomChatLogText, message, window.colorLogError);
 			}
 		}
 
@@ -2401,19 +2479,24 @@ public class PlayClient {
 					StringBuilder sb = new StringBuilder();
 
 					sb.append(ProtocolConstants.Search.PROTOCOL_NAME);
-					sb.append(' ').append(ProtocolConstants.PROTOCOL_NUMBER);
+					sb.append(ProtocolConstants.ARGUMENT_SEPARATOR);
+					sb.append(ProtocolConstants.PROTOCOL_NUMBER);
 					sb.append(ProtocolConstants.MESSAGE_SEPARATOR);
 
 					sb.append(ProtocolConstants.Search.COMMAND_LOGIN);
-					sb.append(' ').append(ProtocolConstants.Search.MODE_PARTICIPANT);
+					sb.append(ProtocolConstants.ARGUMENT_SEPARATOR);
+					sb.append(ProtocolConstants.Search.MODE_PARTICIPANT);
 					sb.append(ProtocolConstants.MESSAGE_SEPARATOR);
 
 					sb.append(ProtocolConstants.Search.COMMAND_SEARCH);
-					sb.append(' ').append(window.searchFormTitleCombo.getText());
-					sb.append(' ').append(window.searchFormMasterNameCombo.getText());
-					sb.append(' ').append(window.searchFormServerNameCombo.getText());
-					sb.append(' ').append(window.searchFormIncludeFullRoom.getSelection() ? "Y" : "N");
-					sb.append(' ').append(window.searchFormHasPassword.getSelection() ? "Y" : "N");
+					sb.append(ProtocolConstants.ARGUMENT_SEPARATOR);
+					sb.append(window.searchFormTitleCombo.getText());
+					sb.append(ProtocolConstants.ARGUMENT_SEPARATOR);
+					sb.append(window.searchFormMasterNameCombo.getText());
+					sb.append(ProtocolConstants.ARGUMENT_SEPARATOR);
+					sb.append(window.searchFormServerNameCombo.getText());
+					sb.append(ProtocolConstants.ARGUMENT_SEPARATOR);
+					sb.append(window.searchFormHasPassword.getSelection() ? "Y" : "N");
 
 					connection.send(sb.toString());
 				}
@@ -2449,7 +2532,7 @@ public class PlayClient {
 		public void readCallback(ISocketConnection connection, PacketData data) {
 			boolean searchResultReturned = false;
 			for (String message : data.getMessages()) {
-				int commandEndIndex = message.indexOf(' ');
+				int commandEndIndex = message.indexOf(ProtocolConstants.ARGUMENT_SEPARATOR);
 				String command, argument;
 				if (commandEndIndex > 0) {
 					command = message.substring(0, commandEndIndex);
@@ -2462,6 +2545,9 @@ public class PlayClient {
 				if (command.equals(ProtocolConstants.Search.COMMAND_SEARCH)) {
 					processSearchResult(argument, connection.getRemoteAddress());
 					searchResultReturned = true;
+				} else if (command.equals(ProtocolConstants.ERROR_PROTOCOL_MISMATCH)) {
+					String error = String.format("サーバーとのプロトコルナンバーが一致しません サーバー:%s クライアント:%s", argument, ProtocolConstants.PROTOCOL_NUMBER);
+					updateSearchResultStatus(error, window.colorLogError);
 				}
 			}
 			if (searchResultReturned) {
@@ -2471,12 +2557,12 @@ public class PlayClient {
 
 		private void processSearchResult(String argument, InetSocketAddress remoteAddress) {
 			// S address master title currentPlayers maxPlayers hasPassword
-			// "description"
+			// description
 			if (Utility.isEmpty(argument)) {
 				return;
 			}
 
-			String[] tokens = argument.split(" ");
+			String[] tokens = argument.split(ProtocolConstants.ARGUMENT_SEPARATOR, -1);
 			if (tokens.length != 7)
 				return;
 
@@ -2490,7 +2576,7 @@ public class PlayClient {
 			int currentPlayers = Integer.parseInt(tokens[3]);
 			int maxPlayers = Integer.parseInt(tokens[4]);
 			boolean hasPassword = "Y".equals(tokens[5]);
-			String description = Utility.removeQuotations(tokens[6]).replace("\n", " ");
+			String description = tokens[6].replace("\n", " ");
 
 			PlayRoom room = new PlayRoom(address, masterName, title, hasPassword, currentPlayers, maxPlayers);
 			room.setDescription(description);
@@ -2512,13 +2598,11 @@ public class PlayClient {
 		@Override
 		public void playerEntered(String player) {
 			addPlayer(window.roomPlayerListTable, player);
-			appendLogTo(window.roomChatLogText, player + " が入室しました", window.colorLogInfo);
 		}
 
 		@Override
 		public void playerExited(String player) {
-			removePlayer(window.roomPlayerListTable, player);
-			appendLogTo(window.roomChatLogText, player + " が退室しました", window.colorLogInfo);
+			removeExitingPlayer(player);
 		}
 
 		@Override
@@ -2537,6 +2621,7 @@ public class PlayClient {
 			goTo(RoomState.RoomMaster);
 			updateServerAddress();
 			appendLogTo(window.roomChatLogText, "自部屋を起動しました", window.colorRoomInfo);
+			addPlayer(window.roomPlayerListTable, loginUserName);
 		}
 
 		@Override
@@ -2591,11 +2676,15 @@ public class PlayClient {
 
 				StringBuilder sb = new StringBuilder();
 				sb.append(ProtocolConstants.Room.PROTOCOL_NAME);
-				sb.append(' ').append(ProtocolConstants.PROTOCOL_NUMBER);
+				sb.append(ProtocolConstants.ARGUMENT_SEPARATOR);
+				sb.append(ProtocolConstants.PROTOCOL_NUMBER);
 				sb.append(ProtocolConstants.MESSAGE_SEPARATOR);
+
 				sb.append(ProtocolConstants.Room.COMMAND_LOGIN);
-				sb.append(' ').append(loginUserName);
-				sb.append(" \"").append(roomMasterName).append('"');
+				sb.append(ProtocolConstants.ARGUMENT_SEPARATOR);
+				sb.append(loginUserName);
+				sb.append(ProtocolConstants.ARGUMENT_SEPARATOR);
+				sb.append(roomMasterName);
 
 				roomConnection.send(sb.toString());
 
@@ -2607,13 +2696,18 @@ public class PlayClient {
 						try {
 							StringBuilder sb = new StringBuilder();
 							sb.append(ProtocolConstants.Room.PROTOCOL_NAME);
-							sb.append(' ').append(ProtocolConstants.PROTOCOL_NUMBER);
+							sb.append(ProtocolConstants.ARGUMENT_SEPARATOR);
+							sb.append(ProtocolConstants.PROTOCOL_NUMBER);
 							sb.append(ProtocolConstants.MESSAGE_SEPARATOR);
+
 							sb.append(ProtocolConstants.Room.COMMAND_ROOM_CREATE);
-							sb.append(' ').append(loginUserName);
+							sb.append(ProtocolConstants.ARGUMENT_SEPARATOR);
+							sb.append(loginUserName);
 							appendRoomInfo(sb);
 
 							roomConnection.send(sb.toString());
+
+							lastUpdatedMaxPlayers = window.roomFormMaxPlayersSpiner.getSelection();
 						} catch (SWTException e) {
 						}
 					}
@@ -2628,7 +2722,7 @@ public class PlayClient {
 		public void readCallback(ISocketConnection connection, final PacketData data) {
 			try {
 				for (String message : data.getMessages()) {
-					int commandEndIndex = message.indexOf(' ');
+					int commandEndIndex = message.indexOf(ProtocolConstants.ARGUMENT_SEPARATOR);
 					String command, argument;
 					if (commandEndIndex > 0) {
 						command = message.substring(0, commandEndIndex);
@@ -2689,7 +2783,7 @@ public class PlayClient {
 					public void run() {
 						goTo(RoomState.RoomParticipant);
 
-						updateRoom(args.split(" "), true);
+						updateRoom(args.split(ProtocolConstants.ARGUMENT_SEPARATOR, -1), true);
 						updateServerAddress();
 
 						roomServerHistoryManager.addCurrentItem();
@@ -2708,13 +2802,13 @@ public class PlayClient {
 					@Override
 					public void run() {
 						goTo(RoomState.ProxyRoomMaster);
+						appendLogTo(window.roomChatLogText, "代理サーバーで部屋を作成しました", window.colorRoomInfo);
 
 						window.roomFormMasterText.setText(loginUserName);
 						addPlayer(window.roomPlayerListTable, loginUserName);
 						updateServerAddress();
 
 						proxyServerHistoryManager.addCurrentItem();
-						appendLogTo(window.roomChatLogText, "代理サーバーで部屋を作成しました", window.colorRoomInfo);
 
 						prepareSession();
 					}
@@ -2743,7 +2837,7 @@ public class PlayClient {
 
 				updatePlayerPing(loginUserName, ping);
 
-				roomConnection.send(ProtocolConstants.Room.COMMAND_INFORM_PING + " " + ping);
+				roomConnection.send(ProtocolConstants.Room.COMMAND_INFORM_PING + ProtocolConstants.ARGUMENT_SEPARATOR + ping);
 			}
 		}
 
@@ -2755,7 +2849,7 @@ public class PlayClient {
 					case RoomMaster:
 					case RoomParticipant:
 					case ProxyRoomMaster:
-						String[] values = args.split(" ");
+						String[] values = args.split(ProtocolConstants.ARGUMENT_SEPARATOR, -1);
 						if (values.length == 2) {
 							int ping = Integer.parseInt(values[1]);
 							updatePlayerPing(values[0], ping);
@@ -2773,7 +2867,6 @@ public class PlayClient {
 				case ProxyRoomMaster:
 				case RoomParticipant:
 					addPlayer(window.roomPlayerListTable, name);
-					appendLogTo(window.roomChatLogText, name + " が入室しました", window.colorLogInfo);
 					break;
 				}
 			}
@@ -2785,8 +2878,7 @@ public class PlayClient {
 				switch (currentRoomState) {
 				case ProxyRoomMaster:
 				case RoomParticipant:
-					removePlayer(window.roomPlayerListTable, name);
-					appendLogTo(window.roomChatLogText, name + " が退室しました", window.colorLogInfo);
+					removeExitingPlayer(name);
 					break;
 				}
 			}
@@ -2795,7 +2887,7 @@ public class PlayClient {
 		private class NotifyUserListHandler implements CommandHandler {
 			@Override
 			public void process(String args) {
-				String[] players = args.split(" ");
+				String[] players = args.split(ProtocolConstants.ARGUMENT_SEPARATOR, -1);
 				switch (currentRoomState) {
 				case RoomParticipant:
 				case ProxyRoomMaster:
@@ -2808,7 +2900,7 @@ public class PlayClient {
 		private class NotifyRoomUpdatedHandler implements CommandHandler {
 			@Override
 			public void process(String args) {
-				updateRoom(args.split(" "), false);
+				updateRoom(args.split(ProtocolConstants.ARGUMENT_SEPARATOR, -1), false);
 			}
 		}
 
@@ -2826,12 +2918,7 @@ public class PlayClient {
 					goTo(RoomState.Offline);
 					appendLogTo(window.roomChatLogText, "部屋から追い出されました", window.colorRoomInfo);
 				} else {
-					removePlayer(window.roomPlayerListTable, kickedPlayer);
-					if (currentRoomState == RoomState.RoomMaster) {
-						appendLogTo(window.roomChatLogText, kickedPlayer + " を部屋から追い出しました", window.colorRoomInfo);
-					} else {
-						appendLogTo(window.roomChatLogText, kickedPlayer + " は部屋から追い出されました", window.colorRoomInfo);
-					}
+					removeKickedPlayer(kickedPlayer);
 				}
 			}
 		}
@@ -2889,10 +2976,17 @@ public class PlayClient {
 						switch (dialog.open()) {
 						case IDialogConstants.OK_ID:
 							String password = dialog.getPassword();
-							String message = ProtocolConstants.Room.COMMAND_LOGIN + " " + loginUserName + " \"" + roomMasterName + "\" "
-									+ password;
 
-							roomConnection.send(message);
+							StringBuilder sb = new StringBuilder();
+							sb.append(ProtocolConstants.Room.COMMAND_LOGIN);
+							sb.append(ProtocolConstants.ARGUMENT_SEPARATOR);
+							sb.append(loginUserName);
+							sb.append(ProtocolConstants.ARGUMENT_SEPARATOR);
+							sb.append(roomMasterName);
+							sb.append(ProtocolConstants.ARGUMENT_SEPARATOR);
+							sb.append(password);
+
+							roomConnection.send(sb.toString());
 							break;
 						case IDialogConstants.CANCEL_ID:
 							appendLogTo(window.roomChatLogText, "入室をキャンセルしました", window.colorRoomInfo);
@@ -2966,7 +3060,7 @@ public class PlayClient {
 	private class TunnelHandler implements IAsyncClientHandler {
 		@Override
 		public void connectCallback(ISocketConnection connection) {
-			connection.send(" ");
+			connection.send(ProtocolConstants.Room.TUNNEL_DUMMY_PACKET);
 			wakeupThread(natTableMaintainingThread);
 		}
 
@@ -2980,7 +3074,8 @@ public class PlayClient {
 				try {
 					String tunnelPort = data.getMessage();
 					int port = Integer.parseInt(tunnelPort);
-					roomConnection.send(ProtocolConstants.Room.COMMAND_INFORM_TUNNEL_UDP_PORT + " " + port);
+					roomConnection
+							.send(ProtocolConstants.Room.COMMAND_INFORM_TUNNEL_UDP_PORT + ProtocolConstants.ARGUMENT_SEPARATOR + port);
 				} catch (NumberFormatException e) {
 				}
 			}

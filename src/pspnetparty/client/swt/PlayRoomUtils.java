@@ -27,82 +27,13 @@ import org.eclipse.jface.viewers.Viewer;
 import org.eclipse.jface.viewers.ViewerSorter;
 import org.eclipse.swt.graphics.Image;
 
-public class PlayRoom {
+import pspnetparty.lib.PlayRoom;
 
-	private String address;
-	private String masterName;
-	private String title;
-	private boolean hasPassword = false;
-	private int currentPlayerCount = 0;
-	private int maxPlayers;
-	private String description;
-
-	public PlayRoom(String address, String masterName, String title, boolean hasPassword, int currentPlayerCount, int maxPlayers) {
-		this.address = address;
-		this.masterName = masterName;
-		this.title = title;
-		this.hasPassword = hasPassword;
-		this.currentPlayerCount = currentPlayerCount;
-		this.maxPlayers = maxPlayers;
+public class PlayRoomUtils {
+	private PlayRoomUtils() {
 	}
 
-	public String getAddress() {
-		return address;
-	}
-
-	public void setAddress(String address) {
-		this.address = address;
-	}
-
-	public String getMasterName() {
-		return masterName;
-	}
-
-	public void setMasterName(String masterName) {
-		this.masterName = masterName;
-	}
-
-	public boolean hasPassword() {
-		return hasPassword;
-	}
-
-	public void setHasPassword(boolean hasPassword) {
-		this.hasPassword = hasPassword;
-	}
-
-	public String getTitle() {
-		return title;
-	}
-
-	public void setTitle(String title) {
-		this.title = title;
-	}
-
-	public int getCurrentPlayerCount() {
-		return currentPlayerCount;
-	}
-
-	public void setCurrentPlayerCount(int currentPlayerCount) {
-		this.currentPlayerCount = currentPlayerCount;
-	}
-
-	public int getMaxPlayers() {
-		return maxPlayers;
-	}
-
-	public void setMaxPlayers(int maxPlayers) {
-		this.maxPlayers = maxPlayers;
-	}
-
-	public String getDescription() {
-		return description;
-	}
-
-	public void setDescription(String description) {
-		this.description = description;
-	}
-
-	public static class PlayRoomListContentProvider implements IStructuredContentProvider {
+	public class ListContentProvider implements IStructuredContentProvider {
 		@Override
 		public void dispose() {
 		}
@@ -119,7 +50,7 @@ public class PlayRoom {
 		}
 	}
 
-	public static class PlayRoomLabelProvider implements ITableLabelProvider {
+	public static class LabelProvider implements ITableLabelProvider {
 		@Override
 		public void addListener(ILabelProviderListener arg0) {
 		}
@@ -149,22 +80,22 @@ public class PlayRoom {
 			String result = "";
 			switch (columnIndex) {
 			case 0:
-				result = room.address;
+				result = room.getRoomAddress();
 				break;
 			case 1:
-				result = room.masterName;
+				result = room.getMasterName();
 				break;
 			case 2:
-				result = room.title;
+				result = room.getTitle();
 				break;
 			case 3:
-				result = room.currentPlayerCount + " / " + room.maxPlayers;
+				result = room.getCurrentPlayers() + " / " + room.getMaxPlayers();
 				break;
 			case 4:
-				result = room.hasPassword ? "有" : "";
+				result = room.hasPassword() ? "有" : "";
 				break;
 			case 5:
-				result = room.description;
+				result = room.getDescription();
 				break;
 			}
 
@@ -177,7 +108,7 @@ public class PlayRoom {
 		public int compare(Viewer viewer, Object e1, Object e2) {
 			PlayRoom r1 = (PlayRoom) e1;
 			PlayRoom r2 = (PlayRoom) e2;
-			return r1.address.compareTo(r2.address);
+			return r1.getRoomAddress().compareTo(r2.getRoomAddress());
 		}
 	}
 
@@ -186,7 +117,7 @@ public class PlayRoom {
 		public int compare(Viewer viewer, Object e1, Object e2) {
 			PlayRoom r1 = (PlayRoom) e1;
 			PlayRoom r2 = (PlayRoom) e2;
-			return r1.masterName.compareTo(r2.masterName);
+			return r1.getMasterName().compareTo(r2.getMasterName());
 		}
 	}
 
@@ -195,7 +126,7 @@ public class PlayRoom {
 		public int compare(Viewer viewer, Object e1, Object e2) {
 			PlayRoom r1 = (PlayRoom) e1;
 			PlayRoom r2 = (PlayRoom) e2;
-			return r1.title.compareTo(r2.title);
+			return r1.getTitle().compareTo(r2.getTitle());
 		}
 	}
 
@@ -204,7 +135,7 @@ public class PlayRoom {
 		public int compare(Viewer viewer, Object e1, Object e2) {
 			PlayRoom r1 = (PlayRoom) e1;
 			PlayRoom r2 = (PlayRoom) e2;
-			return Integer.valueOf(r1.currentPlayerCount).compareTo(r2.currentPlayerCount);
+			return Integer.valueOf(r1.getCurrentPlayers()).compareTo(r2.getCurrentPlayers());
 		}
 	}
 
@@ -213,7 +144,7 @@ public class PlayRoom {
 		public int compare(Viewer viewer, Object e1, Object e2) {
 			PlayRoom r1 = (PlayRoom) e1;
 			PlayRoom r2 = (PlayRoom) e2;
-			return Boolean.valueOf(r1.hasPassword).compareTo(r2.hasPassword);
+			return Boolean.valueOf(r1.hasPassword()).compareTo(r2.hasPassword());
 		}
 	}
 }

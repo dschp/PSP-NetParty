@@ -8,5 +8,7 @@
 	<classpathentry kind="lib" path="lib_swt/org.eclipse.equinox.common_3.6.0.jar"/>
 	<classpathentry kind="lib" path="jnetpcap.jar"/>
 	<classpathentry kind="lib" path="lib_db/mysql-connector-java-5.1.14-bin.jar"/>
+	<classpathentry kind="lib" path="lib_lucene/lucene-core-3.0.3.jar"/>
+	<classpathentry kind="lib" path="lib_lucene/lucene-analyzers-3.0.3.jar"/>
 	<classpathentry kind="output" path="bin"/>
 </classpath>
