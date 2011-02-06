@@ -241,110 +241,99 @@ public class RoomSearchEngine {
 		}
 
 		private boolean checkRoomEntry(final SearchState state, final InetSocketAddress address, final PlayRoom room, final String authCode) {
-			try {
-				tcpClient.connect(address, new IAsyncClientHandler() {
-					boolean tcpReadSuccess = false;
+			tcpClient.connect(address, new IAsyncClientHandler() {
+				boolean tcpReadSuccess = false;
 
-					@Override
-					public void log(ISocketConnection connection, String message) {
-						logger.log(connection.getRemoteAddress().toString());
-						logger.log(message);
-					}
+				@Override
+				public void log(ISocketConnection connection, String message) {
+					logger.log(connection.getRemoteAddress().toString());
+					logger.log(message);
+				}
 
-					@Override
-					public void connectCallback(ISocketConnection connection) {
-						StringBuilder sb = new StringBuilder();
-						sb.append(ProtocolConstants.Room.PROTOCOL_NAME);
-						sb.append(ProtocolConstants.ARGUMENT_SEPARATOR);
-						sb.append(ProtocolConstants.PROTOCOL_NUMBER);
-						sb.append(ProtocolConstants.MESSAGE_SEPARATOR);
+				@Override
+				public void connectCallback(ISocketConnection connection) {
+					StringBuilder sb = new StringBuilder();
+					sb.append(ProtocolConstants.Room.PROTOCOL_NAME);
+					sb.append(ProtocolConstants.ARGUMENT_SEPARATOR);
+					sb.append(ProtocolConstants.PROTOCOL_NUMBER);
+					sb.append(ProtocolConstants.MESSAGE_SEPARATOR);
 
-						sb.append(ProtocolConstants.Room.COMMAND_CONFIRM_AUTH_CODE);
-						sb.append(ProtocolConstants.ARGUMENT_SEPARATOR);
-						sb.append(room.getMasterName());
-						sb.append(ProtocolConstants.ARGUMENT_SEPARATOR);
-						sb.append(authCode);
+					sb.append(ProtocolConstants.Room.COMMAND_CONFIRM_AUTH_CODE);
+					sb.append(ProtocolConstants.ARGUMENT_SEPARATOR);
+					sb.append(room.getMasterName());
+					sb.append(ProtocolConstants.ARGUMENT_SEPARATOR);
+					sb.append(authCode);
 
-						connection.send(sb.toString());
-					}
+					connection.send(sb.toString());
+				}
 
-					@Override
-					public void readCallback(ISocketConnection connection, PacketData data) {
-						String message = data.getMessage();
-						if (ProtocolConstants.Room.COMMAND_CONFIRM_AUTH_CODE.equals(message)) {
-							try {
-								udpClient.connect(address, new IAsyncClientHandler() {
-									boolean udpReadSuccess = false;
+				@Override
+				public void readCallback(ISocketConnection connection, PacketData data) {
+					String message = data.getMessage();
+					if (ProtocolConstants.Room.COMMAND_CONFIRM_AUTH_CODE.equals(message)) {
+						udpClient.connect(address, new IAsyncClientHandler() {
+							boolean udpReadSuccess = false;
 
-									@Override
-									public void log(ISocketConnection connection, String message) {
-										logger.log(connection.getRemoteAddress().toString());
-										logger.log(message);
-									}
-
-									@Override
-									public void connectCallback(ISocketConnection connection) {
-										connection.send(ProtocolConstants.Room.TUNNEL_DUMMY_PACKET);
-									}
-
-									@Override
-									public void readCallback(ISocketConnection connection, PacketData data) {
-										String message = data.getMessage();
-										if (!Utility.isEmpty(message)) {
-											udpReadSuccess = true;
-										}
-										connection.disconnect();
-									}
-
-									@Override
-									public void disconnectCallback(ISocketConnection connection) {
-										if (udpReadSuccess) {
-											try {
-												updateRoomEntry(room);
-
-												state.getConnection().send(Search.COMMAND_ENTRY);
-												state.entryRoom = room;
-												playRoomEntries.put(room.getRoomAddress(), room);
-
-												state.messageHandlers = masterHandlers;
-											} catch (IOException e) {
-												state.getConnection().send(Search.ERROR_MASTER_DATABASE_ENTRY);
-												state.getConnection().disconnect();
-											}
-										} else {
-											state.getConnection().send(Search.ERROR_MASTER_UDP_PORT);
-											state.getConnection().disconnect();
-										}
-									}
-								});
-							} catch (IOException e) {
-								state.getConnection().send(Search.ERROR_MASTER_UDP_PORT);
-								state.getConnection().disconnect();
+							@Override
+							public void log(ISocketConnection connection, String message) {
+								logger.log(connection.getRemoteAddress().toString());
+								logger.log(message);
 							}
-						} else {
-							state.getConnection().send(Search.ERROR_MASTER_INVALID_AUTH_CODE);
-							state.getConnection().disconnect();
-						}
 
-						tcpReadSuccess = true;
-						connection.disconnect();
+							@Override
+							public void connectCallback(ISocketConnection connection) {
+								connection.send(ProtocolConstants.Room.TUNNEL_DUMMY_PACKET);
+							}
+
+							@Override
+							public void readCallback(ISocketConnection connection, PacketData data) {
+								String message = data.getMessage();
+								if (!Utility.isEmpty(message)) {
+									udpReadSuccess = true;
+								}
+								connection.disconnect();
+							}
+
+							@Override
+							public void disconnectCallback(ISocketConnection connection) {
+								if (udpReadSuccess) {
+									try {
+										updateRoomEntry(room);
+
+										state.getConnection().send(Search.COMMAND_ENTRY);
+										state.entryRoom = room;
+										playRoomEntries.put(room.getRoomAddress(), room);
+
+										state.messageHandlers = masterHandlers;
+									} catch (IOException e) {
+										state.getConnection().send(Search.ERROR_MASTER_DATABASE_ENTRY);
+										state.getConnection().disconnect();
+									}
+								} else {
+									state.getConnection().send(Search.ERROR_MASTER_UDP_PORT);
+									state.getConnection().disconnect();
+								}
+							}
+						});
+					} else {
+						state.getConnection().send(Search.ERROR_MASTER_INVALID_AUTH_CODE);
+						state.getConnection().disconnect();
 					}
 
-					@Override
-					public void disconnectCallback(ISocketConnection connection) {
-						if (!tcpReadSuccess) {
-							state.getConnection().send(Search.ERROR_MASTER_TCP_PORT);
-							state.getConnection().disconnect();
-						}
+					tcpReadSuccess = true;
+					connection.disconnect();
+				}
+
+				@Override
+				public void disconnectCallback(ISocketConnection connection) {
+					if (!tcpReadSuccess) {
+						state.getConnection().send(Search.ERROR_MASTER_TCP_PORT);
+						state.getConnection().disconnect();
 					}
-				});
+				}
+			});
 
-				return true;
-			} catch (IOException e) {
-				state.getConnection().send(Search.ERROR_MASTER_TCP_PORT);
-				return false;
-			}
-
+			return true;
 		}
 
 		private class ProtocolMatchHandler implements IServerMessageHandler<SearchState> {
@@ -499,7 +488,7 @@ public class RoomSearchEngine {
 				if (!Utility.isEmpty(serverName)) {
 					if (queryBuilder.length() > 0)
 						queryBuilder.append(" AND ");
-					queryBuilder.append("serverAddress:").append(QueryParser.escape(serverName));//.append('*');
+					queryBuilder.append("serverAddress:").append(QueryParser.escape(serverName));// .append('*');
 				}
 
 				if (queryBuilder.length() > 0)
@@ -508,7 +497,7 @@ public class RoomSearchEngine {
 
 				try {
 					Query query = searchParser.parse(queryBuilder.toString());
-					//logger.log(query.toString());
+					// logger.log(query.toString());
 
 					if (indexSearcher == null)
 						indexSearcher = new IndexSearcher(ramDirectory);

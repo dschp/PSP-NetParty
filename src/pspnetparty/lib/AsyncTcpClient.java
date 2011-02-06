@@ -101,7 +101,7 @@ public class AsyncTcpClient {
 		selectorThread.start();
 	}
 
-	public ISocketConnection connect(InetSocketAddress address, IAsyncClientHandler handler) throws IOException {
+	public ISocketConnection connect(InetSocketAddress address, IAsyncClientHandler handler) {
 		if (address == null || handler == null)
 			throw new IllegalArgumentException();
 
@@ -140,7 +140,7 @@ public class AsyncTcpClient {
 		private ByteBuffer readDataBuffer = ByteBuffer.allocateDirect(initialReadBufferSize);
 		private PacketData packetData = new PacketData(readDataBuffer);
 
-		public Connection(InetSocketAddress address, IAsyncClientHandler handler) throws IOException {
+		public Connection(InetSocketAddress address, IAsyncClientHandler handler) {
 			this.remoteAddress = address;
 			this.handler = handler;
 		}

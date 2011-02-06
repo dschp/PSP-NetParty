@@ -1652,8 +1652,6 @@ public class PlayClient {
 			appendLogTo(window.roomChatLogText, "アドレスが解決しません", window.colorRed);
 		} catch (RuntimeException e) {
 			appendLogTo(window.logText, Utility.makeStackTrace(e));
-		} catch (IOException e) {
-			appendLogTo(window.logText, Utility.makeStackTrace(e));
 		}
 	}
 
@@ -1706,8 +1704,6 @@ public class PlayClient {
 			roomMasterName = loginUserName;
 			goTo(RoomState.ConnectingToProxyServer);
 			return;
-		} catch (IOException e) {
-			appendLogTo(window.logText, Utility.makeStackTrace(e));
 		} catch (RuntimeException e) {
 			appendLogTo(window.logText, Utility.makeStackTrace(e));
 		}
@@ -1753,8 +1749,6 @@ public class PlayClient {
 				window.roomFormSearchServerCombo.setEnabled(false);
 				window.roomFormSearchServerButton.setEnabled(false);
 				return true;
-			} catch (IOException e) {
-				appendLogTo(window.logText, Utility.makeStackTrace(e));
 			} catch (RuntimeException e) {
 				appendLogTo(window.logText, Utility.makeStackTrace(e));
 			}
@@ -1799,9 +1793,6 @@ public class PlayClient {
 			window.searchResultRoomsTable.refresh();
 			window.searchResultRoomsTable.setSorter(null);
 			window.searchResultRoomsTable.getTable().setSortDirection(SWT.NONE);
-		} catch (IOException e) {
-			window.searchServerSubmitButton.setEnabled(true);
-			appendLogTo(window.logText, Utility.makeStackTrace(e));
 		} catch (RuntimeException e) {
 			appendLogTo(window.logText, Utility.makeStackTrace(e));
 		}
@@ -2768,11 +2759,7 @@ public class PlayClient {
 
 		private void prepareSession() {
 			wakeupThread(pingThread);
-
-			try {
-				tunnelConnection = udpClient.connect(roomConnection.getRemoteAddress(), tunnelHandler);
-			} catch (IOException ioe) {
-			}
+			tunnelConnection = udpClient.connect(roomConnection.getRemoteAddress(), tunnelHandler);
 		}
 
 		private class LoginHandler implements CommandHandler {

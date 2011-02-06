@@ -88,7 +88,7 @@ public class AsyncUdpClient {
 		selectorThread.start();
 	}
 
-	public ISocketConnection connect(InetSocketAddress address, IAsyncClientHandler handler) throws IOException {
+	public ISocketConnection connect(InetSocketAddress address, IAsyncClientHandler handler) {
 		if (address == null)
 			throw new IllegalArgumentException();
 
@@ -127,7 +127,7 @@ public class AsyncUdpClient {
 		private ByteBuffer readBuffer = ByteBuffer.allocateDirect(BUFFER_SIZE);
 		private PacketData packetData = new PacketData(readBuffer);
 
-		public Connection(InetSocketAddress address, IAsyncClientHandler handler) throws IOException {
+		public Connection(InetSocketAddress address, IAsyncClientHandler handler) {
 			this.remoteAddress = address;
 			this.handler = handler;
 		}
