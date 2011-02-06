@@ -513,7 +513,6 @@ public class PlayClient {
 
 			roomFormClientModeAddressCombo = new Combo(roomFormClientModeContainer, SWT.NONE);
 			roomFormClientModeAddressCombo.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
-			roomFormClientModeAddressCombo.setText(":30000");
 
 			roomFormClientModeAdderssButton = new Button(roomFormClientModeContainer, SWT.PUSH);
 			roomFormClientModeAdderssButton.setText("ログイン");
@@ -529,7 +528,6 @@ public class PlayClient {
 
 			roomFormProxyModeAddressCombo = new Combo(roomFormProxyModeContainer, SWT.NONE);
 			roomFormProxyModeAddressCombo.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
-			roomFormProxyModeAddressCombo.setText(":30000");
 
 			roomFormProxyModeAddressButton = new Button(roomFormProxyModeContainer, SWT.PUSH);
 			roomFormProxyModeAddressButton.setText("作成する");

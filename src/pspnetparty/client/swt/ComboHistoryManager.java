@@ -66,6 +66,9 @@ public class ComboHistoryManager {
 				if (this.history.size() == maxHistory)
 					break;
 			}
+
+		if (combo.getItemCount() > 0)
+			combo.select(0);
 	}
 
 	public void addCurrentItem() {
