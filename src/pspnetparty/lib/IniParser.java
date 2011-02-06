@@ -15,7 +15,7 @@ GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
-*/
+ */
 package pspnetparty.lib;
 
 import java.io.BufferedReader;
@@ -57,7 +57,7 @@ public class IniParser {
 				FileInputStream fileInputStream = new FileInputStream(file);
 				InputStreamReader streamReader = new InputStreamReader(fileInputStream, AppConstants.CHARSET);
 				bufferedReader = new BufferedReader(streamReader);
-				
+
 				bufferedReader.mark(1);
 				if (bufferedReader.read() != 65279) {
 					bufferedReader.reset();
@@ -114,6 +114,11 @@ public class IniParser {
 			public void set(String key, String value) {
 				settings.put(key, value);
 			}
+			
+			@Override
+			public void set(String key, boolean value) {
+				settings.put(key, value ? "Yes" : "No");
+			}
 
 			@Override
 			public void remove(String key) {
@@ -143,6 +148,16 @@ public class IniParser {
 					settings.put(key, Integer.toString(defaultValue));
 					return defaultValue;
 				}
+			}
+			
+			@Override
+			public boolean get(String key, boolean defaultValue) {
+				String string = settings.get(key);
+				if (string == null) {
+					settings.put(key, defaultValue ? "Yes" : "No");
+					return defaultValue;
+				}
+				return "Yes".equals(string);
 			}
 
 			@Override
@@ -197,7 +212,10 @@ public class IniParser {
 
 		public int get(String key, int defaultValue);
 
+		public boolean get(String key, boolean defaultValue);
+
 		public void set(String key, String value);
+		public void set(String key, boolean value);
 
 		public void remove(String key);
 

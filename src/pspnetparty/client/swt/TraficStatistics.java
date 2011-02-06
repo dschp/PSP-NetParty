@@ -31,6 +31,7 @@ public class TraficStatistics {
 
 	public String macAddress;
 	public boolean isMine;
+	public String playerName = "";
 
 	public long lastModified;
 	public int currentInBytes;
@@ -104,12 +105,14 @@ public class TraficStatistics {
 			case 1:
 				return stats.macAddress;
 			case 2:
-				return String.format("%.1f", stats.currentInKbps);
+				return stats.playerName;
 			case 3:
-				return String.format("%.1f", stats.currentOutKbps);
+				return String.format("%.1f", stats.currentInKbps);
 			case 4:
-				return Long.toString(stats.totalInBytes);
+				return String.format("%.1f", stats.currentOutKbps);
 			case 5:
+				return Long.toString(stats.totalInBytes);
+			case 6:
 				return Long.toString(stats.totalOutBytes);
 			}
 
@@ -134,6 +137,15 @@ public class TraficStatistics {
 			TraficStatistics s1 = (TraficStatistics) e1;
 			TraficStatistics s2 = (TraficStatistics) e2;
 			return s1.macAddress.compareTo(s2.macAddress);
+		}
+	}
+	
+	public static class PlayerNameSorter extends ViewerSorter {
+		@Override
+		public int compare(Viewer viewer, Object e1, Object e2) {
+			TraficStatistics s1 = (TraficStatistics) e1;
+			TraficStatistics s2 = (TraficStatistics) e2;
+			return s1.playerName.compareTo(s2.playerName);
 		}
 	}
 

@@ -33,9 +33,6 @@ import pspnetparty.lib.constants.ProtocolConstants.Search;
 public class ProxyRoomEngine {
 
 	private ConcurrentHashMap<String, Room> masterNameRoomMap;
-	private ConcurrentHashMap<PlayerState, Room> playerRoomMap;
-
-	private ConcurrentHashMap<TunnelState, Room> tunnelRoomMap;
 	private ConcurrentHashMap<InetSocketAddress, TunnelState> notYetLinkedTunnels;
 
 	private IServer<PlayerState> roomServer;
@@ -44,7 +41,7 @@ public class ProxyRoomEngine {
 	private IServer<TunnelState> tunnelServer;
 	private TunnelHandler tunnelHandler;
 
-	private int maxRooms = 20;
+	private int maxRooms = 10;
 	private boolean passwordAllowed = true;
 
 	private boolean isStarted = false;
@@ -54,8 +51,6 @@ public class ProxyRoomEngine {
 		this.logger = logger;
 
 		masterNameRoomMap = new ConcurrentHashMap<String, ProxyRoomEngine.Room>(20, 0.75f, 1);
-		playerRoomMap = new ConcurrentHashMap<PlayerState, Room>(30, 0.75f, 1);
-		tunnelRoomMap = new ConcurrentHashMap<TunnelState, Room>(30, 0.75f, 2);
 		notYetLinkedTunnels = new ConcurrentHashMap<InetSocketAddress, TunnelState>(30, 0.75f, 2);
 
 		roomServer = new AsyncTcpServer<PlayerState>();
@@ -118,7 +113,26 @@ public class ProxyRoomEngine {
 		return sb.toString();
 	}
 
-	class Room {
+	private static class PlayerState implements IClientState {
+
+		private ISocketConnection connection;
+
+		private HashMap<String, IServerMessageHandler<PlayerState>> messageHandlers;
+		private String name;
+		private Room room;
+		private TunnelState tunnelState;
+
+		PlayerState(ISocketConnection conn) {
+			connection = conn;
+		}
+
+		@Override
+		public ISocketConnection getConnection() {
+			return connection;
+		}
+	}
+
+	private class Room {
 		private ConcurrentSkipListMap<String, PlayerState> playersByName;
 		private HashMap<String, TunnelState> tunnelsByMacAddress;
 
@@ -167,7 +181,7 @@ public class ProxyRoomEngine {
 		}
 	}
 
-	class RoomHandler implements IAsyncServerHandler<PlayerState> {
+	private class RoomHandler implements IAsyncServerHandler<PlayerState> {
 
 		private HashMap<String, IServerMessageHandler<PlayerState>> protocolHandlers = new HashMap<String, IServerMessageHandler<PlayerState>>();
 		private HashMap<String, IServerMessageHandler<PlayerState>> loginHandlers = new HashMap<String, IServerMessageHandler<PlayerState>>();
@@ -190,6 +204,7 @@ public class ProxyRoomEngine {
 			sessionHandlers.put(ProtocolConstants.Room.COMMAND_PING, new PingHandler());
 			sessionHandlers.put(ProtocolConstants.Room.COMMAND_INFORM_PING, new InformPingHandler());
 			sessionHandlers.put(ProtocolConstants.Room.COMMAND_INFORM_TUNNEL_UDP_PORT, new InformTunnelPortHandler());
+			sessionHandlers.put(ProtocolConstants.Room.COMMAND_MAC_ADDRESS_PLAYER, new MacAddressPlayerHandler());
 			sessionHandlers.put(ProtocolConstants.Room.COMMAND_ROOM_UPDATE, new RoomUpdateHandler());
 			sessionHandlers.put(ProtocolConstants.Room.COMMAND_ROOM_KICK_PLAYER, new RoomKickPlayerHandler());
 			sessionHandlers.put(ProtocolConstants.Room.COMMAND_ROOM_MASTER_TRANSFER, new RoomMasterTransferHandler());
@@ -221,12 +236,11 @@ public class ProxyRoomEngine {
 		@Override
 		public void disposeState(PlayerState state) {
 			if (state.tunnelState != null) {
-				tunnelRoomMap.remove(state.tunnelState);
 				state.tunnelState = null;
 			}
 
 			String name = state.name;
-			Room room = playerRoomMap.remove(state);
+			Room room = state.room;
 			if (room == null)
 				return;
 
@@ -246,7 +260,7 @@ public class ProxyRoomEngine {
 				if (newRoomMaster == null) {
 					for (Entry<String, PlayerState> entry : room.playersByName.entrySet()) {
 						PlayerState p = entry.getValue();
-						playerRoomMap.remove(p);
+						// playerRoomMap.remove(p);
 
 						p.getConnection().send(ProtocolConstants.Room.NOTIFY_ROOM_DELETED);
 						p.getConnection().disconnect();
@@ -425,7 +439,7 @@ public class ProxyRoomEngine {
 				newRoom.password = password;
 				newRoom.description = tokens[4];
 
-				playerRoomMap.put(state, newRoom);
+				state.room = newRoom;
 
 				state.name = name;
 				state.messageHandlers = sessionHandlers;
@@ -503,7 +517,7 @@ public class ProxyRoomEngine {
 				state.messageHandlers = sessionHandlers;
 				state.name = loginName;
 
-				playerRoomMap.put(state, room);
+				state.room = room;
 
 				final String notify = ProtocolConstants.Room.NOTIFY_USER_ENTERED + ProtocolConstants.ARGUMENT_SEPARATOR + loginName;
 				room.forEachPlayer(new IClientStateAction<PlayerState>() {
@@ -538,7 +552,7 @@ public class ProxyRoomEngine {
 		private class ChatHandler implements IServerMessageHandler<PlayerState> {
 			@Override
 			public boolean process(PlayerState state, String argument) {
-				Room room = playerRoomMap.get(state);
+				Room room = state.room;
 				if (room == null)
 					return false;
 
@@ -569,7 +583,7 @@ public class ProxyRoomEngine {
 		private class InformPingHandler implements IServerMessageHandler<PlayerState> {
 			@Override
 			public boolean process(final PlayerState state, String argument) {
-				Room room = playerRoomMap.get(state);
+				Room room = state.room;
 				if (room == null)
 					return false;
 
@@ -593,7 +607,7 @@ public class ProxyRoomEngine {
 		private class InformTunnelPortHandler implements IServerMessageHandler<PlayerState> {
 			@Override
 			public boolean process(PlayerState state, String argument) {
-				Room room = playerRoomMap.get(state);
+				Room room = state.room;
 				if (room == null)
 					return false;
 
@@ -604,7 +618,8 @@ public class ProxyRoomEngine {
 
 					if (state.tunnelState != null) {
 						state.getConnection().send(ProtocolConstants.Room.COMMAND_INFORM_TUNNEL_UDP_PORT);
-						tunnelRoomMap.put(state.tunnelState, room);
+						state.tunnelState.room = room;
+						state.tunnelState.playerName = state.name;
 					}
 				} catch (NumberFormatException e) {
 				}
@@ -612,10 +627,34 @@ public class ProxyRoomEngine {
 			}
 		}
 
+		private class MacAddressPlayerHandler implements IServerMessageHandler<PlayerState> {
+			@Override
+			public boolean process(PlayerState state, String macAddress) {
+				Room room = state.room;
+				if (room == null)
+					return false;
+				TunnelState tunnelState = room.tunnelsByMacAddress.get(macAddress);
+				if (tunnelState == null)
+					return true;
+				if (Utility.isEmpty(tunnelState.playerName))
+					return true;
+
+				StringBuilder sb = new StringBuilder();
+				sb.append(ProtocolConstants.Room.COMMAND_MAC_ADDRESS_PLAYER);
+				sb.append(ProtocolConstants.ARGUMENT_SEPARATOR);
+				sb.append(macAddress);
+				sb.append(ProtocolConstants.ARGUMENT_SEPARATOR);
+				sb.append(tunnelState.playerName);
+
+				state.connection.send(sb.toString());
+				return true;
+			}
+		}
+
 		private class RoomUpdateHandler implements IServerMessageHandler<PlayerState> {
 			@Override
 			public boolean process(final PlayerState state, String argument) {
-				Room room = playerRoomMap.get(state);
+				Room room = state.room;
 				if (room == null || state != room.roomMaster)
 					return false;
 
@@ -660,7 +699,7 @@ public class ProxyRoomEngine {
 		private class RoomKickPlayerHandler implements IServerMessageHandler<PlayerState> {
 			@Override
 			public boolean process(PlayerState state, String argument) {
-				Room room = playerRoomMap.get(state);
+				Room room = state.room;
 				if (room == null || state != room.roomMaster)
 					return false;
 
@@ -695,7 +734,7 @@ public class ProxyRoomEngine {
 		private class RoomMasterTransferHandler implements IServerMessageHandler<PlayerState> {
 			@Override
 			public boolean process(PlayerState state, String argument) {
-				Room room = playerRoomMap.get(state);
+				Room room = state.room;
 				if (room == null || state != room.roomMaster)
 					return false;
 
@@ -799,7 +838,24 @@ public class ProxyRoomEngine {
 		}
 	}
 
-	class TunnelHandler implements IAsyncServerHandler<TunnelState> {
+	private static class TunnelState implements IClientState {
+
+		private ISocketConnection connection;
+		private Room room;
+		private String playerName;
+		private long lastTunnelTime;
+
+		TunnelState(ISocketConnection connection) {
+			this.connection = connection;
+		}
+
+		@Override
+		public ISocketConnection getConnection() {
+			return connection;
+		}
+	}
+
+	private class TunnelHandler implements IAsyncServerHandler<TunnelState> {
 		@Override
 		public void serverStartupFinished() {
 		}
@@ -823,7 +879,7 @@ public class ProxyRoomEngine {
 		@Override
 		public void disposeState(TunnelState state) {
 			notYetLinkedTunnels.remove(state.getConnection().getRemoteAddress());
-			tunnelRoomMap.remove(state);
+			// tunnelRoomMap.remove(state);
 		}
 
 		@Override
@@ -838,7 +894,7 @@ public class ProxyRoomEngine {
 				return true;
 			}
 
-			Room room = tunnelRoomMap.get(state);
+			Room room = state.room;
 			if (room == null)
 				return true;
 

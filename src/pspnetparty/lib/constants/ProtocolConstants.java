@@ -49,6 +49,7 @@ public class ProtocolConstants {
 		public static final String COMMAND_ADMIN_NOTIFY = "AN";
 
 		public static final String COMMAND_INFORM_TUNNEL_UDP_PORT = "IU";
+		public static final String COMMAND_MAC_ADDRESS_PLAYER = "MAP";
 
 		public static final String COMMAND_PING = "PG";
 		public static final String COMMAND_PINGBACK = "PB";

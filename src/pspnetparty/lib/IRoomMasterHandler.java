@@ -25,7 +25,7 @@ public interface IRoomMasterHandler extends ILogger {
 	public void playerEntered(String player);
 	public void playerExited(String player);
 	public void pingInformed(String player, int ping);
-	public void tunnelPacketReceived(ByteBuffer packet);
+	public void tunnelPacketReceived(ByteBuffer packet, String playerName);
 	public void roomOpened(String authCode);
 	public void roomClosed();
 }

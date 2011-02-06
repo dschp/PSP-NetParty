@@ -249,6 +249,24 @@ public class RoomEngine {
 		this.allowEmptyMasterNameLogin = allowEmptyMasterNameLogin;
 	}
 
+	private static class PlayerState implements IClientState {
+
+		private ISocketConnection connection;
+
+		private HashMap<String, IServerMessageHandler<PlayerState>> messageHandlers;
+		private String name;
+		private TunnelState tunnelState;
+
+		PlayerState(ISocketConnection conn) {
+			connection = conn;
+		}
+
+		@Override
+		public ISocketConnection getConnection() {
+			return connection;
+		}
+	}
+
 	class RoomHandler implements IAsyncServerHandler<PlayerState> {
 
 		private HashMap<String, IServerMessageHandler<PlayerState>> protocolHandlers = new HashMap<String, IServerMessageHandler<PlayerState>>();
@@ -267,6 +285,7 @@ public class RoomEngine {
 			sessionHandlers.put(ProtocolConstants.Room.COMMAND_PING, new PingHandler());
 			sessionHandlers.put(ProtocolConstants.Room.COMMAND_INFORM_PING, new InformPingHandler());
 			sessionHandlers.put(ProtocolConstants.Room.COMMAND_INFORM_TUNNEL_UDP_PORT, new InformTunnelPortHandler());
+			sessionHandlers.put(ProtocolConstants.Room.COMMAND_MAC_ADDRESS_PLAYER, new MacAddressPlayerHandler());
 		}
 
 		@Override
@@ -499,12 +518,58 @@ public class RoomEngine {
 					InetSocketAddress remoteEP = new InetSocketAddress(state.getConnection().getRemoteAddress().getAddress(), port);
 					state.tunnelState = notYetLinkedTunnels.remove(remoteEP);
 
-					if (state.tunnelState != null)
+					if (state.tunnelState != null) {
 						state.getConnection().send(ProtocolConstants.Room.COMMAND_INFORM_TUNNEL_UDP_PORT);
+						state.tunnelState.playerName = state.name;
+					}
 				} catch (NumberFormatException e) {
 				}
 				return true;
 			}
+		}
+
+		private class MacAddressPlayerHandler implements IServerMessageHandler<PlayerState> {
+			@Override
+			public boolean process(PlayerState state, String macAddress) {
+				String playerName;
+				if (masterMacAddresses.containsKey(macAddress)) {
+					playerName = masterName;
+				} else {
+					TunnelState tunnelState = tunnelsByMacAddress.get(macAddress);
+					if (tunnelState == null)
+						return true;
+					if (Utility.isEmpty(tunnelState.playerName))
+						return true;
+
+					playerName = tunnelState.playerName;
+				}
+
+				StringBuilder sb = new StringBuilder();
+				sb.append(ProtocolConstants.Room.COMMAND_MAC_ADDRESS_PLAYER);
+				sb.append(ProtocolConstants.ARGUMENT_SEPARATOR);
+				sb.append(macAddress);
+				sb.append(ProtocolConstants.ARGUMENT_SEPARATOR);
+				sb.append(playerName);
+
+				state.connection.send(sb.toString());
+				return true;
+			}
+		}
+	}
+
+	private static class TunnelState implements IClientState {
+
+		private ISocketConnection connection;
+		private long lastTunnelTime;
+		private String playerName;
+
+		public TunnelState(ISocketConnection connection) {
+			this.connection = connection;
+		}
+
+		@Override
+		public ISocketConnection getConnection() {
+			return connection;
 		}
 	}
 
@@ -554,7 +619,7 @@ public class RoomEngine {
 			tunnelsByMacAddress.put(srcMac, state);
 
 			if (Utility.isMacBroadCastAddress(destMac)) {
-				roomMasterHandler.tunnelPacketReceived(packet);
+				roomMasterHandler.tunnelPacketReceived(packet, state.playerName);
 
 				for (Entry<String, PlayerState> entry : playersByName.entrySet()) {
 					PlayerState sendTo = entry.getValue();
@@ -566,7 +631,7 @@ public class RoomEngine {
 				}
 			} else if (masterMacAddresses.containsKey(destMac)) {
 				masterMacAddresses.put(destMac, System.currentTimeMillis());
-				roomMasterHandler.tunnelPacketReceived(packet);
+				roomMasterHandler.tunnelPacketReceived(packet, state.playerName);
 			} else if (tunnelsByMacAddress.containsKey(destMac)) {
 				TunnelState sendTo = tunnelsByMacAddress.get(destMac);
 				sendTo.getConnection().send(packet);

@@ -32,6 +32,7 @@ public class IniConstants {
 
 		public static final String WINDOW_WIDTH = "WindowWidth";
 		public static final String WINDOW_HEIGHT = "WindowHeight";
+		public static final String APP_CLOSE_CONFIRM = "AppCloseConfirm";
 
 		public static final String MY_ROOM_HOST_NAME = "MyRoomHostName";
 		public static final String MY_ROOM_PORT = "MyRoomPort";
