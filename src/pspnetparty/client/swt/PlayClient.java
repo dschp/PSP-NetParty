@@ -208,6 +208,7 @@ public class PlayClient {
 				IniConstants.Client.MY_ROOM_ALLOW_NO_MASTER_NAME, true));
 
 		window.configAppCloseConfirmCheck.setSelection(iniSettingSection.get(IniConstants.Client.APP_CLOSE_CONFIRM, true));
+		window.configEnableBalloonCheck.setSelection(iniSettingSection.get(IniConstants.Client.ENABLE_BALLOON, true));
 
 		String[] serverList;
 
@@ -310,6 +311,7 @@ public class PlayClient {
 		private Text configUserNameText;
 		private Label configUserNameAlertLabel;
 		private Button configAppCloseConfirmCheck;
+		private Button configEnableBalloonCheck;
 		private Group configRoomServerGroup;
 		private Label configRoomServerHostNameLabel;
 		private Text configRoomServerHostNameText;
@@ -802,6 +804,9 @@ public class PlayClient {
 			configAppCloseConfirmCheck = new Button(configContainer, SWT.CHECK | SWT.FLAT);
 			configAppCloseConfirmCheck.setText("アプリケーションを閉じる時に確認する");
 
+			configEnableBalloonCheck = new Button(configContainer, SWT.CHECK | SWT.FLAT);
+			configEnableBalloonCheck.setText("部屋のメッセージをタスクトレイからバルーンで通知する");
+
 			configRoomServerGroup = new Group(configContainer, SWT.SHADOW_IN);
 			configRoomServerGroup.setText("部屋サーバー");
 			gridData = new GridData(SWT.FILL, SWT.CENTER, false, false);
@@ -921,6 +926,7 @@ public class PlayClient {
 				iniSettingSection.set(IniConstants.Client.MY_ROOM_ALLOW_NO_MASTER_NAME,
 						window.configRoomServerAllowEmptyMasterNameCheck.getSelection());
 				iniSettingSection.set(IniConstants.Client.APP_CLOSE_CONFIRM, window.configAppCloseConfirmCheck.getSelection());
+				iniSettingSection.set(IniConstants.Client.ENABLE_BALLOON, window.configEnableBalloonCheck.getSelection());
 
 				iniSettingSection.set(IniConstants.Client.ROOM_SERVER_HISTORY, roomServerHistoryManager.makeCSV());
 				iniSettingSection.set(IniConstants.Client.PROXY_SERVER_HISTORY, proxyServerHistoryManager.makeCSV());
@@ -1971,7 +1977,7 @@ public class PlayClient {
 						text.setStyleRange(range);
 						text.setTopIndex(text.getLineCount());
 					}
-					if (inform && !window.isActive && window.toolTip != null) {
+					if (window.configEnableBalloonCheck.getSelection() && inform && !window.isActive && window.toolTip != null) {
 						window.toolTip.setText(shell.getText());
 						window.toolTip.setMessage(message);
 						window.toolTip.setVisible(true);
