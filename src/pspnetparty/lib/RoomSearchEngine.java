@@ -59,6 +59,7 @@ public class RoomSearchEngine {
 	private IndexSearcher indexSearcher;
 	private QueryParser searchParser;
 
+	private int port = -1;
 	private int descriptionMaxLength = 100;
 	private int maxSearchResults = 50;
 
@@ -103,12 +104,24 @@ public class RoomSearchEngine {
 
 		InetSocketAddress bindAddress = new InetSocketAddress(port);
 		searchServer.startListening(bindAddress, searchHandler);
+
+		this.port = port;
 	}
 
 	public void stop() {
 		if (!searchServer.isListening())
 			return;
 		searchServer.stopListening();
+
+		this.port = -1;
+	}
+
+	public int getPort() {
+		return port;
+	}
+	
+	public int getRoomEntryCount() {
+		return playRoomEntries.size();
 	}
 
 	@Override
@@ -398,6 +411,9 @@ public class RoomSearchEngine {
 
 					int currentPlayers = Integer.parseInt(tokens[4]);
 					int maxPlayers = Integer.parseInt(tokens[5]);
+					if (currentPlayers >= maxPlayers) {
+						return false;
+					}
 					boolean hasPassword = "Y".equals(tokens[6]);
 					String description = Utility.trim(tokens[7], descriptionMaxLength);
 
@@ -450,13 +466,17 @@ public class RoomSearchEngine {
 		private class RoomUpdatePlayerCountHandler implements IServerMessageHandler<SearchState> {
 			@Override
 			public boolean process(SearchState state, String argument) {
-				if (state.entryRoom == null)
+				PlayRoom room = state.entryRoom;
+				if (room == null)
 					return false;
 
 				try {
 					// C playerCount
 					int playerCount = Integer.parseInt(argument);
-					state.entryRoom.setCurrentPlayers(playerCount);
+					if (playerCount >= room.getMaxPlayers()) {
+						return false;
+					}
+					room.setCurrentPlayers(playerCount);
 					return true;
 				} catch (NumberFormatException e) {
 				}

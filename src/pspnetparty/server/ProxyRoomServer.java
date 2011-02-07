@@ -21,10 +21,13 @@ package pspnetparty.server;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.util.HashMap;
 
+import pspnetparty.lib.CommandHandler;
 import pspnetparty.lib.ILogger;
 import pspnetparty.lib.IniParser;
 import pspnetparty.lib.ProxyRoomEngine;
+import pspnetparty.lib.Utility;
 import pspnetparty.lib.constants.AppConstants;
 import pspnetparty.lib.constants.IniConstants;
 
@@ -57,31 +60,136 @@ public class ProxyRoomServer {
 		}
 		System.out.println("最大部屋数: " + maxRooms);
 
-		boolean passwordAllowed = "Yes".equals(settings.get(IniConstants.Server.ROOM_PASSWORD_ALLOWED, "Yes"));
-		settings.set(IniConstants.Server.ROOM_PASSWORD_ALLOWED, passwordAllowed ? "Yes" : "No");
-		System.out.println("パスワード: " + (passwordAllowed ? "許可" : "禁止"));
+		boolean passwordAllowed = settings.get(IniConstants.Server.ALLOW_ROOM_PASSWORD, true);
+		System.out.println("部屋パスワード: " + (passwordAllowed ? "許可" : "禁止"));
+		
+		final String loginMessageFile = settings.get(IniConstants.Server.LOGIN_MESSAGE_FILE, "");
+		System.out.println("ログインメッセージファイル : " + loginMessageFile);
 
 		parser.saveToIni();
 
-		ProxyRoomEngine engine = new ProxyRoomEngine(new ILogger() {
+		final ProxyRoomEngine engine = new ProxyRoomEngine(new ILogger() {
 			@Override
 			public void log(String message) {
 				System.out.println(message);
 			}
 		});
 		engine.setMaxRooms(maxRooms);
-		engine.setPasswordAllowed(passwordAllowed);
+		engine.setRoomPasswordAllowed(passwordAllowed);
+		engine.setLoginMessageFile(loginMessageFile);
 
 		engine.start(port);
+
+		HashMap<String, CommandHandler> handlers = new HashMap<String, CommandHandler>();
+		handlers.put("help", new CommandHandler() {
+			@Override
+			public void process(String argument) {
+				System.out.println("shutdown\n\tサーバーを終了させる");
+				System.out.println("list\n\t現在の部屋リストを表示");
+				System.out.println("status\n\t現在のサーバーの状態を表示");
+				System.out.println("set MaxRooms 部屋数\n\t最大部屋数を部屋数に設定");
+				System.out.println("set AllowRoomPassword Yes/No\n\t部屋パスワードの許可禁止を設定");
+				System.out.println("notify メッセージ\n\t全員にメッセージを告知");
+				System.out.println("destroy 部屋主名\n\t部屋主名の部屋を解体する");
+				System.out.println("goma 部屋主名\n\t部屋主名の部屋の最大人数を増やす");
+			}
+		});
+		handlers.put("list", new CommandHandler() {
+			@Override
+			public void process(String argument) {
+				System.out.println(engine.toString());
+			}
+		});
+		handlers.put("status", new CommandHandler() {
+			@Override
+			public void process(String argument) {
+				System.out.println("ポート: " + engine.getPort());
+				System.out.println("部屋数: " + engine.getCurrentRooms() + " / " + engine.getMaxRooms());
+				System.out.println("部屋パスワード: " + (engine.isRoomPasswordAllowed() ? "許可" : "禁止"));
+				System.out.println("ログインメッセージファイル : " + loginMessageFile);
+			}
+		});
+		handlers.put("set", new CommandHandler() {
+			@Override
+			public void process(String argument) {
+				String[] tokens = argument.split(" ");
+				if (tokens.length != 2)
+					return;
+
+				String key = tokens[0];
+				String value = tokens[1];
+				if (IniConstants.Server.MAX_ROOMS.equals(key)) {
+					try {
+						int max = Integer.parseInt(value);
+						engine.setMaxRooms(max);
+						System.out.println("最大部屋数が " + max + " に変更されました");
+					} catch (NumberFormatException e) {
+					}
+				} else if (IniConstants.Server.ALLOW_ROOM_PASSWORD.equals(key)) {
+					value = value.toLowerCase();
+					if ("yes".equals(value) || "y".equals(value)) {
+						engine.setRoomPasswordAllowed(true);
+						System.out.println("部屋パスワードを 許可 に設定しました");
+					} else if ("no".equals(value) || "n".equals(value)) {
+						engine.setRoomPasswordAllowed(false);
+						System.out.println("部屋パスワードを 禁止 に設定しました");
+					}
+				}
+			}
+		});
+		handlers.put("notify", new CommandHandler() {
+			@Override
+			public void process(String message) {
+				if (Utility.isEmpty(message))
+					return;
+
+				engine.notifyAllPlayers(message);
+				System.out.println("メッセージを告知しました : " + message);
+			}
+		});
+		handlers.put("destroy", new CommandHandler() {
+			@Override
+			public void process(String masterName) {
+				if (Utility.isEmpty(masterName))
+					return;
+
+				if (engine.destroyRoom(masterName)) {
+					System.out.println("部屋を解体しました : " + masterName);
+				} else {
+					System.out.println("部屋を解体できませんでした");
+				}
+			}
+		});
+		handlers.put("goma", new CommandHandler() {
+			@Override
+			public void process(String masterName) {
+				if (Utility.isEmpty(masterName))
+					return;
+
+				engine.hirakeGoma(masterName);
+				System.out.println("部屋に入れるようになりました : " + masterName);
+			}
+		});
 
 		BufferedReader reader = new BufferedReader(new InputStreamReader(System.in));
 		String line;
 		while ((line = reader.readLine()) != null) {
-			if ("list".equalsIgnoreCase(line)) {
-				System.out.println(engine.toString());
-			} else if ("shutdown".equalsIgnoreCase(line)) {
-				break;
+			int commandEndIndex = line.indexOf(" ");
+			String command, argument;
+			if (commandEndIndex > 0) {
+				command = line.substring(0, commandEndIndex);
+				argument = line.substring(commandEndIndex + 1);
+			} else {
+				command = line;
+				argument = "";
 			}
+			command = command.toLowerCase();
+			if ("shutdown".equals(command))
+				break;
+
+			CommandHandler handler = handlers.get(command);
+			if (handler != null)
+				handler.process(argument);
 		}
 
 		engine.stop();

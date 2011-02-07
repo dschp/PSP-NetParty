@@ -96,6 +96,7 @@ import org.jnetpcap.protocol.lan.Ethernet;
 
 import pspnetparty.lib.AsyncTcpClient;
 import pspnetparty.lib.AsyncUdpClient;
+import pspnetparty.lib.CommandHandler;
 import pspnetparty.lib.IAsyncClientHandler;
 import pspnetparty.lib.IRoomMasterHandler;
 import pspnetparty.lib.ISocketConnection;
@@ -110,10 +111,6 @@ import pspnetparty.lib.constants.ProtocolConstants;
 import pspnetparty.lib.constants.ProtocolConstants.Search;
 
 public class PlayClient {
-
-	private interface CommandHandler {
-		public void process(String argument);
-	}
 
 	private static final int CAPTURE_BUFFER_SIZE = 2000;
 	private static final int MAX_SERVER_HISTORY = 10;
@@ -2752,6 +2749,8 @@ public class PlayClient {
 			handlers.put(ProtocolConstants.Room.NOTIFY_ROOM_PLAYER_KICKED, new NotifyRoomPlayerKickedHandler());
 			handlers.put(ProtocolConstants.Room.NOTIFY_ROOM_MASTER_AUTH_CODE, new NotifyRoomMasterAuthCodeHandler());
 			handlers.put(ProtocolConstants.Room.NOTIFY_ROOM_PASSWORD_REQUIRED, new NotifyRoomPasswordRequiredHandler());
+			handlers.put(ProtocolConstants.Room.NOTIFY_FROM_ADMIN, new NotifyFromAdminHandler());
+			handlers.put(ProtocolConstants.Room.NOTIFY_ROOM_DELETED, new NotifyRoomDeletedHandler());
 			handlers.put(ProtocolConstants.Room.ERROR_LOGIN_DUPLICATED_NAME, new ErrorLoginDuplicatedNameHandler());
 			handlers.put(ProtocolConstants.Room.ERROR_LOGIN_ROOM_NOT_EXIST, new ErrorLoginRoomNotExistHandler());
 			handlers.put(ProtocolConstants.Room.ERROR_LOGIN_BEYOND_CAPACITY, new ErrorLoginBeyondCapacityHandler());
@@ -3044,6 +3043,20 @@ public class PlayClient {
 
 				TraficStatistics stats = traficStatsMap.get(tokens[0]);
 				stats.playerName = tokens[1];
+			}
+		}
+		
+		private class NotifyFromAdminHandler implements CommandHandler {
+			@Override
+			public void process(String message) {
+				appendLogTo(window.roomChatLogText, message, window.colorServerInfo, true);
+			}
+		}
+		
+		private class NotifyRoomDeletedHandler implements CommandHandler {
+			@Override
+			public void process(String argument) {
+				appendLogTo(window.roomChatLogText, "部屋が削除されました", window.colorRoomInfo, true);
 			}
 		}
 

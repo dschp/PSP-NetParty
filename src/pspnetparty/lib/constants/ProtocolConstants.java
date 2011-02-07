@@ -46,7 +46,7 @@ public class ProtocolConstants {
 		public static final String COMMAND_ROOM_KICK_PLAYER = "RK";
 		public static final String COMMAND_ROOM_MASTER_TRANSFER = "RT";
 
-		public static final String COMMAND_ADMIN_NOTIFY = "AN";
+		public static final String NOTIFY_FROM_ADMIN = "AN";
 
 		public static final String COMMAND_INFORM_TUNNEL_UDP_PORT = "IU";
 		public static final String COMMAND_MAC_ADDRESS_PLAYER = "MAP";

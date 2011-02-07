@@ -18,9 +18,14 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 package pspnetparty.lib;
 
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.IOException;
 import java.io.PrintWriter;
+import java.io.RandomAccessFile;
 import java.io.StringWriter;
 import java.nio.ByteBuffer;
+import java.nio.channels.FileChannel;
 
 import org.jnetpcap.protocol.lan.Ethernet;
 
@@ -30,7 +35,7 @@ public class Utility {
 
 	private Utility() {
 	}
-	
+
 	public static String decode(ByteBuffer buffer) {
 		return AppConstants.CHARSET.decode(buffer).toString();
 	}
@@ -97,9 +102,27 @@ public class Utility {
 	public static boolean isMacBroadCastAddress(String macAddress) {
 		return "FFFFFFFFFFFF".equals(macAddress);
 	}
-	
+
 	public static String makeAuthCode() {
 		return Long.toString(System.currentTimeMillis());
+	}
+
+	public static String getFileContent(File file) {
+		if (file == null || !file.isFile())
+			return "";
+		try {
+			RandomAccessFile raf = new RandomAccessFile(file, "r");
+			FileChannel fc = raf.getChannel();
+			ByteBuffer buffer = ByteBuffer.allocate((int) fc.size());
+			fc.read(buffer);
+			raf.close();
+			return new String(buffer.array(), AppConstants.CHARSET);
+		} catch (FileNotFoundException e) {
+			e.printStackTrace();
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+		return "";
 	}
 
 	public static void main(String[] args) {
@@ -115,7 +138,7 @@ public class Utility {
 		System.out.println(mac);
 
 		System.out.println(ByteBuffer.allocateDirect(100));
-		
+
 		System.out.println(trim("EAG", 10));
 		System.out.println(trim("EAGkljhklglkgWGQWW", 10));
 	}

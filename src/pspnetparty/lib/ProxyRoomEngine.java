@@ -18,6 +18,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 package pspnetparty.lib;
 
+import java.io.File;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
@@ -41,8 +42,10 @@ public class ProxyRoomEngine {
 	private IServer<TunnelState> tunnelServer;
 	private TunnelHandler tunnelHandler;
 
+	private int port = -1;
 	private int maxRooms = 10;
 	private boolean passwordAllowed = true;
+	private File loginMessageFile;
 
 	private boolean isStarted = false;
 	private ILogger logger;
@@ -69,6 +72,7 @@ public class ProxyRoomEngine {
 		roomServer.startListening(bindAddress, roomHandler);
 		tunnelServer.startListening(bindAddress, tunnelHandler);
 
+		this.port = port;
 		isStarted = true;
 	}
 
@@ -78,6 +82,15 @@ public class ProxyRoomEngine {
 
 		roomServer.stopListening();
 		tunnelServer.stopListening();
+		this.port = -1;
+	}
+
+	public int getPort() {
+		return port;
+	}
+
+	public int getCurrentRooms() {
+		return masterNameRoomMap.size();
 	}
 
 	public int getMaxRooms() {
@@ -89,28 +102,73 @@ public class ProxyRoomEngine {
 			this.maxRooms = maxRooms;
 	}
 
-	public boolean isPasswordAllowed() {
+	public boolean isRoomPasswordAllowed() {
 		return passwordAllowed;
 	}
 
-	public void setPasswordAllowed(boolean passwordAllowed) {
+	public void setRoomPasswordAllowed(boolean passwordAllowed) {
 		this.passwordAllowed = passwordAllowed;
+	}
+
+	public void setLoginMessageFile(String loginMessageFile) {
+		if (Utility.isEmpty(loginMessageFile)) {
+			this.loginMessageFile = null;
+		} else {
+			this.loginMessageFile = new File(loginMessageFile);
+		}
 	}
 
 	@Override
 	public String toString() {
 		StringBuilder sb = new StringBuilder();
-		synchronized (masterNameRoomMap) {
-			for (Entry<String, Room> entry : masterNameRoomMap.entrySet()) {
-				Room room = entry.getValue();
-				sb.append(entry.getKey());
-				sb.append('\t').append(room.title);
-				sb.append('\t').append(room.playersByName.size()).append('/').append(room.maxPlayers);
-				sb.append('\t').append(room.password);
-				sb.append(AppConstants.NEW_LINE);
-			}
+		for (Entry<String, Room> entry : masterNameRoomMap.entrySet()) {
+			Room room = entry.getValue();
+			sb.append(entry.getKey());
+			sb.append('\t').append(room.title);
+			sb.append('\t').append(room.playersByName.size()).append('/').append(room.maxPlayers);
+			sb.append('\t').append(room.password);
+			sb.append(AppConstants.NEW_LINE);
 		}
 		return sb.toString();
+	}
+
+	public void notifyAllPlayers(String message) {
+		final String notify = ProtocolConstants.Room.NOTIFY_FROM_ADMIN + ProtocolConstants.ARGUMENT_SEPARATOR + message;
+		IClientStateAction<PlayerState> action = new IClientStateAction<ProxyRoomEngine.PlayerState>() {
+			@Override
+			public void action(PlayerState p) {
+				p.connection.send(notify);
+			}
+		};
+		for (Entry<String, Room> entry : masterNameRoomMap.entrySet()) {
+			Room room = entry.getValue();
+			room.forEachPlayer(action);
+		}
+	}
+
+	public boolean destroyRoom(String masterName) {
+		Room room = masterNameRoomMap.remove(masterName);
+		if (room == null)
+			return false;
+
+		room.forEachPlayer(new IClientStateAction<ProxyRoomEngine.PlayerState>() {
+			@Override
+			public void action(PlayerState p) {
+				p.room = null;
+				p.name = "";
+				p.connection.send(ProtocolConstants.Room.NOTIFY_ROOM_DELETED);
+				p.connection.disconnect();
+			}
+		});
+		return true;
+	}
+
+	public void hirakeGoma(String masterName) {
+		Room room = masterNameRoomMap.get(masterName);
+		if (room == null)
+			return;
+
+		room.maxPlayers++;
 	}
 
 	private static class PlayerState implements IClientState {
@@ -181,6 +239,16 @@ public class ProxyRoomEngine {
 		}
 	}
 
+	private void appendLoginMessage(StringBuilder sb) {
+		String loginMessage = Utility.getFileContent(loginMessageFile);
+		if (!Utility.isEmpty(loginMessage)) {
+			sb.append(ProtocolConstants.MESSAGE_SEPARATOR);
+			sb.append(ProtocolConstants.Room.NOTIFY_FROM_ADMIN);
+			sb.append(ProtocolConstants.ARGUMENT_SEPARATOR);
+			sb.append(loginMessage);
+		}
+	}
+
 	private class RoomHandler implements IAsyncServerHandler<PlayerState> {
 
 		private HashMap<String, IServerMessageHandler<PlayerState>> protocolHandlers = new HashMap<String, IServerMessageHandler<PlayerState>>();
@@ -239,11 +307,11 @@ public class ProxyRoomEngine {
 				state.tunnelState = null;
 			}
 
-			String name = state.name;
 			Room room = state.room;
 			if (room == null)
 				return;
 
+			String name = state.name;
 			room.playersByName.remove(name);
 
 			if (state == room.roomMaster) {
@@ -453,6 +521,8 @@ public class ProxyRoomEngine {
 				sb.append(ProtocolConstants.ARGUMENT_SEPARATOR);
 				sb.append(newRoom.roomMasterAuthCode);
 
+				appendLoginMessage(sb);
+
 				state.getConnection().send(sb.toString());
 
 				return true;
@@ -535,6 +605,8 @@ public class ProxyRoomEngine {
 
 				sb.append(ProtocolConstants.MESSAGE_SEPARATOR);
 				room.appendNotifyUserList(sb);
+
+				appendLoginMessage(sb);
 
 				state.getConnection().send(sb.toString());
 
@@ -878,8 +950,9 @@ public class ProxyRoomEngine {
 
 		@Override
 		public void disposeState(TunnelState state) {
+			state.room = null;
+			state.playerName = "";
 			notYetLinkedTunnels.remove(state.getConnection().getRemoteAddress());
-			// tunnelRoomMap.remove(state);
 		}
 
 		@Override

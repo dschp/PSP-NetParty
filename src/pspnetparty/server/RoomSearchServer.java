@@ -20,7 +20,9 @@ package pspnetparty.server;
 
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
+import java.util.HashMap;
 
+import pspnetparty.lib.CommandHandler;
 import pspnetparty.lib.ILogger;
 import pspnetparty.lib.IniParser;
 import pspnetparty.lib.RoomSearchEngine;
@@ -61,11 +63,11 @@ public class RoomSearchServer {
 			System.out.println("部屋の詳細・備考の最大サイズが不正です: " + descriptionMaxLength);
 			return;
 		}
-		System.out.println("部屋の詳細・備考の最大サイズ: " + descriptionMaxLength);
+		System.out.println("部屋の詳細・備考の最大文字数: " + descriptionMaxLength);
 
 		parser.saveToIni();
 
-		RoomSearchEngine engine = new RoomSearchEngine(new ILogger() {
+		final RoomSearchEngine engine = new RoomSearchEngine(new ILogger() {
 			@Override
 			public void log(String message) {
 				System.out.println(message);
@@ -76,14 +78,78 @@ public class RoomSearchServer {
 
 		engine.start(port);
 
+		HashMap<String, CommandHandler> handlers = new HashMap<String, CommandHandler>();
+		handlers.put("help", new CommandHandler() {
+			@Override
+			public void process(String argument) {
+				System.out.println("shutdown\n\tサーバーを終了させる");
+				System.out.println("list\n\t現在の全登録を表示");
+				System.out.println("status\n\t現在のサーバーの状態を表示");
+				System.out.println("set MaxSearchResults 最大件数\n\t最大検索件数を設定");
+				System.out.println("set DescriptionMaxLength 文字数\n\t部屋の紹介・備考の最大文字数を設定");
+			}
+		});
+		handlers.put("list", new CommandHandler() {
+			@Override
+			public void process(String argument) {
+				System.out.println(engine.toString());
+			}
+		});
+		handlers.put("status", new CommandHandler() {
+			@Override
+			public void process(String argument) {
+				System.out.println("ポート: " + engine.getPort());
+				System.out.println("登録部屋数: " + engine.getRoomEntryCount());
+				System.out.println("最大検索件数: " + engine.getMaxSearchResults());
+				System.out.println("部屋の紹介・備考の最大文字数: " + engine.getDescriptionMaxLength());
+			}
+		});
+		handlers.put("set", new CommandHandler() {
+			@Override
+			public void process(String argument) {
+				String[] tokens = argument.split(" ");
+				if (tokens.length != 2)
+					return;
+
+				String key = tokens[0];
+				String value = tokens[1];
+				if (IniConstants.Server.MAX_SEARCH_RESULTS.equals(key)) {
+					try {
+						int max = Integer.parseInt(value);
+						engine.setMaxSearchResults(max);
+						System.out.println("最大検索件数を " + max + " に設定しました");
+					} catch (NumberFormatException e) {
+					}
+				} else if (IniConstants.Server.DESCRIPTION_MAX_LENGTH.equals(key)) {
+					try {
+						int max = Integer.parseInt(value);
+						engine.setDescriptionMaxLength(max);
+						System.out.println("部屋の紹介・備考の最大文字数を " + max + " に設定しました");
+					} catch (NumberFormatException e) {
+					}
+				}
+			}
+		});
+		
 		BufferedReader reader = new BufferedReader(new InputStreamReader(System.in));
 		String line;
 		while ((line = reader.readLine()) != null) {
-			if ("list".equalsIgnoreCase(line)) {
-				System.out.println(engine.toString());
-			} else if ("shutdown".equalsIgnoreCase(line)) {
-				break;
+			int commandEndIndex = line.indexOf(" ");
+			String command, argument;
+			if (commandEndIndex > 0) {
+				command = line.substring(0, commandEndIndex);
+				argument = line.substring(commandEndIndex + 1);
+			} else {
+				command = line;
+				argument = "";
 			}
+			command = command.toLowerCase();
+			if ("shutdown".equals(command))
+				break;
+
+			CommandHandler handler = handlers.get(command);
+			if (handler != null)
+				handler.process(argument);
 		}
 
 		engine.stop();
