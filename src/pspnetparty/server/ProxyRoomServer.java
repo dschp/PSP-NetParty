@@ -118,14 +118,14 @@ public class ProxyRoomServer {
 
 				String key = tokens[0];
 				String value = tokens[1];
-				if (IniConstants.Server.MAX_ROOMS.equals(key)) {
+				if (IniConstants.Server.MAX_ROOMS.equalsIgnoreCase(key)) {
 					try {
 						int max = Integer.parseInt(value);
 						engine.setMaxRooms(max);
 						System.out.println("最大部屋数が " + max + " に変更されました");
 					} catch (NumberFormatException e) {
 					}
-				} else if (IniConstants.Server.ALLOW_ROOM_PASSWORD.equals(key)) {
+				} else if (IniConstants.Server.ALLOW_ROOM_PASSWORD.equalsIgnoreCase(key)) {
 					value = value.toLowerCase();
 					if ("yes".equals(value) || "y".equals(value)) {
 						engine.setRoomPasswordAllowed(true);

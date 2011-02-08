@@ -113,14 +113,14 @@ public class RoomSearchServer {
 
 				String key = tokens[0];
 				String value = tokens[1];
-				if (IniConstants.Server.MAX_SEARCH_RESULTS.equals(key)) {
+				if (IniConstants.Server.MAX_SEARCH_RESULTS.equalsIgnoreCase(key)) {
 					try {
 						int max = Integer.parseInt(value);
 						engine.setMaxSearchResults(max);
 						System.out.println("最大検索件数を " + max + " に設定しました");
 					} catch (NumberFormatException e) {
 					}
-				} else if (IniConstants.Server.DESCRIPTION_MAX_LENGTH.equals(key)) {
+				} else if (IniConstants.Server.DESCRIPTION_MAX_LENGTH.equalsIgnoreCase(key)) {
 					try {
 						int max = Integer.parseInt(value);
 						engine.setDescriptionMaxLength(max);
