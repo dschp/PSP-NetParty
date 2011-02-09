@@ -48,7 +48,7 @@ public class AsyncTcpClient {
 
 	private Thread selectorThread;
 
-	public AsyncTcpClient(int maxPacketSize) {
+	public AsyncTcpClient(int maxPacketSize, final int selectTimeout) {
 		this.maxPacketSize = maxPacketSize;
 		this.initialReadBufferSize = Math.min(maxPacketSize, 2000);
 		
@@ -64,7 +64,7 @@ public class AsyncTcpClient {
 			public void run() {
 				try {
 					while (selector.isOpen()) {
-						int s = selector.select();
+						int s = selector.select(selectTimeout);
 						// System.out.println("Select: " + s);
 						if (s > 0) {
 							for (Iterator<SelectionKey> it = selector.selectedKeys().iterator(); it.hasNext();) {
@@ -96,7 +96,7 @@ public class AsyncTcpClient {
 				} catch (IOException e) {
 				}
 			}
-		}, AsyncTcpClient.class.getName() + " Selector");
+		}, AsyncTcpClient.class.getName());
 		selectorThread.setDaemon(true);
 		selectorThread.start();
 	}
@@ -273,7 +273,7 @@ public class AsyncTcpClient {
 	}
 
 	public static void main(String[] args) throws Exception {
-		final AsyncTcpClient client = new AsyncTcpClient(100000);
+		final AsyncTcpClient client = new AsyncTcpClient(100000, 0);
 		final InetSocketAddress address = new InetSocketAddress("localhost", 30000);
 		final ISocketConnection conn = client.connect(address, new IAsyncClientHandler() {
 			@Override

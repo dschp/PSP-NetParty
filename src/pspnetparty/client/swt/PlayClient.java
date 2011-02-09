@@ -61,7 +61,6 @@ import org.eclipse.swt.graphics.Font;
 import org.eclipse.swt.graphics.Image;
 import org.eclipse.swt.graphics.ImageData;
 import org.eclipse.swt.graphics.Point;
-import org.eclipse.swt.layout.FillLayout;
 import org.eclipse.swt.layout.FormAttachment;
 import org.eclipse.swt.layout.FormData;
 import org.eclipse.swt.layout.FormLayout;
@@ -137,7 +136,7 @@ public class PlayClient {
 
 	private RoomEngine roomEngine;
 
-	private AsyncTcpClient tcpClient = new AsyncTcpClient(1000000);
+	private AsyncTcpClient tcpClient = new AsyncTcpClient(1000000, 0);
 	private AsyncUdpClient udpClient = new AsyncUdpClient();
 
 	private RoomClientHandler roomClientHandler = new RoomClientHandler();
@@ -292,16 +291,16 @@ public class PlayClient {
 		private Label wlanAdapterListLabel;
 		private Combo wlanAdapterListCombo;
 		private Button wlanPspCommunicationButton;
-		private Button roomChatSubmitButton;
-		private Text roomChatText;
 		private SashForm roomSubSashForm;
-		private StyledText roomChatLogText;
+		private TableViewer packetMonitorTable;
 		private SashForm roomInfoSashForm;
+		private StyledText roomChatLogText;
 		private TableViewer roomPlayerListTable;
 		private TableColumn roomPlayerNameColumn;
 		private TableColumn roomPlayerPingColumn;
-		private Composite packetMonitorContainer;
-		private TableViewer packetMonitorTable;
+		private Composite roomChatCommandContainer;
+		private Text roomChatSubmitText;
+		private Button roomChatSubmitButton;
 		private TabItem configTab;
 		private Composite configContainer;
 		private Label configUserNameLabel;
@@ -652,21 +651,21 @@ public class PlayClient {
 			roomFormSearchServerCombo.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
 
 			roomChatContainer = new Composite(roomMainSashForm, SWT.NONE);
-			roomChatContainer.setLayout(new FormLayout());
+			gridLayout = new GridLayout(1, false);
+			gridLayout.verticalSpacing = 0;
+			gridLayout.horizontalSpacing = 0;
+			gridLayout.marginHeight = 0;
+			gridLayout.marginWidth = 0;
+			roomChatContainer.setLayout(gridLayout);
 
 			wlanAdaptorContainer = new Composite(roomChatContainer, SWT.NONE);
 			gridLayout = new GridLayout(3, false);
 			gridLayout.verticalSpacing = 0;
-			gridLayout.horizontalSpacing = 5;
-			gridLayout.marginHeight = 1;
+			gridLayout.horizontalSpacing = 3;
+			gridLayout.marginHeight = 3;
 			gridLayout.marginWidth = 2;
-			gridLayout.marginTop = 3;
 			wlanAdaptorContainer.setLayout(gridLayout);
-			formData = new FormData();
-			formData.top = new FormAttachment(0, 0);
-			formData.left = new FormAttachment(0, 0);
-			formData.right = new FormAttachment(100, 0);
-			wlanAdaptorContainer.setLayoutData(formData);
+			wlanAdaptorContainer.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
 
 			wlanAdapterListLabel = new Label(wlanAdaptorContainer, SWT.NONE);
 			wlanAdapterListLabel.setText("無線LANアダプタ");
@@ -677,35 +676,10 @@ public class PlayClient {
 			wlanPspCommunicationButton = new Button(wlanAdaptorContainer, SWT.TOGGLE);
 			wlanPspCommunicationButton.setText("PSPと通信開始");
 
-			roomChatText = new Text(roomChatContainer, SWT.BORDER | SWT.SINGLE);
-
-			roomChatSubmitButton = new Button(roomChatContainer, SWT.PUSH);
-			roomChatSubmitButton.setText("発言");
-			formData = new FormData(50, SWT.DEFAULT);
-			formData.bottom = new FormAttachment(100, -2);
-			formData.right = new FormAttachment(100, -1);
-			roomChatSubmitButton.setLayoutData(formData);
-
-			formData = new FormData();
-			formData.left = new FormAttachment(0, 0);
-			formData.bottom = new FormAttachment(100, -2);
-			formData.right = new FormAttachment(roomChatSubmitButton, -3);
-			roomChatText.setLayoutData(formData);
-			roomChatText.setFont(new Font(shell.getDisplay(), "Sans Serif", 12, SWT.NORMAL));
-			roomChatText.setTextLimit(300);
-
 			roomSubSashForm = new SashForm(roomChatContainer, SWT.SMOOTH | SWT.VERTICAL);
-			formData = new FormData();
-			formData.left = new FormAttachment(0, 0);
-			formData.top = new FormAttachment(wlanAdaptorContainer, 3);
-			formData.bottom = new FormAttachment(roomChatText, -3);
-			formData.right = new FormAttachment(100, -1);
-			roomSubSashForm.setLayoutData(formData);
+			roomSubSashForm.setLayoutData(new GridData(SWT.FILL, SWT.FILL, true, true));
 
-			packetMonitorContainer = new Composite(roomSubSashForm, SWT.NONE);
-			packetMonitorContainer.setLayout(new FillLayout());
-
-			packetMonitorTable = new TableViewer(packetMonitorContainer, SWT.SINGLE | SWT.BORDER | SWT.FULL_SELECTION);
+			packetMonitorTable = new TableViewer(roomSubSashForm, SWT.SINGLE | SWT.BORDER | SWT.FULL_SELECTION);
 			packetMonitorTable.getTable().setHeaderVisible(true);
 
 			TableColumn packetMonitorIsMineColumn = new TableColumn(packetMonitorTable.getTable(), SWT.CENTER);
@@ -766,6 +740,27 @@ public class PlayClient {
 
 			roomPlayerListTable.setContentProvider(new Player.PlayerListContentProvider());
 			roomPlayerListTable.setLabelProvider(new Player.RoomPlayerLabelProvider());
+
+			roomChatCommandContainer = new Composite(roomChatContainer, SWT.NONE);
+			gridLayout = new GridLayout(2, false);
+			gridLayout.verticalSpacing = 0;
+			gridLayout.horizontalSpacing = 3;
+			gridLayout.marginHeight = 0;
+			gridLayout.marginWidth = 0;
+			gridLayout.marginTop = 3;
+			gridLayout.marginBottom = 1;
+			gridLayout.marginRight = 1;
+			roomChatCommandContainer.setLayout(gridLayout);
+			roomChatCommandContainer.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+
+			roomChatSubmitText = new Text(roomChatCommandContainer, SWT.BORDER | SWT.SINGLE);
+			roomChatSubmitText.setFont(new Font(shell.getDisplay(), "Sans Serif", 12, SWT.NORMAL));
+			roomChatSubmitText.setTextLimit(300);
+			roomChatSubmitText.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+
+			roomChatSubmitButton = new Button(roomChatCommandContainer, SWT.PUSH);
+			roomChatSubmitButton.setText("発言");
+			roomChatSubmitButton.setLayoutData(new GridData(50, SWT.DEFAULT));
 
 			configTab = new TabItem(mainTabFolder, SWT.NONE);
 			configTab.setText("設定");
@@ -1024,7 +1019,7 @@ public class PlayClient {
 			}
 		});
 
-		window.roomChatText.addKeyListener(new KeyListener() {
+		window.roomChatSubmitText.addKeyListener(new KeyListener() {
 			@Override
 			public void keyReleased(KeyEvent e) {
 			}
@@ -1072,9 +1067,7 @@ public class PlayClient {
 		window.roomFormEditButton.addListener(SWT.Selection, new Listener() {
 			@Override
 			public void handleEvent(Event event) {
-				if (commitRoomEditForm()) {
-					updateMasterSearchRoomInfo();
-				}
+				commitRoomEditForm();
 			}
 		});
 
@@ -1084,9 +1077,11 @@ public class PlayClient {
 				if (searchEntryConnection != null && searchEntryConnection.isConnected()) {
 					searchEntryConnection.send(ProtocolConstants.Search.COMMAND_LOGOUT);
 				} else {
-					if (window.roomFormEditButton.getEnabled() && !commitRoomEditForm()) {
-						window.roomFormSearchServerButton.setSelection(false);
-						return;
+					if (window.roomFormEditButton.getEnabled()) {
+						if (!commitRoomEditForm()) {
+							window.roomFormSearchServerButton.setSelection(false);
+							return;
+						}
 					}
 					if (!connectToSearchServerAsMaster()) {
 						window.roomFormSearchServerButton.setSelection(false);
@@ -1423,8 +1418,8 @@ public class PlayClient {
 					}
 				};
 
-				while (!shell.isDisposed()) {
-					try {
+				try {
+					while (!shell.isDisposed()) {
 						synchronized (packetMonitorThread) {
 							if (!isPacketCapturing && !tunnelIsLinked)
 								packetMonitorThread.wait();
@@ -1452,15 +1447,15 @@ public class PlayClient {
 								}
 							}
 
-							syncExec(refreshAction);
+							display.syncExec(refreshAction);
 
 							Thread.sleep(intervalMillis);
 						}
 
-						syncExec(clearAction);
-					} catch (InterruptedException e) {
-						break;
+						display.syncExec(clearAction);
 					}
+				} catch (SWTException e) {
+				} catch (InterruptedException e) {
 				}
 			}
 		}, "PacketMonitorThread");
@@ -1469,9 +1464,31 @@ public class PlayClient {
 		packetCaptureThread = new Thread(new Runnable() {
 			@Override
 			public void run() {
+				Runnable prepareCaptureEndAction = new Runnable() {
+					@Override
+					public void run() {
+						try {
+							isPacketCapturing = false;
+							window.wlanPspCommunicationButton.setEnabled(false);
+						} catch (SWTException e) {
+						}
+					}
+				};
+				Runnable captureEndAction = new Runnable() {
+					@Override
+					public void run() {
+						try {
+							window.wlanAdapterListCombo.setEnabled(true);
+							window.wlanPspCommunicationButton.setText("PSPと通信開始");
+							window.wlanPspCommunicationButton.setEnabled(true);
+						} catch (SWTException e) {
+						}
+					}
+				};
+
 				PcapPacket packet;
-				while (!shell.isDisposed()) {
-					try {
+				try {
+					while (!shell.isDisposed()) {
 						synchronized (packetCaptureThread) {
 							if (!isPacketCapturing)
 								packetCaptureThread.wait();
@@ -1487,17 +1504,7 @@ public class PlayClient {
 								break;
 							case -1:
 							case -2:
-								Runnable run = new Runnable() {
-									@Override
-									public void run() {
-										try {
-											isPacketCapturing = false;
-											window.wlanPspCommunicationButton.setEnabled(false);
-										} catch (SWTException e) {
-										}
-									}
-								};
-								syncExec(run);
+								display.syncExec(prepareCaptureEndAction);
 								break;
 							}
 						}
@@ -1505,19 +1512,10 @@ public class PlayClient {
 						currentPcapDevice.close();
 						currentPcapDevice = null;
 
-						syncExec(new Runnable() {
-							@Override
-							public void run() {
-								try {
-									window.wlanAdapterListCombo.setEnabled(true);
-									window.wlanPspCommunicationButton.setText("PSPと通信開始");
-									window.wlanPspCommunicationButton.setEnabled(true);
-								} catch (SWTException e) {
-								}
-							}
-						});
-					} catch (InterruptedException e) {
+						display.syncExec(captureEndAction);
 					}
+				} catch (SWTException e) {
+				} catch (InterruptedException e) {
 				}
 			}
 		}, "PacketCaptureThread");
@@ -1585,30 +1583,8 @@ public class PlayClient {
 		thread.start();
 	}
 
-	private void asyncExec(Runnable action) {
-		if (display.isDisposed())
-			return;
-		try {
-			if (Thread.currentThread() == display.getThread()) {
-				action.run();
-			} else {
-				display.asyncExec(action);
-			}
-		} catch (SWTException e) {
-		}
-	}
-
-	private void syncExec(Runnable action) {
-		if (display.isDisposed())
-			return;
-		try {
-			if (Thread.currentThread() == display.getThread()) {
-				action.run();
-			} else {
-				display.syncExec(action);
-			}
-		} catch (SWTException e) {
-		}
+	private boolean isNotSwtUIThread() {
+		return Thread.currentThread() != display.getThread();
 	}
 
 	private void updateRoomModeSelection() {
@@ -1912,8 +1888,11 @@ public class PlayClient {
 			roomEngine.updateRoom();
 
 			appendLogTo(window.roomChatLogText, "部屋情報を更新しました", window.colorRoomInfo, false);
-			window.roomChatText.setFocus();
+			window.roomChatSubmitText.setFocus();
 
+			lastUpdatedMaxPlayers = window.roomFormMaxPlayersSpiner.getSelection();
+
+			updateMasterSearchRoomInfo();
 			break;
 		case ProxyRoomMaster:
 			StringBuilder sb = new StringBuilder();
@@ -1925,23 +1904,21 @@ public class PlayClient {
 			break;
 		}
 
-		lastUpdatedMaxPlayers = window.roomFormMaxPlayersSpiner.getSelection();
-
 		return true;
 	}
 
 	private void sendChat() {
-		String command = window.roomChatText.getText();
+		String command = window.roomChatSubmitText.getText();
 		if (!Utility.isEmpty(command)) {
 			switch (currentRoomState) {
 			case RoomMaster:
 				roomEngine.sendChat(command);
-				window.roomChatText.setText("");
+				window.roomChatSubmitText.setText("");
 				break;
 			case RoomParticipant:
 			case ProxyRoomMaster:
 				roomConnection.send(ProtocolConstants.Room.COMMAND_CHAT + ProtocolConstants.ARGUMENT_SEPARATOR + command);
-				window.roomChatText.setText("");
+				window.roomChatSubmitText.setText("");
 				break;
 			default:
 				appendLogTo(window.roomChatLogText, "サーバーにログインしていません", window.colorLogInfo, false);
@@ -1953,181 +1930,219 @@ public class PlayClient {
 		if (Utility.isEmpty(message))
 			return;
 
-		Runnable run = new Runnable() {
-			@Override
-			public void run() {
-				try {
-					if (color == null) {
-						text.append(message);
-						text.append("\n");
-
-						text.setTopIndex(text.getLineCount());
-					} else {
-						StyleRange range = new StyleRange();
-						range.start = text.getCharCount();
-						range.length = message.length();
-						range.foreground = color;
-
-						text.append(message);
-						text.append("\n");
-
-						text.setStyleRange(range);
-						text.setTopIndex(text.getLineCount());
+		try {
+			if (isNotSwtUIThread()) {
+				display.asyncExec(new Runnable() {
+					@Override
+					public void run() {
+						appendLogTo(text, message, color, inform);
 					}
-					if (window.configEnableBalloonCheck.getSelection() && inform && !window.isActive && window.toolTip != null) {
-						window.toolTip.setText(shell.getText());
-						window.toolTip.setMessage(message);
-						window.toolTip.setVisible(true);
-					}
-				} catch (SWTException e) {
-				}
+				});
+				return;
 			}
-		};
-		asyncExec(run);
+
+			if (color == null) {
+				text.append(message);
+				text.append("\n");
+
+				text.setTopIndex(text.getLineCount());
+			} else {
+				StyleRange range = new StyleRange();
+				range.start = text.getCharCount();
+				range.length = message.length();
+				range.foreground = color;
+
+				text.append(message);
+				text.append("\n");
+
+				text.setStyleRange(range);
+				text.setTopIndex(text.getLineCount());
+			}
+			if (window.configEnableBalloonCheck.getSelection() && inform && !window.isActive && window.toolTip != null) {
+				window.toolTip.setText(shell.getText());
+				window.toolTip.setMessage(message);
+				window.toolTip.setVisible(true);
+			}
+		} catch (SWTException e) {
+		}
 	}
 
 	private void appendLogTo(final Text text, final String message) {
 		if (Utility.isEmpty(message))
 			return;
 
-		Runnable run = new Runnable() {
-			@Override
-			public void run() {
-				try {
-					text.append(message);
-					text.append("\n");
-					text.setTopIndex(text.getLineCount());
-				} catch (SWTException e) {
-				}
+		try {
+			if (isNotSwtUIThread()) {
+				display.asyncExec(new Runnable() {
+					@Override
+					public void run() {
+						appendLogTo(text, message);
+					}
+				});
+				return;
 			}
-		};
-		asyncExec(run);
+
+			text.append(message);
+			text.append("\n");
+			text.setTopIndex(text.getLineCount());
+		} catch (SWTException e) {
+		}
 	}
 
 	private void updateServerAddress() {
-		asyncExec(new Runnable() {
-			@Override
-			public void run() {
-				try {
-					switch (currentRoomState) {
-					case Offline:
-						window.statusServerAddressLabel.setText("部屋にログインしていません");
-						break;
-					default:
-						String roomAddress;
-						if (roomMasterName.equals("")) {
-							roomAddress = roomServerAddressPort;
-						} else {
-							roomAddress = roomServerAddressPort + ":" + roomMasterName;
-						}
-
-						window.statusServerAddressLabel.setText("部屋サーバー  " + roomAddress);
+		try {
+			if (isNotSwtUIThread()) {
+				display.asyncExec(new Runnable() {
+					@Override
+					public void run() {
+						updateServerAddress();
 					}
-					window.statusBarContainer.layout();
-				} catch (SWTException e) {
-				}
+				});
+				return;
 			}
-		});
+
+			switch (currentRoomState) {
+			case Offline:
+				window.statusServerAddressLabel.setText("部屋にログインしていません");
+				break;
+			default:
+				String roomAddress;
+				if (roomMasterName.equals("")) {
+					roomAddress = roomServerAddressPort;
+				} else {
+					roomAddress = roomServerAddressPort + ":" + roomMasterName;
+				}
+
+				window.statusServerAddressLabel.setText("部屋サーバー  " + roomAddress);
+			}
+			window.statusBarContainer.layout();
+		} catch (SWTException e) {
+		}
 	}
 
-	private void updateTunnelStatus(boolean isLinked) {
-		tunnelIsLinked = isLinked;
-
-		asyncExec(new Runnable() {
-			@Override
-			public void run() {
-				try {
-					if (tunnelIsLinked) {
-						window.statusTunnelConnectionLabel.setForeground(window.colorGreen);
-						window.statusTunnelConnectionLabel.setText(" UDPトンネル接続中 ");
-					} else {
-						window.statusTunnelConnectionLabel.setForeground(window.colorRed);
-						window.statusTunnelConnectionLabel.setText(" UDPトンネル未接続 ");
+	private void updateTunnelStatus(final boolean isLinked) {
+		try {
+			if (isNotSwtUIThread()) {
+				display.asyncExec(new Runnable() {
+					@Override
+					public void run() {
+						updateTunnelStatus(isLinked);
 					}
-					window.statusBarContainer.layout();
-				} catch (SWTException e) {
-				}
+				});
+				return;
 			}
-		});
 
-		if (tunnelIsLinked)
-			wakeupThread(packetMonitorThread);
+			tunnelIsLinked = isLinked;
+			if (tunnelIsLinked)
+				wakeupThread(packetMonitorThread);
+
+			if (tunnelIsLinked) {
+				window.statusTunnelConnectionLabel.setForeground(window.colorGreen);
+				window.statusTunnelConnectionLabel.setText(" UDPトンネル接続中 ");
+			} else {
+				window.statusTunnelConnectionLabel.setForeground(window.colorRed);
+				window.statusTunnelConnectionLabel.setText(" UDPトンネル未接続 ");
+			}
+			window.statusBarContainer.layout();
+		} catch (SWTException e) {
+		}
 	}
 
 	private void updateSearchResultStatus(final String message, final Color color) {
-		asyncExec(new Runnable() {
-			@Override
-			public void run() {
-				window.statusSearchResultLabel.setText(message);
-				window.statusSearchResultLabel.setForeground(color);
-				window.statusBarContainer.layout();
+		try {
+			if (isNotSwtUIThread()) {
+				display.asyncExec(new Runnable() {
+					@Override
+					public void run() {
+						updateSearchResultStatus(message, color);
+					}
+				});
+				return;
 			}
-		});
+
+			window.statusSearchResultLabel.setText(message);
+			window.statusSearchResultLabel.setForeground(color);
+			window.statusBarContainer.layout();
+		} catch (SWTException e) {
+		}
 	}
 
 	private void replacePlayerList(final TableViewer viewer, final String[] players) {
-		Runnable run = new Runnable() {
-			@Override
-			public void run() {
-				try {
-					viewer.getTable().clearAll();
-					roomPlayerMap.clear();
-					for (String name : players) {
-						Player player = new Player(name);
-						roomPlayerMap.put(name, player);
-						viewer.add(player);
+		try {
+			if (isNotSwtUIThread()) {
+				display.asyncExec(new Runnable() {
+					@Override
+					public void run() {
+						replacePlayerList(viewer, players);
 					}
-					viewer.refresh();
-				} catch (SWTException e) {
-				}
+				});
+				return;
 			}
-		};
-		asyncExec(run);
+
+			viewer.getTable().clearAll();
+			roomPlayerMap.clear();
+			for (String name : players) {
+				Player player = new Player(name);
+				roomPlayerMap.put(name, player);
+				viewer.add(player);
+			}
+			viewer.refresh();
+		} catch (SWTException e) {
+		}
 	}
 
 	private void addPlayer(final TableViewer viewer, final String name) {
-		Runnable run = new Runnable() {
-			@Override
-			public void run() {
-				appendLogTo(window.roomChatLogText, name + " が入室しました", window.colorLogInfo, true);
-				try {
-					Player player = new Player(name);
-					@SuppressWarnings("unchecked")
-					HashMap<String, Player> map = (HashMap<String, Player>) viewer.getInput();
-
-					map.put(name, player);
-					viewer.add(player);
-					viewer.refresh();
-
-					updateMasterSearchPlayerCount();
-				} catch (SWTException e) {
-				}
+		try {
+			if (isNotSwtUIThread()) {
+				display.asyncExec(new Runnable() {
+					@Override
+					public void run() {
+						addPlayer(viewer, name);
+					}
+				});
+				return;
 			}
-		};
-		asyncExec(run);
+
+			appendLogTo(window.roomChatLogText, name + " が入室しました", window.colorLogInfo, true);
+
+			Player player = new Player(name);
+			@SuppressWarnings("unchecked")
+			HashMap<String, Player> map = (HashMap<String, Player>) viewer.getInput();
+
+			map.put(name, player);
+			viewer.add(player);
+			viewer.refresh();
+
+			updateMasterSearchPlayerCount();
+		} catch (SWTException e) {
+		}
 	}
 
 	private void removePlayer(final TableViewer viewer, final String name) {
-		Runnable run = new Runnable() {
-			@Override
-			public void run() {
-				try {
-					@SuppressWarnings("unchecked")
-					HashMap<String, Player> map = (HashMap<String, Player>) viewer.getInput();
-
-					Player player = map.remove(name);
-					if (player == null)
-						return;
-
-					viewer.remove(player);
-					viewer.refresh();
-
-					updateMasterSearchPlayerCount();
-				} catch (SWTException e) {
-				}
+		try {
+			if (isNotSwtUIThread()) {
+				display.asyncExec(new Runnable() {
+					@Override
+					public void run() {
+						removePlayer(viewer, name);
+					}
+				});
+				return;
 			}
-		};
-		asyncExec(run);
+
+			@SuppressWarnings("unchecked")
+			HashMap<String, Player> map = (HashMap<String, Player>) viewer.getInput();
+
+			Player player = map.remove(name);
+			if (player == null)
+				return;
+
+			viewer.remove(player);
+			viewer.refresh();
+
+			updateMasterSearchPlayerCount();
+		} catch (SWTException e) {
+		}
 	}
 
 	private void removeExitingPlayer(String name) {
@@ -2149,201 +2164,215 @@ public class PlayClient {
 	}
 
 	private void updatePlayerPing(final String name, final int ping) {
-		Runnable run = new Runnable() {
-			@Override
-			public void run() {
-				try {
-					HashMap<String, Player> map = roomPlayerMap;
-					Player player = map.get(name);
-					if (player == null)
-						return;
-
-					player.setPing(ping);
-					window.roomPlayerListTable.refresh(player);
-				} catch (SWTException e) {
-				}
+		try {
+			if (isNotSwtUIThread()) {
+				display.asyncExec(new Runnable() {
+					@Override
+					public void run() {
+						updatePlayerPing(name, ping);
+					}
+				});
+				return;
 			}
-		};
-		asyncExec(run);
+
+			HashMap<String, Player> map = roomPlayerMap;
+			Player player = map.get(name);
+			if (player == null)
+				return;
+
+			player.setPing(ping);
+			window.roomPlayerListTable.refresh(player);
+		} catch (SWTException e) {
+		}
 	}
 
 	private void updateRoom(final String[] tokens, final boolean isInitialUpdate) {
-		Runnable run = new Runnable() {
-			@Override
-			public void run() {
-				try {
-					String masterName = tokens[0];
-					int maxPlayers = Integer.parseInt(tokens[1]);
-					String title = tokens[2];
-					String password = tokens[3];
-					String description = tokens[4];
-
-					isRoomInfoUpdating = true;
-
-					window.roomFormMasterText.setText(masterName);
-					window.roomFormMaxPlayersSpiner.setSelection(maxPlayers);
-					window.roomFormTitleText.setText(title);
-					window.roomFormPasswordText.setText(password);
-					window.roomFormDescriptionText.setText(description);
-
-					isRoomInfoUpdating = false;
-					window.roomFormEditButton.setEnabled(false);
-
-					if (isInitialUpdate)
-						return;
-
-					appendLogTo(window.roomChatLogText, "部屋情報が更新されました", window.colorRoomInfo, false);
-
-					if (!masterName.equals(roomMasterName)) {
-						roomMasterName = masterName;
-						appendLogTo(window.roomChatLogText, "部屋主が " + roomMasterName + " に変更されました", window.colorRoomInfo, true);
-						updateServerAddress();
-
-						if (masterName.equals(loginUserName)) {
-							window.roomFormProxyModeAddressCombo.setEnabled(false);
-							window.roomFormProxyModeAddressCombo.setText(roomServerAddressPort);
-							goTo(RoomState.ProxyRoomMaster);
-						} else if (currentRoomState == RoomState.ProxyRoomMaster) {
-							window.roomFormClientModeAddressCombo.setEnabled(false);
-							window.roomFormClientModeAddressCombo.setText(roomServerAddressPort + ":" + masterName);
-							goTo(RoomState.RoomParticipant);
-						} else {
-							window.roomFormClientModeAddressCombo.setText(roomServerAddressPort + ":" + masterName);
-						}
+		try {
+			if (isNotSwtUIThread()) {
+				display.asyncExec(new Runnable() {
+					@Override
+					public void run() {
+						updateRoom(tokens, isInitialUpdate);
 					}
-				} catch (NumberFormatException e) {
-				} catch (SWTException e) {
+				});
+				return;
+			}
+
+			String masterName = tokens[0];
+			int maxPlayers = Integer.parseInt(tokens[1]);
+			String title = tokens[2];
+			String password = tokens[3];
+			String description = tokens[4];
+
+			isRoomInfoUpdating = true;
+
+			window.roomFormMasterText.setText(masterName);
+			window.roomFormMaxPlayersSpiner.setSelection(maxPlayers);
+			window.roomFormTitleText.setText(title);
+			window.roomFormPasswordText.setText(password);
+			window.roomFormDescriptionText.setText(description);
+
+			isRoomInfoUpdating = false;
+			window.roomFormEditButton.setEnabled(false);
+			lastUpdatedMaxPlayers = maxPlayers;
+
+			if (isInitialUpdate)
+				return;
+
+			appendLogTo(window.roomChatLogText, "部屋情報が更新されました", window.colorRoomInfo, false);
+
+			if (!masterName.equals(roomMasterName)) {
+				roomMasterName = masterName;
+				appendLogTo(window.roomChatLogText, "部屋主が " + roomMasterName + " に変更されました", window.colorRoomInfo, true);
+				updateServerAddress();
+
+				if (masterName.equals(loginUserName)) {
+					window.roomFormProxyModeAddressCombo.setEnabled(false);
+					window.roomFormProxyModeAddressCombo.setText(roomServerAddressPort);
+					goTo(RoomState.ProxyRoomMaster);
+				} else if (currentRoomState == RoomState.ProxyRoomMaster) {
+					window.roomFormClientModeAddressCombo.setEnabled(false);
+					window.roomFormClientModeAddressCombo.setText(roomServerAddressPort + ":" + masterName);
+					goTo(RoomState.RoomParticipant);
+				} else {
+					window.roomFormClientModeAddressCombo.setText(roomServerAddressPort + ":" + masterName);
 				}
 			}
-		};
-		asyncExec(run);
+		} catch (NumberFormatException e) {
+		} catch (SWTException e) {
+		}
 	}
 
 	private void goTo(final RoomState state) {
-		currentRoomState = state;
-
-		asyncExec(new Runnable() {
-			@Override
-			public void run() {
-				try {
-					switch (state) {
-					case Offline:
-						window.statusServerAddressLabel.setText("部屋にログインしていません");
-						window.statusBarContainer.layout();
-
-						roomPlayerMap.clear();
-						window.roomPlayerListTable.refresh();
-
-						window.roomFormEditButton.setEnabled(false);
-
-						window.roomFormModeSelectionCombo.setEnabled(true);
-
-						window.roomFormServerModePortSpinner.setEnabled(true);
-						window.roomFormServerModePortButton.setText("起動する");
-						window.roomFormServerModePortButton.setEnabled(true);
-
-						window.roomFormClientModeAddressCombo.setEnabled(true);
-						window.roomFormClientModeAdderssButton.setText("ログイン");
-						window.roomFormClientModeAdderssButton.setEnabled(true);
-						window.roomFormClientModeContainer.layout();
-
-						window.roomFormProxyModeAddressCombo.setEnabled(true);
-						window.roomFormProxyModeAddressButton.setText("作成する");
-						window.roomFormProxyModeAddressButton.setEnabled(true);
-						window.roomFormProxyModeContainer.layout();
-
-						switch (window.roomFormModeSelectionCombo.getSelectionIndex()) {
-						case 0:
-							setEnableRoomFormItems(true);
-							updateTunnelStatus(false);
-							break;
-						case 1:
-							setEnableRoomFormItems(false);
-							window.roomFormTitleText.setText("");
-							window.roomFormPasswordText.setText("");
-							window.roomFormDescriptionText.setText("");
-							window.roomFormMaxPlayersSpiner.setSelection(DEFAULT_MAX_PLAYERS);
-							break;
-						case 2:
-							setEnableRoomFormItems(true);
-							break;
-						}
-
-						window.roomFormMasterText.setText("");
-
-						window.roomFormSearchServerButton.setEnabled(false);
-						window.roomFormSearchServerCombo.setEnabled(false);
-
-						window.configUserNameText.setEnabled(true);
-
-						// window.mainTabFolder.setSelection(window.playRoomTab);
-						disconnectMasterSearch();
-
-						break;
-					case RoomMaster:
-						window.mainTabFolder.setSelection(window.playRoomTab);
-
-						window.roomFormServerModePortButton.setText("停止する");
-						window.roomFormServerModePortButton.setEnabled(true);
-
-						updateTunnelStatus(true);
-
-						window.roomFormSearchServerButton.setEnabled(true);
-						window.roomFormSearchServerCombo.setEnabled(true);
-
-						window.configUserNameText.setEnabled(false);
-
-						break;
-					case RoomParticipant:
-						window.mainTabFolder.setSelection(window.playRoomTab);
-
-						window.roomFormClientModeAdderssButton.setText("ログアウト");
-						window.roomFormClientModeAdderssButton.setEnabled(true);
-						window.roomFormClientModeContainer.layout();
-
-						window.roomFormModeSelectionCombo.select(1);
-						updateRoomModeSelection();
-
-						window.roomFormSearchServerButton.setEnabled(false);
-						window.roomFormSearchServerCombo.setEnabled(false);
-
-						disconnectMasterSearch();
-						break;
-					case ProxyRoomMaster:
-						window.roomFormProxyModeAddressButton.setText("ログアウト");
-						window.roomFormProxyModeAddressButton.setEnabled(true);
-						window.roomFormProxyModeContainer.layout();
-
-						window.roomFormModeSelectionCombo.select(2);
-						updateRoomModeSelection();
-
-						window.roomFormSearchServerButton.setEnabled(true);
-						window.roomFormSearchServerCombo.setEnabled(true);
-
-						break;
-					case ConnectingToRoomServer:
-						window.roomFormModeSelectionCombo.setEnabled(false);
-
-						window.roomFormClientModeAdderssButton.setEnabled(false);
-						window.roomFormClientModeAddressCombo.setEnabled(false);
-
-						window.configUserNameText.setEnabled(false);
-
-						break;
-					case ConnectingToProxyServer:
-						window.roomFormModeSelectionCombo.setEnabled(false);
-
-						window.roomFormProxyModeAddressButton.setEnabled(false);
-						window.roomFormProxyModeAddressCombo.setEnabled(false);
-
-						window.configUserNameText.setEnabled(false);
-
-						break;
+		try {
+			if (isNotSwtUIThread()) {
+				display.asyncExec(new Runnable() {
+					@Override
+					public void run() {
+						goTo(state);
 					}
-				} catch (SWTException e) {
-				}
+				});
+				return;
 			}
-		});
+
+			currentRoomState = state;
+
+			switch (state) {
+			case Offline:
+				window.statusServerAddressLabel.setText("部屋にログインしていません");
+				window.statusBarContainer.layout();
+
+				roomPlayerMap.clear();
+				window.roomPlayerListTable.refresh();
+
+				window.roomFormEditButton.setEnabled(false);
+
+				window.roomFormModeSelectionCombo.setEnabled(true);
+
+				window.roomFormServerModePortSpinner.setEnabled(true);
+				window.roomFormServerModePortButton.setText("起動する");
+				window.roomFormServerModePortButton.setEnabled(true);
+
+				window.roomFormClientModeAddressCombo.setEnabled(true);
+				window.roomFormClientModeAdderssButton.setText("ログイン");
+				window.roomFormClientModeAdderssButton.setEnabled(true);
+				window.roomFormClientModeContainer.layout();
+
+				window.roomFormProxyModeAddressCombo.setEnabled(true);
+				window.roomFormProxyModeAddressButton.setText("作成する");
+				window.roomFormProxyModeAddressButton.setEnabled(true);
+				window.roomFormProxyModeContainer.layout();
+
+				switch (window.roomFormModeSelectionCombo.getSelectionIndex()) {
+				case 0:
+					setEnableRoomFormItems(true);
+					updateTunnelStatus(false);
+					break;
+				case 1:
+					setEnableRoomFormItems(false);
+					window.roomFormTitleText.setText("");
+					window.roomFormPasswordText.setText("");
+					window.roomFormDescriptionText.setText("");
+					window.roomFormMaxPlayersSpiner.setSelection(DEFAULT_MAX_PLAYERS);
+					break;
+				case 2:
+					setEnableRoomFormItems(true);
+					break;
+				}
+
+				window.roomFormMasterText.setText("");
+
+				window.roomFormSearchServerButton.setEnabled(false);
+				window.roomFormSearchServerCombo.setEnabled(false);
+
+				window.configUserNameText.setEnabled(true);
+
+				// window.mainTabFolder.setSelection(window.playRoomTab);
+				disconnectMasterSearch();
+
+				break;
+			case RoomMaster:
+				window.mainTabFolder.setSelection(window.playRoomTab);
+
+				window.roomFormServerModePortButton.setText("停止する");
+				window.roomFormServerModePortButton.setEnabled(true);
+
+				updateTunnelStatus(true);
+
+				window.roomFormSearchServerButton.setEnabled(true);
+				window.roomFormSearchServerCombo.setEnabled(true);
+
+				window.configUserNameText.setEnabled(false);
+
+				break;
+			case RoomParticipant:
+				window.mainTabFolder.setSelection(window.playRoomTab);
+
+				window.roomFormClientModeAdderssButton.setText("ログアウト");
+				window.roomFormClientModeAdderssButton.setEnabled(true);
+				window.roomFormClientModeContainer.layout();
+
+				window.roomFormModeSelectionCombo.select(1);
+				updateRoomModeSelection();
+
+				window.roomFormSearchServerButton.setEnabled(false);
+				window.roomFormSearchServerCombo.setEnabled(false);
+
+				disconnectMasterSearch();
+				break;
+			case ProxyRoomMaster:
+				window.roomFormProxyModeAddressButton.setText("ログアウト");
+				window.roomFormProxyModeAddressButton.setEnabled(true);
+				window.roomFormProxyModeContainer.layout();
+
+				window.roomFormModeSelectionCombo.select(2);
+				updateRoomModeSelection();
+
+				window.roomFormSearchServerButton.setEnabled(true);
+				window.roomFormSearchServerCombo.setEnabled(true);
+
+				break;
+			case ConnectingToRoomServer:
+				window.roomFormModeSelectionCombo.setEnabled(false);
+
+				window.roomFormClientModeAdderssButton.setEnabled(false);
+				window.roomFormClientModeAddressCombo.setEnabled(false);
+
+				window.configUserNameText.setEnabled(false);
+
+				break;
+			case ConnectingToProxyServer:
+				window.roomFormModeSelectionCombo.setEnabled(false);
+
+				window.roomFormProxyModeAddressButton.setEnabled(false);
+				window.roomFormProxyModeAddressCombo.setEnabled(false);
+
+				window.configUserNameText.setEnabled(false);
+
+				break;
+			}
+		} catch (SWTException e) {
+		}
 	}
 
 	private void setEnableRoomFormItems(boolean enabled) {
@@ -2354,20 +2383,32 @@ public class PlayClient {
 	}
 
 	private void updateMasterSearchRoomInfo() {
-		if (searchEntryConnection != null && searchEntryConnection.isConnected()) {
-			StringBuilder sb = new StringBuilder();
+		try {
+			if (isNotSwtUIThread()) {
+				display.asyncExec(new Runnable() {
+					@Override
+					public void run() {
+						updateMasterSearchRoomInfo();
+					}
+				});
+				return;
+			}
+			if (searchEntryConnection != null && searchEntryConnection.isConnected()) {
+				StringBuilder sb = new StringBuilder();
 
-			sb.append(ProtocolConstants.Search.COMMAND_UPDATE);
-			sb.append(ProtocolConstants.ARGUMENT_SEPARATOR);
-			sb.append(window.roomFormTitleText.getText());
-			sb.append(ProtocolConstants.ARGUMENT_SEPARATOR);
-			sb.append(window.roomFormMaxPlayersSpiner.getSelection());
-			sb.append(ProtocolConstants.ARGUMENT_SEPARATOR);
-			sb.append(window.roomFormPasswordText.getText().length() > 0 ? "Y" : "N");
-			sb.append(ProtocolConstants.ARGUMENT_SEPARATOR);
-			sb.append(window.roomFormDescriptionText.getText());
+				sb.append(ProtocolConstants.Search.COMMAND_UPDATE);
+				sb.append(ProtocolConstants.ARGUMENT_SEPARATOR);
+				sb.append(window.roomFormTitleText.getText());
+				sb.append(ProtocolConstants.ARGUMENT_SEPARATOR);
+				sb.append(window.roomFormMaxPlayersSpiner.getSelection());
+				sb.append(ProtocolConstants.ARGUMENT_SEPARATOR);
+				sb.append(window.roomFormPasswordText.getText().length() > 0 ? "Y" : "N");
+				sb.append(ProtocolConstants.ARGUMENT_SEPARATOR);
+				sb.append(window.roomFormDescriptionText.getText());
 
-			searchEntryConnection.send(sb.toString());
+				searchEntryConnection.send(sb.toString());
+			}
+		} catch (SWTException e) {
 		}
 	}
 
@@ -2402,72 +2443,88 @@ public class PlayClient {
 		}
 
 		@Override
-		public void connectCallback(ISocketConnection connection) {
-			asyncExec(new Runnable() {
-				@Override
-				public void run() {
-					StringBuilder sb = new StringBuilder();
-
-					sb.append(ProtocolConstants.Search.PROTOCOL_NAME);
-					sb.append(ProtocolConstants.ARGUMENT_SEPARATOR);
-					sb.append(ProtocolConstants.PROTOCOL_NUMBER);
-					sb.append(ProtocolConstants.MESSAGE_SEPARATOR);
-
-					sb.append(ProtocolConstants.Search.COMMAND_LOGIN);
-					sb.append(ProtocolConstants.ARGUMENT_SEPARATOR);
-					sb.append(ProtocolConstants.Search.MODE_MASTER);
-					sb.append(ProtocolConstants.MESSAGE_SEPARATOR);
-
-					sb.append(ProtocolConstants.Search.COMMAND_ENTRY);
-					sb.append(ProtocolConstants.ARGUMENT_SEPARATOR);
-					sb.append(roomMasterAuthCode);
-					sb.append(ProtocolConstants.ARGUMENT_SEPARATOR);
-					sb.append(roomServerAddressPort);
-					sb.append(ProtocolConstants.ARGUMENT_SEPARATOR);
-					sb.append(loginUserName);
-					sb.append(ProtocolConstants.ARGUMENT_SEPARATOR);
-					sb.append(window.roomFormTitleText.getText());
-					sb.append(ProtocolConstants.ARGUMENT_SEPARATOR);
-					sb.append(roomPlayerMap.size());
-					sb.append(ProtocolConstants.ARGUMENT_SEPARATOR);
-					sb.append(window.roomFormMaxPlayersSpiner.getSelection());
-					sb.append(ProtocolConstants.ARGUMENT_SEPARATOR);
-					sb.append(window.roomFormPasswordText.getText().length() > 0 ? "Y" : "N");
-					sb.append(ProtocolConstants.ARGUMENT_SEPARATOR);
-					sb.append(window.roomFormDescriptionText.getText());
-
-					searchEntryConnection.send(sb.toString());
+		public void connectCallback(final ISocketConnection connection) {
+			try {
+				if (isNotSwtUIThread()) {
+					display.asyncExec(new Runnable() {
+						@Override
+						public void run() {
+							connectCallback(connection);
+						}
+					});
+					return;
 				}
-			});
+
+				StringBuilder sb = new StringBuilder();
+
+				sb.append(ProtocolConstants.Search.PROTOCOL_NAME);
+				sb.append(ProtocolConstants.ARGUMENT_SEPARATOR);
+				sb.append(ProtocolConstants.PROTOCOL_NUMBER);
+				sb.append(ProtocolConstants.MESSAGE_SEPARATOR);
+
+				sb.append(ProtocolConstants.Search.COMMAND_LOGIN);
+				sb.append(ProtocolConstants.ARGUMENT_SEPARATOR);
+				sb.append(ProtocolConstants.Search.MODE_MASTER);
+				sb.append(ProtocolConstants.MESSAGE_SEPARATOR);
+
+				sb.append(ProtocolConstants.Search.COMMAND_ENTRY);
+				sb.append(ProtocolConstants.ARGUMENT_SEPARATOR);
+				sb.append(roomMasterAuthCode);
+				sb.append(ProtocolConstants.ARGUMENT_SEPARATOR);
+				sb.append(roomServerAddressPort);
+				sb.append(ProtocolConstants.ARGUMENT_SEPARATOR);
+				sb.append(loginUserName);
+				sb.append(ProtocolConstants.ARGUMENT_SEPARATOR);
+				sb.append(window.roomFormTitleText.getText());
+				sb.append(ProtocolConstants.ARGUMENT_SEPARATOR);
+				sb.append(roomPlayerMap.size());
+				sb.append(ProtocolConstants.ARGUMENT_SEPARATOR);
+				sb.append(window.roomFormMaxPlayersSpiner.getSelection());
+				sb.append(ProtocolConstants.ARGUMENT_SEPARATOR);
+				sb.append(window.roomFormPasswordText.getText().length() > 0 ? "Y" : "N");
+				sb.append(ProtocolConstants.ARGUMENT_SEPARATOR);
+				sb.append(window.roomFormDescriptionText.getText());
+
+				searchEntryConnection.send(sb.toString());
+			} catch (SWTException e) {
+			}
 		}
 
 		@Override
-		public void disconnectCallback(ISocketConnection connection) {
-			asyncExec(new Runnable() {
-				@Override
-				public void run() {
-					window.roomFormSearchServerButton.setText("検索登録する");
-					window.roomFormSearchServerButton.setSelection(false);
-					window.configRoomServerHostNameText.setEnabled(true);
-					switch (currentRoomState) {
-					case RoomMaster:
-					case ProxyRoomMaster:
-						window.roomFormSearchServerButton.setEnabled(true);
-						window.roomFormSearchServerCombo.setEnabled(true);
-						break;
-					default:
-						window.roomFormSearchServerButton.setEnabled(false);
-						window.roomFormSearchServerCombo.setEnabled(false);
-					}
-
-					if (isEntryCompleted) {
-						isEntryCompleted = false;
-						appendLogTo(window.roomChatLogText, "検索サーバーの登録を解除しました", window.colorRoomInfo, false);
-					} else {
-						appendLogTo(window.roomChatLogText, "検索サーバーに登録できませんでした", window.colorRoomInfo, false);
-					}
+		public void disconnectCallback(final ISocketConnection connection) {
+			try {
+				if (isNotSwtUIThread()) {
+					display.asyncExec(new Runnable() {
+						@Override
+						public void run() {
+							disconnectCallback(connection);
+						}
+					});
+					return;
 				}
-			});
+
+				window.roomFormSearchServerButton.setText("検索登録する");
+				window.roomFormSearchServerButton.setSelection(false);
+				window.configRoomServerHostNameText.setEnabled(true);
+				switch (currentRoomState) {
+				case RoomMaster:
+				case ProxyRoomMaster:
+					window.roomFormSearchServerButton.setEnabled(true);
+					window.roomFormSearchServerCombo.setEnabled(true);
+					break;
+				default:
+					window.roomFormSearchServerButton.setEnabled(false);
+					window.roomFormSearchServerCombo.setEnabled(false);
+				}
+
+				if (isEntryCompleted) {
+					isEntryCompleted = false;
+					appendLogTo(window.roomChatLogText, "検索サーバーの登録を解除しました", window.colorRoomInfo, false);
+				} else {
+					appendLogTo(window.roomChatLogText, "検索サーバーに登録できませんでした", window.colorRoomInfo, false);
+				}
+			} catch (SWTException e) {
+			}
 		}
 
 		@Override
@@ -2501,19 +2558,27 @@ public class PlayClient {
 
 		private class RoomEntryHandler implements CommandHandler {
 			@Override
-			public void process(String argument) {
-				asyncExec(new Runnable() {
-					@Override
-					public void run() {
-						window.roomFormSearchServerButton.setText("登録解除");
-						window.roomFormSearchServerButton.setEnabled(true);
-						window.configRoomServerHostNameText.setEnabled(false);
-
-						isEntryCompleted = true;
-						entrySearchServerHistoryManager.addCurrentItem();
-						appendLogTo(window.roomChatLogText, "検索サーバーに登録しました", window.colorRoomInfo, false);
+			public void process(final String argument) {
+				try {
+					if (isNotSwtUIThread()) {
+						display.asyncExec(new Runnable() {
+							@Override
+							public void run() {
+								process(argument);
+							}
+						});
+						return;
 					}
-				});
+
+					window.roomFormSearchServerButton.setText("登録解除");
+					window.roomFormSearchServerButton.setEnabled(true);
+					window.configRoomServerHostNameText.setEnabled(false);
+
+					isEntryCompleted = true;
+					entrySearchServerHistoryManager.addCurrentItem();
+					appendLogTo(window.roomChatLogText, "検索サーバーに登録しました", window.colorRoomInfo, false);
+				} catch (SWTException e) {
+				}
 			}
 		}
 
@@ -2569,60 +2634,77 @@ public class PlayClient {
 
 		@Override
 		public void connectCallback(final ISocketConnection connection) {
-			connections.put(connection, connectSuccess);
-			asyncExec(new Runnable() {
-				@Override
-				public void run() {
-					StringBuilder sb = new StringBuilder();
-
-					sb.append(ProtocolConstants.Search.PROTOCOL_NAME);
-					sb.append(ProtocolConstants.ARGUMENT_SEPARATOR);
-					sb.append(ProtocolConstants.PROTOCOL_NUMBER);
-					sb.append(ProtocolConstants.MESSAGE_SEPARATOR);
-
-					sb.append(ProtocolConstants.Search.COMMAND_LOGIN);
-					sb.append(ProtocolConstants.ARGUMENT_SEPARATOR);
-					sb.append(ProtocolConstants.Search.MODE_PARTICIPANT);
-					sb.append(ProtocolConstants.MESSAGE_SEPARATOR);
-
-					sb.append(ProtocolConstants.Search.COMMAND_SEARCH);
-					sb.append(ProtocolConstants.ARGUMENT_SEPARATOR);
-					sb.append(window.searchFormTitleCombo.getText());
-					sb.append(ProtocolConstants.ARGUMENT_SEPARATOR);
-					sb.append(window.searchFormMasterNameCombo.getText());
-					sb.append(ProtocolConstants.ARGUMENT_SEPARATOR);
-					sb.append(window.searchFormServerNameCombo.getText());
-					sb.append(ProtocolConstants.ARGUMENT_SEPARATOR);
-					sb.append(window.searchFormHasPassword.getSelection() ? "Y" : "N");
-
-					connection.send(sb.toString());
+			try {
+				if (isNotSwtUIThread()) {
+					display.asyncExec(new Runnable() {
+						@Override
+						public void run() {
+							connectCallback(connection);
+						}
+					});
+					return;
 				}
-			});
+
+				connections.put(connection, connectSuccess);
+
+				StringBuilder sb = new StringBuilder();
+
+				sb.append(ProtocolConstants.Search.PROTOCOL_NAME);
+				sb.append(ProtocolConstants.ARGUMENT_SEPARATOR);
+				sb.append(ProtocolConstants.PROTOCOL_NUMBER);
+				sb.append(ProtocolConstants.MESSAGE_SEPARATOR);
+
+				sb.append(ProtocolConstants.Search.COMMAND_LOGIN);
+				sb.append(ProtocolConstants.ARGUMENT_SEPARATOR);
+				sb.append(ProtocolConstants.Search.MODE_PARTICIPANT);
+				sb.append(ProtocolConstants.MESSAGE_SEPARATOR);
+
+				sb.append(ProtocolConstants.Search.COMMAND_SEARCH);
+				sb.append(ProtocolConstants.ARGUMENT_SEPARATOR);
+				sb.append(window.searchFormTitleCombo.getText());
+				sb.append(ProtocolConstants.ARGUMENT_SEPARATOR);
+				sb.append(window.searchFormMasterNameCombo.getText());
+				sb.append(ProtocolConstants.ARGUMENT_SEPARATOR);
+				sb.append(window.searchFormServerNameCombo.getText());
+				sb.append(ProtocolConstants.ARGUMENT_SEPARATOR);
+				sb.append(window.searchFormHasPassword.getSelection() ? "Y" : "N");
+
+				connection.send(sb.toString());
+			} catch (SWTException e) {
+			}
 		}
 
 		@Override
 		public void disconnectCallback(final ISocketConnection connection) {
-			asyncExec(new Runnable() {
-				@Override
-				public void run() {
-					window.searchResultRoomsTable.setInput(searchResultRoomList);
-					window.searchServerSubmitButton.setEnabled(true);
-
-					Object result = connections.remove(connection);
-					if (result == null) {
-						updateSearchResultStatus("検索サーバーに接続できません", window.colorRed);
-					} else if (result == connectSuccess) {
-						updateSearchResultStatus("検索サーバーではありません", window.colorRed);
-					} else if (result == searchSuccess) {
-						updateSearchResultStatus("検索結果: " + searchResultRoomList.size() + "件", window.colorBlack);
-						querySearchServerHistoryManager.addCurrentItem();
-
-						queryRoomTitleHistoryManager.addCurrentItem();
-						queryRoomMasterNameHistoryManager.addCurrentItem();
-						queryRoomAddressHistoryManager.addCurrentItem();
-					}
+			try {
+				if (isNotSwtUIThread()) {
+					display.asyncExec(new Runnable() {
+						@Override
+						public void run() {
+							disconnectCallback(connection);
+						}
+					});
+					return;
 				}
-			});
+
+				window.searchResultRoomsTable.setInput(searchResultRoomList);
+				window.searchServerSubmitButton.setEnabled(true);
+
+				Object result = connections.remove(connection);
+				if (result == null) {
+					updateSearchResultStatus("検索サーバーに接続できません", window.colorRed);
+				} else if (result == connectSuccess) {
+					updateSearchResultStatus("検索サーバーではありません", window.colorRed);
+				} else if (result == searchSuccess) {
+					updateSearchResultStatus("検索結果: " + searchResultRoomList.size() + "件", window.colorBlack);
+					querySearchServerHistoryManager.addCurrentItem();
+
+					queryRoomTitleHistoryManager.addCurrentItem();
+					queryRoomMasterNameHistoryManager.addCurrentItem();
+					queryRoomAddressHistoryManager.addCurrentItem();
+				}
+			} catch (SWTException e) {
+			}
 		}
 
 		@Override
@@ -2769,12 +2851,13 @@ public class PlayClient {
 		}
 
 		@Override
-		public void connectCallback(ISocketConnection connection) {
+		public void connectCallback(final ISocketConnection connection) {
+			StringBuilder sb;
 			switch (currentRoomState) {
 			case ConnectingToRoomServer:
 				appendLogTo(window.roomChatLogText, "サーバーに接続しました", window.colorServerInfo, false);
 
-				StringBuilder sb = new StringBuilder();
+				sb = new StringBuilder();
 				sb.append(ProtocolConstants.Room.PROTOCOL_NAME);
 				sb.append(ProtocolConstants.ARGUMENT_SEPARATOR);
 				sb.append(ProtocolConstants.PROTOCOL_NUMBER);
@@ -2788,34 +2871,44 @@ public class PlayClient {
 
 				roomConnection.send(sb.toString());
 
+				currentRoomState = RoomState.Negotiating;
+
 				break;
 			case ConnectingToProxyServer:
-				asyncExec(new Runnable() {
-					@Override
-					public void run() {
-						try {
-							StringBuilder sb = new StringBuilder();
-							sb.append(ProtocolConstants.Room.PROTOCOL_NAME);
-							sb.append(ProtocolConstants.ARGUMENT_SEPARATOR);
-							sb.append(ProtocolConstants.PROTOCOL_NUMBER);
-							sb.append(ProtocolConstants.MESSAGE_SEPARATOR);
-
-							sb.append(ProtocolConstants.Room.COMMAND_ROOM_CREATE);
-							sb.append(ProtocolConstants.ARGUMENT_SEPARATOR);
-							sb.append(loginUserName);
-							appendRoomInfo(sb);
-
-							roomConnection.send(sb.toString());
-
-							lastUpdatedMaxPlayers = window.roomFormMaxPlayersSpiner.getSelection();
-						} catch (SWTException e) {
-						}
+				try {
+					if (isNotSwtUIThread()) {
+						display.asyncExec(new Runnable() {
+							@Override
+							public void run() {
+								connectCallback(connection);
+							}
+						});
+						return;
 					}
-				});
+
+					appendLogTo(window.roomChatLogText, "サーバーに接続しました", window.colorServerInfo, false);
+
+					sb = new StringBuilder();
+					sb.append(ProtocolConstants.Room.PROTOCOL_NAME);
+					sb.append(ProtocolConstants.ARGUMENT_SEPARATOR);
+					sb.append(ProtocolConstants.PROTOCOL_NUMBER);
+					sb.append(ProtocolConstants.MESSAGE_SEPARATOR);
+
+					sb.append(ProtocolConstants.Room.COMMAND_ROOM_CREATE);
+					sb.append(ProtocolConstants.ARGUMENT_SEPARATOR);
+					sb.append(loginUserName);
+					appendRoomInfo(sb);
+
+					roomConnection.send(sb.toString());
+
+					lastUpdatedMaxPlayers = window.roomFormMaxPlayersSpiner.getSelection();
+
+					currentRoomState = RoomState.Negotiating;
+				} catch (SWTException e) {
+				}
 
 				break;
 			}
-			currentRoomState = RoomState.Negotiating;
 		}
 
 		@Override
@@ -2831,7 +2924,7 @@ public class PlayClient {
 						command = message;
 						argument = "";
 					}
-					// appendToArenaChatLog(message, null);
+					// appendLogTo(window.logText, message);
 
 					if (handlers.containsKey(command)) {
 						CommandHandler handler = handlers.get(command);
@@ -2874,41 +2967,57 @@ public class PlayClient {
 		private class LoginHandler implements CommandHandler {
 			@Override
 			public void process(final String args) {
-				syncExec(new Runnable() {
-					@Override
-					public void run() {
-						goTo(RoomState.RoomParticipant);
+				try {
+					if (isNotSwtUIThread()) {
+						display.syncExec(new Runnable() {
+							@Override
+							public void run() {
+								process(args);
+							}
+						});
 
-						updateRoom(args.split(ProtocolConstants.ARGUMENT_SEPARATOR, -1), true);
-						updateServerAddress();
-
-						roomServerHistoryManager.addCurrentItem();
-						appendLogTo(window.roomChatLogText, "部屋に入りました  ", window.colorRoomInfo, false);
+						prepareSession();
+						return;
 					}
-				});
 
-				prepareSession();
+					goTo(RoomState.RoomParticipant);
+
+					updateRoom(args.split(ProtocolConstants.ARGUMENT_SEPARATOR, -1), true);
+					updateServerAddress();
+
+					roomServerHistoryManager.addCurrentItem();
+					appendLogTo(window.roomChatLogText, "部屋に入りました  ", window.colorRoomInfo, false);
+				} catch (SWTException e) {
+				}
 			}
 		}
 
 		private class RoomCreateHandler implements CommandHandler {
 			@Override
-			public void process(String argument) {
-				syncExec(new Runnable() {
-					@Override
-					public void run() {
-						goTo(RoomState.ProxyRoomMaster);
-						appendLogTo(window.roomChatLogText, "代理サーバーで部屋を作成しました", window.colorRoomInfo, false);
-
-						window.roomFormMasterText.setText(loginUserName);
-						addPlayer(window.roomPlayerListTable, loginUserName);
-						updateServerAddress();
-
-						proxyServerHistoryManager.addCurrentItem();
+			public void process(final String argument) {
+				try {
+					if (isNotSwtUIThread()) {
+						display.syncExec(new Runnable() {
+							@Override
+							public void run() {
+								process(argument);
+							}
+						});
 
 						prepareSession();
+						return;
 					}
-				});
+
+					goTo(RoomState.ProxyRoomMaster);
+					appendLogTo(window.roomChatLogText, "代理サーバーで部屋を作成しました", window.colorRoomInfo, false);
+
+					window.roomFormMasterText.setText(loginUserName);
+					addPlayer(window.roomPlayerListTable, loginUserName);
+					updateServerAddress();
+
+					proxyServerHistoryManager.addCurrentItem();
+				} catch (SWTException e) {
+				}
 			}
 		}
 
@@ -2959,24 +3068,14 @@ public class PlayClient {
 		private class NotifyUserEnteredHandler implements CommandHandler {
 			@Override
 			public void process(String name) {
-				switch (currentRoomState) {
-				case ProxyRoomMaster:
-				case RoomParticipant:
-					addPlayer(window.roomPlayerListTable, name);
-					break;
-				}
+				addPlayer(window.roomPlayerListTable, name);
 			}
 		}
 
 		private class NotifyUserExitedHandler implements CommandHandler {
 			@Override
 			public void process(String name) {
-				switch (currentRoomState) {
-				case ProxyRoomMaster:
-				case RoomParticipant:
-					removeExitingPlayer(name);
-					break;
-				}
+				removeExitingPlayer(name);
 			}
 		}
 
@@ -2984,12 +3083,7 @@ public class PlayClient {
 			@Override
 			public void process(String args) {
 				String[] players = args.split(ProtocolConstants.ARGUMENT_SEPARATOR, -1);
-				switch (currentRoomState) {
-				case RoomParticipant:
-				case ProxyRoomMaster:
-					replacePlayerList(window.roomPlayerListTable, players);
-					break;
-				}
+				replacePlayerList(window.roomPlayerListTable, players);
 			}
 		}
 
@@ -3003,7 +3097,20 @@ public class PlayClient {
 		private class CommandRoomUpdateHandler implements CommandHandler {
 			@Override
 			public void process(String message) {
-				appendLogTo(window.roomChatLogText, "部屋情報を修正しました", window.colorRoomInfo, false);
+				try {
+					display.asyncExec(new Runnable() {
+						@Override
+						public void run() {
+							updateMasterSearchRoomInfo();
+							appendLogTo(window.roomChatLogText, "部屋情報を修正しました", window.colorRoomInfo, false);
+							try {
+								window.roomChatSubmitText.setFocus();
+							} catch (SWTException e) {
+							}
+						}
+					});
+				} catch (SWTException e) {
+				}
 			}
 		}
 
@@ -3045,14 +3152,14 @@ public class PlayClient {
 				stats.playerName = tokens[1];
 			}
 		}
-		
+
 		private class NotifyFromAdminHandler implements CommandHandler {
 			@Override
 			public void process(String message) {
 				appendLogTo(window.roomChatLogText, message, window.colorServerInfo, true);
 			}
 		}
-		
+
 		private class NotifyRoomDeletedHandler implements CommandHandler {
 			@Override
 			public void process(String argument) {
@@ -3088,35 +3195,40 @@ public class PlayClient {
 		}
 
 		private void promptPassword() {
-			asyncExec(new Runnable() {
-				@Override
-				public void run() {
-					try {
-						PasswordDialog dialog = new PasswordDialog(shell);
-						switch (dialog.open()) {
-						case IDialogConstants.OK_ID:
-							String password = dialog.getPassword();
-
-							StringBuilder sb = new StringBuilder();
-							sb.append(ProtocolConstants.Room.COMMAND_LOGIN);
-							sb.append(ProtocolConstants.ARGUMENT_SEPARATOR);
-							sb.append(loginUserName);
-							sb.append(ProtocolConstants.ARGUMENT_SEPARATOR);
-							sb.append(roomMasterName);
-							sb.append(ProtocolConstants.ARGUMENT_SEPARATOR);
-							sb.append(password);
-
-							roomConnection.send(sb.toString());
-							break;
-						case IDialogConstants.CANCEL_ID:
-							appendLogTo(window.roomChatLogText, "入室をキャンセルしました", window.colorRoomInfo, false);
-							roomConnection.send(ProtocolConstants.Room.COMMAND_LOGOUT);
-							break;
+			try {
+				if (isNotSwtUIThread()) {
+					display.asyncExec(new Runnable() {
+						@Override
+						public void run() {
+							promptPassword();
 						}
-					} catch (SWTException e) {
-					}
+					});
+					return;
 				}
-			});
+
+				PasswordDialog dialog = new PasswordDialog(shell);
+				switch (dialog.open()) {
+				case IDialogConstants.OK_ID:
+					String password = dialog.getPassword();
+
+					StringBuilder sb = new StringBuilder();
+					sb.append(ProtocolConstants.Room.COMMAND_LOGIN);
+					sb.append(ProtocolConstants.ARGUMENT_SEPARATOR);
+					sb.append(loginUserName);
+					sb.append(ProtocolConstants.ARGUMENT_SEPARATOR);
+					sb.append(roomMasterName);
+					sb.append(ProtocolConstants.ARGUMENT_SEPARATOR);
+					sb.append(password);
+
+					roomConnection.send(sb.toString());
+					break;
+				case IDialogConstants.CANCEL_ID:
+					appendLogTo(window.roomChatLogText, "入室をキャンセルしました", window.colorRoomInfo, false);
+					roomConnection.send(ProtocolConstants.Room.COMMAND_LOGOUT);
+					break;
+				}
+			} catch (SWTException e) {
+			}
 		}
 
 		private class NotifyRoomPasswordRequiredHandler implements CommandHandler {
@@ -3144,7 +3256,20 @@ public class PlayClient {
 		private class ErrorRoomPasswordNotAllowedHandler implements CommandHandler {
 			@Override
 			public void process(String argument) {
-				appendLogTo(window.roomChatLogText, "このサーバーではパスワードが禁止されています", window.colorLogError, false);
+				try {
+					display.asyncExec(new Runnable() {
+						@Override
+						public void run() {
+							appendLogTo(window.roomChatLogText, "このサーバーではパスワードが禁止されています", window.colorLogError, false);
+							try {
+								window.roomFormEditButton.setEnabled(true);
+								window.roomFormPasswordText.setFocus();
+							} catch (SWTException e) {
+							}
+						}
+					});
+				} catch (SWTException e) {
+				}
 			}
 		}
 

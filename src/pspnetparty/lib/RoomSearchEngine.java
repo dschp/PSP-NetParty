@@ -71,7 +71,7 @@ public class RoomSearchEngine {
 		searchServer = new AsyncTcpServer<SearchState>();
 		searchHandler = new SearchHandler();
 
-		tcpClient = new AsyncTcpClient(4000);
+		tcpClient = new AsyncTcpClient(4000, 2000);
 		udpClient = new AsyncUdpClient();
 
 		ramDirectory = new RAMDirectory();
