@@ -13,7 +13,7 @@
 		<mapper>
 			<chainedmapper>
 				<flattenmapper />
-				<globmapper from="*.jar" to="lib/*.jar" />
+				<globmapper from="*.jar" to="*.jar" />
 			</chainedmapper>
 		</mapper>
 	</pathconvert>
@@ -28,7 +28,7 @@
 		<mapper>
 			<chainedmapper>
 				<flattenmapper />
-				<globmapper from="*.jar" to="lib/*.jar" />
+				<globmapper from="*.jar" to="*.jar" />
 			</chainedmapper>
 		</mapper>
 	</pathconvert>
