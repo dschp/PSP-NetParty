@@ -119,7 +119,7 @@ public class RoomSearchEngine {
 	public int getPort() {
 		return port;
 	}
-	
+
 	public int getRoomEntryCount() {
 		return playRoomEntries.size();
 	}
@@ -517,7 +517,8 @@ public class RoomSearchEngine {
 
 				try {
 					Query query = searchParser.parse(queryBuilder.toString());
-					// logger.log(query.toString());
+					//System.out.println(queryBuilder);
+					//System.out.println(query);
 
 					if (indexSearcher == null)
 						indexSearcher = new IndexSearcher(ramDirectory);
@@ -569,6 +570,7 @@ public class RoomSearchEngine {
 	private static void appendQuery(StringBuilder sb, String field, String query) {
 		String[] tokens = query.split(" ");
 		for (String s : tokens) {
+			s = s.replaceAll("^\\*+", "");
 			if (Utility.isEmpty(s))
 				continue;
 			if (sb.length() > 0)

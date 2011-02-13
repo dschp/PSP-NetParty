@@ -159,7 +159,11 @@ public class AsyncUdpServer<Type extends IClientState> implements IServer<Type> 
 										}
 										conn.lastUsedTime = System.currentTimeMillis();
 
-										boolean sessionContinue = handler.processIncomingData(conn.state, data);
+										boolean sessionContinue = false;
+										try {
+											sessionContinue = handler.processIncomingData(conn.state, data);
+										} catch (Exception e) {
+										}
 
 										if (!sessionContinue) {
 											conn.disconnect();

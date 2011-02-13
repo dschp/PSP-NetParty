@@ -71,18 +71,21 @@ public class AsyncTcpClient {
 								SelectionKey key = it.next();
 								it.remove();
 								Connection connection = (Connection) key.attachment();
+								boolean success = false;
 								try {
 									if (key.isConnectable()) {
 										connection.connectReady();
 									} else if (key.isReadable()) {
 										connection.readReady();
 									}
+									success = true;
 								} catch (CancelledKeyException e) {
-									connection.disconnect();
 								} catch (IOException e) {
-									connection.disconnect();
+								} catch (RuntimeException e) {
 								}
-								if (!connection.isConnected()) {
+								
+								if (!success) {
+									connection.disconnect();
 									key.cancel();
 								}
 							}

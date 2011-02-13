@@ -43,7 +43,7 @@ public class AsyncTcpServer<Type extends IClientState> implements IServer<Type> 
 	private IAsyncServerHandler<Type> handler;
 
 	private ServerSocketChannel serverChannel;
-	private ByteBuffer headerBuffer = ByteBuffer.allocateDirect(Integer.SIZE / 8);
+	private ByteBuffer headerBuffer = ByteBuffer.allocateDirect(ProtocolConstants.INTEGER_BYTE_SIZE);
 
 	private ConcurrentHashMap<Connection, Object> establishedConnections;
 	private final Object valueObject = new Object();
@@ -94,9 +94,15 @@ public class AsyncTcpServer<Type extends IClientState> implements IServer<Type> 
 									} else if (key.isReadable()) {
 										@SuppressWarnings("unchecked")
 										Connection conn = (Connection) key.attachment();
+										boolean success = false;
 										try {
 											doRead(conn);
+											success = true;
 										} catch (IOException e) {
+										}  catch (RuntimeException e) {
+										}
+										
+										if (!success) {
 											// Disconnected
 											conn.disconnect();
 											key.cancel();

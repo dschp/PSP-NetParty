@@ -63,12 +63,18 @@ public class AsyncUdpClient {
 								it.remove();
 								Connection connection = (Connection) key.attachment();
 
+								boolean success = false;
 								try {
 									if (key.isReadable()) {
 										connection.readReady();
 									}
+									success = true;
 								} catch (IOException e) {
 									connection.handler.log(connection, Utility.makeStackTrace(e));
+								} catch (RuntimeException e) {
+								}
+								
+								if (!success) {
 									key.cancel();
 									connection.disconnect();
 								}

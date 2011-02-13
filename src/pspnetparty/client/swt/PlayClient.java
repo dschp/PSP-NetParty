@@ -30,7 +30,6 @@ import java.util.LinkedHashMap;
 import java.util.Map.Entry;
 
 import org.eclipse.jface.dialogs.IDialogConstants;
-import org.eclipse.jface.dialogs.MessageDialog;
 import org.eclipse.jface.viewers.ArrayContentProvider;
 import org.eclipse.jface.viewers.DoubleClickEvent;
 import org.eclipse.jface.viewers.IDoubleClickListener;
@@ -887,8 +886,11 @@ public class PlayClient {
 				if (!window.configAppCloseConfirmCheck.getSelection()) {
 					return;
 				}
-				if (!MessageDialog.openConfirm(shell, "PSP NetPartyを終了します", "PSP NetPartyを終了します。よろしいですか？")) {
+				ConfirmDialog dialog = new ConfirmDialog(shell);
+				switch (dialog.open()) {
+				case IDialogConstants.CANCEL_ID:
 					e.doit = false;
+					break;
 				}
 			}
 		});
@@ -3112,6 +3114,7 @@ public class PlayClient {
 							appendLogTo(window.roomChatLogText, "部屋情報を修正しました", window.colorRoomInfo, false);
 							try {
 								window.roomChatSubmitText.setFocus();
+								lastUpdatedMaxPlayers = window.roomFormMaxPlayersSpiner.getSelection();
 							} catch (SWTException e) {
 							}
 						}
@@ -3542,8 +3545,8 @@ public class PlayClient {
 
 		shell.setMinimumSize(new Point(minWidth, minHeight));
 
-		shell.setSize(iniSettingSection.get(IniConstants.Client.WINDOW_WIDTH, minWidth),
-				iniSettingSection.get(IniConstants.Client.WINDOW_HEIGHT, minHeight));
+		shell.setSize(iniSettingSection.get(IniConstants.Client.WINDOW_WIDTH, 800),
+				iniSettingSection.get(IniConstants.Client.WINDOW_HEIGHT, 600));
 		shell.open();
 
 		while (!shell.isDisposed()) {
