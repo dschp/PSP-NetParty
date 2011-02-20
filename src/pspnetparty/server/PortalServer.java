@@ -20,20 +20,22 @@ package pspnetparty.server;
 
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
+import java.net.InetSocketAddress;
 import java.util.HashMap;
 
 import pspnetparty.lib.CommandHandler;
 import pspnetparty.lib.ILogger;
 import pspnetparty.lib.IniParser;
-import pspnetparty.lib.RoomSearchEngine;
+import pspnetparty.lib.PortalEngine;
+import pspnetparty.lib.Utility;
 import pspnetparty.lib.constants.AppConstants;
 import pspnetparty.lib.constants.IniConstants;
 
-public class RoomSearchServer {
+public class PortalServer {
 	public static void main(String[] args) throws Exception {
-		System.out.printf("%s 部屋検索サーバー  version %s\n", AppConstants.APP_NAME, AppConstants.VERSION);
+		System.out.printf("%s ポータルサーバー  version %s\n", AppConstants.APP_NAME, AppConstants.VERSION);
 
-		String iniFileName = "RoomSearchServer.ini";
+		String iniFileName = "PortalServer.ini";
 		switch (args.length) {
 		case 1:
 			iniFileName = args[0];
@@ -51,6 +53,16 @@ public class RoomSearchServer {
 		}
 		System.out.println("ポート: " + port);
 
+		int maxUsers = settings.get(IniConstants.Server.MAX_USERS, 30);
+		if (maxUsers < 1) {
+			System.out.println("最大ユーザー数が不正です: " + maxUsers);
+			return;
+		}
+		System.out.println("最大ユーザー数: " + maxUsers);
+
+		final String loginMessageFile = settings.get(IniConstants.Server.LOGIN_MESSAGE_FILE, "");
+		System.out.println("ログインメッセージファイル : " + loginMessageFile);
+		
 		int maxSearchResults = settings.get(IniConstants.Server.MAX_SEARCH_RESULTS, 50);
 		if (maxSearchResults < 1) {
 			System.out.println("最大検索件数が不正です: " + maxSearchResults);
@@ -65,18 +77,36 @@ public class RoomSearchServer {
 		}
 		System.out.println("部屋の詳細・備考の最大文字数: " + descriptionMaxLength);
 
+		String[] roomServerList = settings.get(IniConstants.Server.ROOM_SERVER_LIST, "").split(",");
+
 		parser.saveToIni();
 
-		final RoomSearchEngine engine = new RoomSearchEngine(new ILogger() {
+		final PortalEngine engine = new PortalEngine(new ILogger() {
 			@Override
 			public void log(String message) {
 				System.out.println(message);
 			}
 		});
+		engine.setMaxUsers(maxUsers);
 		engine.setDescriptionMaxLength(descriptionMaxLength);
 		engine.setMaxSearchResults(maxSearchResults);
 
 		engine.start(port);
+
+		for (String address : roomServerList) {
+			String[] tokens = address.split(":");
+			if (tokens.length != 2)
+				continue;
+
+			try {
+				String hostname = tokens[0];
+				int roomPort = Integer.parseInt(tokens[1]);
+
+				InetSocketAddress socketAddress = new InetSocketAddress(hostname, roomPort);
+				engine.addWatching(socketAddress);
+			} catch (NumberFormatException e) {
+			}
+		}
 
 		HashMap<String, CommandHandler> handlers = new HashMap<String, CommandHandler>();
 		handlers.put("help", new CommandHandler() {
@@ -85,8 +115,16 @@ public class RoomSearchServer {
 				System.out.println("shutdown\n\tサーバーを終了させる");
 				System.out.println("list\n\t現在の全登録を表示");
 				System.out.println("status\n\t現在のサーバーの状態を表示");
-				System.out.println("set MaxSearchResults 最大件数\n\t最大検索件数を設定");
+				System.out.println("set MaxUsers ユーザー数\n\t最大ユーザー数を設定");
+				System.out.println("set MaxSearchResults 件数\n\t最大検索件数を設定");
 				System.out.println("set DescriptionMaxLength 文字数\n\t部屋の紹介・備考の最大文字数を設定");
+				System.out.println("room all\n\t監視している部屋サーバーの一覧");
+				System.out.println("room active\n\t接続中の部屋サーバーの一覧");
+				System.out.println("room dead\n\t切断された部屋サーバーの一覧");
+				System.out.println("reconnect\n\t切断された部屋サーバーと再接続する");
+				System.out.println("watch アドレス:ポート\n\t部屋サーバーを監視に加える");
+				System.out.println("unwatch アドレス:ポート\n\t部屋サーバーを監視から外す");
+				System.out.println("notify メッセージ\n\t全員にメッセージを告知");
 			}
 		});
 		handlers.put("list", new CommandHandler() {
@@ -99,9 +137,11 @@ public class RoomSearchServer {
 			@Override
 			public void process(String argument) {
 				System.out.println("ポート: " + engine.getPort());
+				System.out.println("ユーザー数: " + engine.getCurrentUsers() + " / " + engine.getMaxUsers());
 				System.out.println("登録部屋数: " + engine.getRoomEntryCount());
 				System.out.println("最大検索件数: " + engine.getMaxSearchResults());
 				System.out.println("部屋の紹介・備考の最大文字数: " + engine.getDescriptionMaxLength());
+				System.out.println("ログインメッセージファイル : " + loginMessageFile);
 			}
 		});
 		handlers.put("set", new CommandHandler() {
@@ -113,7 +153,14 @@ public class RoomSearchServer {
 
 				String key = tokens[0];
 				String value = tokens[1];
-				if (IniConstants.Server.MAX_SEARCH_RESULTS.equalsIgnoreCase(key)) {
+				if (IniConstants.Server.MAX_USERS.equalsIgnoreCase(key)) {
+					try {
+						int max = Integer.parseInt(value);
+						engine.setMaxUsers(max);
+						System.out.println("最大ユーザー数を " + max + " に設定しました");
+					} catch (NumberFormatException e) {
+					}
+				} else if (IniConstants.Server.MAX_SEARCH_RESULTS.equalsIgnoreCase(key)) {
 					try {
 						int max = Integer.parseInt(value);
 						engine.setMaxSearchResults(max);
@@ -130,7 +177,82 @@ public class RoomSearchServer {
 				}
 			}
 		});
-		
+		handlers.put("watch", new CommandHandler() {
+			@Override
+			public void process(String argument) {
+				String[] tokens = argument.split(":");
+				if (tokens.length != 2)
+					return;
+
+				try {
+					String hostname = tokens[0];
+					int port = Integer.parseInt(tokens[1]);
+
+					InetSocketAddress address = new InetSocketAddress(hostname, port);
+					engine.addWatching(address);
+				} catch (NumberFormatException e) {
+				}
+			}
+		});
+		handlers.put("unwatch", new CommandHandler() {
+			@Override
+			public void process(String argument) {
+				String[] tokens = argument.split(":");
+				if (tokens.length != 2)
+					return;
+
+				try {
+					String hostname = tokens[0];
+					int port = Integer.parseInt(tokens[1]);
+
+					InetSocketAddress address = new InetSocketAddress(hostname, port);
+					engine.removeWatching(address);
+				} catch (NumberFormatException e) {
+				}
+			}
+		});
+		handlers.put("room", new CommandHandler() {
+			@Override
+			public void process(String argument) {
+				InetSocketAddress[] list;
+				if ("all".equalsIgnoreCase(argument)) {
+					System.out.println("[監視している部屋サーバーの一覧]");
+					list = engine.listWatchlingAddress();
+				} else if ("active".equalsIgnoreCase(argument)) {
+					System.out.println("[接続中の部屋サーバーの一覧]");
+					list = engine.listActiveAddress();
+				} else if ("dead".equalsIgnoreCase(argument)) {
+					System.out.println("[切断された部屋サーバーの一覧]");
+					list = engine.listRetryAddress();
+				} else {
+					return;
+				}
+
+				for (InetSocketAddress address : list) {
+					System.out.print(address.getHostName());
+					System.out.print(':');
+					System.out.print(address.getPort());
+					System.out.println();
+				}
+			}
+		});
+		handlers.put("reconnect", new CommandHandler() {
+			@Override
+			public void process(String argument) {
+				engine.reconnectNow();
+			}
+		});
+		handlers.put("notify", new CommandHandler() {
+			@Override
+			public void process(String message) {
+				if (Utility.isEmpty(message))
+					return;
+
+				engine.notifyAllPlayers(message);
+				System.out.println("メッセージを告知しました : " + message);
+			}
+		});
+
 		BufferedReader reader = new BufferedReader(new InputStreamReader(System.in));
 		String line;
 		while ((line = reader.readLine()) != null) {

@@ -39,14 +39,12 @@ public class IniConstants {
 		public static final String MY_ROOM_PORT = "MyRoomPort";
 		public static final String MY_ROOM_ALLOW_NO_MASTER_NAME = "MyRoomAllowNoMasterName";
 
+		public static final String PORTAL_SERVER_LIST = "PortalServerList";
+		public static final String PORTAL_SERVER_HISTORY = "PortalServerHistory";
 		public static final String ROOM_SERVER_LIST = "RoomServerList";
 		public static final String ROOM_SERVER_HISTORY = "RoomServerHistory";
-		public static final String PROXY_SERVER_LIST = "ProxyServerList";
-		public static final String PROXY_SERVER_HISTORY = "ProxyServerHistory";
-		public static final String ENTRY_SEARCH_SERVER_LIST = "EntrySearchServerList";
-		public static final String ENTRY_SEARCH_SERVER_HISTORY = "EntrySearchServerHistory";
-		public static final String QUERY_SEARCH_SERVER_LIST = "QuerySearchServerList";
-		public static final String QUERY_SEARCH_SERVER_HISTORY = "QuerySearchServerHistory";
+		public static final String ROOM_ADDRESS_LIST = "RoomAddressList";
+		public static final String ROOM_ADDRESS_HISTORY = "RoomAddressHistory";
 
 		public static final String LAST_LAN_ADAPTER = "LastLanAdapter";
 
@@ -62,8 +60,10 @@ public class IniConstants {
 		public static final String MAX_ROOMS = "MaxRooms";
 		public static final String ALLOW_ROOM_PASSWORD = "AllowRoomPassword";
 		public static final String LOGIN_MESSAGE_FILE = "LoginMessageFile";
+		public static final String LOBBY_CAPACITY = "LobbyCapacity";
 
 		public static final String MAX_SEARCH_RESULTS = "MaxSearchResults";
 		public static final String DESCRIPTION_MAX_LENGTH = "DescriptionMaxLength";
+		public static final String ROOM_SERVER_LIST = "RoomServerList";
 	}
 }

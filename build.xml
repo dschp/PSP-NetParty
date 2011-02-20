@@ -18,13 +18,13 @@
 		</mapper>
 	</pathconvert>
 
-	<path id="build.classpath.search">
+	<path id="build.classpath.portal">
 		<fileset dir="${basedir}">
 			<include name="lib_lucene/*.jar" />
 		</fileset>
 	</path>
-	<pathconvert property="manifest.classpath.search" pathsep=" ">
-		<path refid="build.classpath.search" />
+	<pathconvert property="manifest.classpath.portal" pathsep=" ">
+		<path refid="build.classpath.portal" />
 		<mapper>
 			<chainedmapper>
 				<flattenmapper />
@@ -33,11 +33,15 @@
 		</mapper>
 	</pathconvert>
 
-	<target name="jar" depends="jar-lib, jar-swt, jar-proxy, jar-search">
+	<target name="jar" depends="jar-lib, jar-swt, jar-portal, jar-room">
 	</target>
 
 	<target name="jar-lib">
-		<jar basedir="bin" jarfile="${publish_directory}/PspNetParty.jar" includes="pspnetparty/lib/**">
+		<jar jarfile="${publish_directory}/PspNetParty.jar">
+			<fileset dir="bin" includes="">
+				<include name="pspnetparty/lib/**"/>
+				<include name="pspnetparty/wlan/**"/>
+			</fileset>
 		</jar>
 	</target>
 
@@ -50,20 +54,20 @@
 		</jar>
 	</target>
 
-	<target name="jar-proxy">
-		<jar basedir="bin" jarfile="${publish_directory}/ProxyRoomServer.jar" includes="pspnetparty/server/ProxyRoomServer*">
+	<target name="jar-room">
+		<jar basedir="bin" jarfile="${publish_directory}/RoomServer.jar" includes="pspnetparty/server/RoomServer*">
 			<manifest>
-				<attribute name="Main-Class" value="pspnetparty.server.ProxyRoomServer" />
+				<attribute name="Main-Class" value="pspnetparty.server.RoomServer" />
 				<attribute name="Class-Path" value="ProxyRoomServer.jar PspNetParty.jar" />
 			</manifest>
 		</jar>
 	</target>
 
-	<target name="jar-search">
-		<jar basedir="bin" jarfile="${publish_directory}/RoomSearchServer.jar" includes="pspnetparty/server/RoomSearchServer*">
+	<target name="jar-portal">
+		<jar basedir="bin" jarfile="${publish_directory}/PortalServer.jar" includes="pspnetparty/server/PortalServer*">
 			<manifest>
-				<attribute name="Main-Class" value="pspnetparty.server.RoomSearchServer" />
-				<attribute name="Class-Path" value="RoomSearchServer.jar PspNetParty.jar ${manifest.classpath.search}" />
+				<attribute name="Main-Class" value="pspnetparty.server.PortalServer" />
+				<attribute name="Class-Path" value="RoomSearchServer.jar PspNetParty.jar ${manifest.classpath.portal}" />
 			</manifest>
 		</jar>
 	</target>

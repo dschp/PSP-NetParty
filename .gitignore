@@ -11,3 +11,6 @@ Test2.ini
 ProxyRoomServer.ini
 RoomSearchServer.ini
 /lib_db
+/PortalServer.ini
+/RoomServer.ini
+/pnpwlan.dll

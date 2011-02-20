@@ -26,16 +26,16 @@ import java.util.HashMap;
 import pspnetparty.lib.CommandHandler;
 import pspnetparty.lib.ILogger;
 import pspnetparty.lib.IniParser;
-import pspnetparty.lib.ProxyRoomEngine;
+import pspnetparty.lib.RoomEngine;
 import pspnetparty.lib.Utility;
 import pspnetparty.lib.constants.AppConstants;
 import pspnetparty.lib.constants.IniConstants;
 
-public class ProxyRoomServer {
+public class RoomServer {
 	public static void main(String[] args) throws IOException {
-		System.out.printf("%s 部屋代理サーバー  version %s\n", AppConstants.APP_NAME, AppConstants.VERSION);
+		System.out.printf("%s ルームサーバー  version %s\n", AppConstants.APP_NAME, AppConstants.VERSION);
 
-		String iniFileName = "ProxyRoomServer.ini";
+		String iniFileName = "RoomServer.ini";
 		switch (args.length) {
 		case 1:
 			iniFileName = args[0];
@@ -62,13 +62,20 @@ public class ProxyRoomServer {
 
 		boolean passwordAllowed = settings.get(IniConstants.Server.ALLOW_ROOM_PASSWORD, true);
 		System.out.println("部屋パスワード: " + (passwordAllowed ? "許可" : "禁止"));
-		
+
 		final String loginMessageFile = settings.get(IniConstants.Server.LOGIN_MESSAGE_FILE, "");
 		System.out.println("ログインメッセージファイル : " + loginMessageFile);
 
+		int lobbyCapacity = settings.get(IniConstants.Server.LOBBY_CAPACITY, 0);
+		if (lobbyCapacity > 0) {
+			System.out.println("ロビー上限人数: " + lobbyCapacity);
+		} else {
+			System.out.println("ロビー: オフ");
+		}
+
 		parser.saveToIni();
 
-		final ProxyRoomEngine engine = new ProxyRoomEngine(new ILogger() {
+		final RoomEngine engine = new RoomEngine(new ILogger() {
 			@Override
 			public void log(String message) {
 				System.out.println(message);
@@ -78,7 +85,7 @@ public class ProxyRoomServer {
 		engine.setRoomPasswordAllowed(passwordAllowed);
 		engine.setLoginMessageFile(loginMessageFile);
 
-		engine.start(port);
+		engine.start(port, lobbyCapacity);
 
 		HashMap<String, CommandHandler> handlers = new HashMap<String, CommandHandler>();
 		handlers.put("help", new CommandHandler() {
@@ -89,6 +96,7 @@ public class ProxyRoomServer {
 				System.out.println("status\n\t現在のサーバーの状態を表示");
 				System.out.println("set MaxRooms 部屋数\n\t最大部屋数を部屋数に設定");
 				System.out.println("set AllowRoomPassword Yes/No\n\t部屋パスワードの許可禁止を設定");
+				System.out.println("set LobbyCapacity 人数\n\tロビーの上限人数を設定");
 				System.out.println("notify メッセージ\n\t全員にメッセージを告知");
 				System.out.println("destroy 部屋主名\n\t部屋主名の部屋を解体する");
 				System.out.println("goma 部屋主名\n\t部屋主名の部屋の最大人数を増やす");
@@ -104,9 +112,16 @@ public class ProxyRoomServer {
 			@Override
 			public void process(String argument) {
 				System.out.println("ポート: " + engine.getPort());
-				System.out.println("部屋数: " + engine.getCurrentRooms() + " / " + engine.getMaxRooms());
+				System.out.println("部屋数: " + engine.getRoomCount() + " / " + engine.getMaxRooms());
 				System.out.println("部屋パスワード: " + (engine.isRoomPasswordAllowed() ? "許可" : "禁止"));
 				System.out.println("ログインメッセージファイル : " + loginMessageFile);
+
+				int lobbyCapacity = engine.getLobbyCapacity();
+				if (lobbyCapacity > 0) {
+					System.out.println("ロビー: " + engine.getLobbyUserCount() + " / " + lobbyCapacity);
+				} else {
+					System.out.println("ロビー: オフ");
+				}
 			}
 		});
 		handlers.put("set", new CommandHandler() {
@@ -122,7 +137,7 @@ public class ProxyRoomServer {
 					try {
 						int max = Integer.parseInt(value);
 						engine.setMaxRooms(max);
-						System.out.println("最大部屋数が " + max + " に変更されました");
+						System.out.println("最大部屋数を " + max + " に設定しました");
 					} catch (NumberFormatException e) {
 					}
 				} else if (IniConstants.Server.ALLOW_ROOM_PASSWORD.equalsIgnoreCase(key)) {
@@ -133,6 +148,13 @@ public class ProxyRoomServer {
 					} else if ("no".equals(value) || "n".equals(value)) {
 						engine.setRoomPasswordAllowed(false);
 						System.out.println("部屋パスワードを 禁止 に設定しました");
+					}
+				} else if (IniConstants.Server.LOBBY_CAPACITY.equalsIgnoreCase(key)) {
+					try {
+						int max = Integer.parseInt(value);
+						engine.setLobbyCapacity(max);
+						System.out.println("ロビーの上限人数を " + max + " に設定しました");
+					} catch (NumberFormatException e) {
 					}
 				}
 			}

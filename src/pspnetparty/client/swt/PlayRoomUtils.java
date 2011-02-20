@@ -80,7 +80,7 @@ public class PlayRoomUtils {
 			String result = "";
 			switch (columnIndex) {
 			case 0:
-				result = room.getRoomAddress();
+				result = room.getServerAddress();
 				break;
 			case 1:
 				result = room.getMasterName();
