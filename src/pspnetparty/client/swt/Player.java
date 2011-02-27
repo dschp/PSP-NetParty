@@ -31,6 +31,8 @@ public class Player {
 
 	private String name;
 	private int ping = -1;
+	private boolean isSsidChased = false;
+	private String ssid = "";
 
 	public Player(String name) {
 		this.name = name;
@@ -46,6 +48,22 @@ public class Player {
 
 	public void setPing(int ping) {
 		this.ping = ping;
+	}
+
+	public String getSsid() {
+		return ssid;
+	}
+
+	public void setSsid(String ssid) {
+		this.ssid = ssid;
+	}
+
+	public boolean isSSIDChased() {
+		return isSsidChased;
+	}
+
+	public void setSSIDChased(boolean isSsidchased) {
+		this.isSsidChased = isSsidchased;
 	}
 
 	public static class PlayerListContentProvider implements IStructuredContentProvider {
@@ -130,36 +148,54 @@ public class Player {
 		public String getColumnText(Object element, int columnIndex) {
 			Player player = (Player) element;
 
-			String result = "";
 			switch (columnIndex) {
 			case 0:
-				result = player.name;
-				break;
+				return player.isSsidChased ? "追" : "";
 			case 1:
+				return player.name;
+			case 2:
+				return player.ssid;
+			case 3:
 				if (player.ping >= 0)
-					result = Integer.toString(player.ping);
-				break;
+					return Integer.toString(player.ping);
 			}
 
-			return result;
+			return "";
 		}
 	}
 
-	public static class NameSorter extends ViewerSorter {
+	public static final ViewerSorter NANE_SORTER = new ViewerSorter() {
 		@Override
 		public int compare(Viewer viewer, Object e1, Object e2) {
 			Player p1 = (Player) e1;
 			Player p2 = (Player) e2;
 			return p1.name.compareTo(p2.name);
 		}
-	}
+	};
 
-	public static class PingSorter extends ViewerSorter {
+	public static final ViewerSorter PING_SORTER = new ViewerSorter() {
 		@Override
 		public int compare(Viewer viewer, Object e1, Object e2) {
 			Player p1 = (Player) e1;
 			Player p2 = (Player) e2;
 			return Integer.valueOf(p1.ping).compareTo(p2.ping);
 		}
-	}
+	};
+
+	public static final ViewerSorter SSID_SORTER = new ViewerSorter() {
+		@Override
+		public int compare(Viewer viewer, Object e1, Object e2) {
+			Player p1 = (Player) e1;
+			Player p2 = (Player) e2;
+			return p1.ssid.compareTo(p2.ssid);
+		}
+	};
+
+	public static final ViewerSorter SSID_CHASE_SORTER = new ViewerSorter() {
+		public int compare(Viewer viewer, Object e1, Object e2) {
+			Player p1 = (Player) e1;
+			Player p2 = (Player) e2;
+			return Boolean.valueOf(p1.isSsidChased).compareTo(p2.isSsidChased);
+		};
+	};
 }

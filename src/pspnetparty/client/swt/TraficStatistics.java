@@ -42,7 +42,7 @@ public class TraficStatistics {
 
 	public long totalInBytes;
 	public long totalOutBytes;
-
+	
 	public TraficStatistics(String macAddress, boolean isMine) {
 		this.macAddress = macAddress;
 		this.isMine = isMine;

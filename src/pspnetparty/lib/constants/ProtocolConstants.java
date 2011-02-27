@@ -41,6 +41,8 @@ public class ProtocolConstants {
 		public static final int MAX_ROOM_PLAYERS = 16;
 		public static final String TUNNEL_DUMMY_PACKET = " ";
 
+		public static final String SERVER_STATUS = "SS";
+
 		public static final String COMMAND_LOGIN = "LI";
 		public static final String COMMAND_LOGOUT = "LO";
 		public static final String COMMAND_CHAT = "CH";
@@ -49,16 +51,14 @@ public class ProtocolConstants {
 		public static final String COMMAND_ROOM_KICK_PLAYER = "RK";
 		public static final String COMMAND_ROOM_MASTER_TRANSFER = "RT";
 
-		public static final String NOTIFY_FROM_ADMIN = "AN";
-
 		public static final String COMMAND_INFORM_TUNNEL_UDP_PORT = "IU";
 		public static final String COMMAND_MAC_ADDRESS_PLAYER = "MAP";
 
 		public static final String COMMAND_PING = "PG";
 		public static final String COMMAND_PINGBACK = "PB";
 		public static final String COMMAND_INFORM_PING = "IP";
+		public static final String COMMAND_INFORM_SSID = "IS";
 
-		public static final String NOTIFY_LOBBY_ADDRESS = "NLA";
 		public static final String NOTIFY_USER_LIST = "NUL";
 		public static final String NOTIFY_USER_ENTERED = "NUE";
 		public static final String NOTIFY_USER_EXITED = "NUX";
@@ -67,7 +67,9 @@ public class ProtocolConstants {
 		public static final String NOTIFY_ROOM_DELETED = "NRD";
 		public static final String NOTIFY_ROOM_UPDATED = "NRU";
 		public static final String NOTIFY_ROOM_PLAYER_COUNT_CHANGED = "NRP";
-		public static final String SERVER_STATUS = "SS";
+		public static final String NOTIFY_LOBBY_ADDRESS = "NLA";
+		public static final String NOTIFY_FROM_ADMIN = "AN";
+		public static final String NOTIFY_SSID_CHANGED = "NSC";
 
 		public static final String NOTIFY_ROOM_PASSWORD_REQUIRED = "NRPR";
 

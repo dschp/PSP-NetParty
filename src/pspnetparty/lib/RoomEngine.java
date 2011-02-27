@@ -310,6 +310,7 @@ public class RoomEngine {
 		private String name;
 		private Room room;
 		private TunnelState tunnelState;
+		private String ssid = "";
 
 		private PlayRoom myRoom;
 
@@ -363,11 +364,19 @@ public class RoomEngine {
 
 		private void appendNotifyUserList(StringBuilder sb) {
 			sb.append(ProtocolConstants.Room.NOTIFY_USER_LIST);
-			sb.append(ProtocolConstants.ARGUMENT_SEPARATOR).append(roomMaster.name);
+			sb.append(ProtocolConstants.ARGUMENT_SEPARATOR);
+			sb.append(roomMaster.name);
+			sb.append(ProtocolConstants.ARGUMENT_SEPARATOR);
+			sb.append(roomMaster.ssid);
 			for (Entry<String, PlayerState> entry : playersByName.entrySet()) {
 				PlayerState state = entry.getValue();
-				if (state != roomMaster)
-					sb.append(ProtocolConstants.ARGUMENT_SEPARATOR).append(state.name);
+				if (state == roomMaster)
+					continue;
+
+				sb.append(ProtocolConstants.ARGUMENT_SEPARATOR);
+				sb.append(state.name);
+				sb.append(ProtocolConstants.ARGUMENT_SEPARATOR);
+				sb.append(state.ssid);
 			}
 		}
 
@@ -433,6 +442,7 @@ public class RoomEngine {
 			sessionHandlers.put(ProtocolConstants.Room.COMMAND_ROOM_UPDATE, new RoomUpdateHandler());
 			sessionHandlers.put(ProtocolConstants.Room.COMMAND_ROOM_KICK_PLAYER, new RoomKickPlayerHandler());
 			sessionHandlers.put(ProtocolConstants.Room.COMMAND_ROOM_MASTER_TRANSFER, new RoomMasterTransferHandler());
+			sessionHandlers.put(ProtocolConstants.Room.COMMAND_INFORM_SSID, new InformSSIDHandler());
 
 			myRoomEntryHandlers = new HashMap<String, IServerMessageHandler<PlayerState>>();
 			myRoomEntryHandlers.put(ProtocolConstants.MyRoom.COMMAND_ENTRY, new MyRoomEntryHandler());
@@ -962,6 +972,31 @@ public class RoomEngine {
 					}
 				} catch (NumberFormatException e) {
 				}
+				return true;
+			}
+		}
+
+		private class InformSSIDHandler implements IServerMessageHandler<PlayerState> {
+			@Override
+			public boolean process(final PlayerState state, String argument) {
+				state.ssid = argument;
+
+				StringBuilder sb = new StringBuilder();
+				sb.append(ProtocolConstants.Room.NOTIFY_SSID_CHANGED);
+				sb.append(ProtocolConstants.ARGUMENT_SEPARATOR);
+				sb.append(state.name);
+				sb.append(ProtocolConstants.ARGUMENT_SEPARATOR);
+				sb.append(state.ssid);
+
+				final String notify = sb.toString();
+				state.room.forEachPlayer(new IClientStateAction<PlayerState>() {
+					@Override
+					public void action(PlayerState p) {
+						if (p != state)
+							p.getConnection().send(notify);
+					}
+				});
+
 				return true;
 			}
 		}
@@ -1521,6 +1556,11 @@ public class RoomEngine {
 			if (room == null)
 				return true;
 
+			PlayerState playerSendFrom = room.playersByName.get(state.playerName);
+			if (playerSendFrom == null)
+				return true;
+			boolean playerSendFromSsidIsNotEmpty = !Utility.isEmpty(playerSendFrom.ssid);
+
 			String destMac = Utility.makeMacAddressString(packet, 0, false);
 			String srcMac = Utility.makeMacAddressString(packet, 6, false);
 
@@ -1528,19 +1568,29 @@ public class RoomEngine {
 
 			if (Utility.isMacBroadCastAddress(destMac)) {
 				for (Entry<String, PlayerState> entry : room.playersByName.entrySet()) {
-					PlayerState sendTo = entry.getValue();
-					if (sendTo.tunnelState != null && sendTo.tunnelState != state) {
-						packet.position(0);
-						sendTo.tunnelState.getConnection().send(packet);
-						sendTo.tunnelState.lastTunnelTime = System.currentTimeMillis();
-					}
+					PlayerState playerSendTo = entry.getValue();
+					if (playerSendTo.tunnelState == null || playerSendTo.tunnelState == state)
+						continue;
+
+					if (playerSendFromSsidIsNotEmpty && !Utility.isEmpty(playerSendTo.ssid))
+						if (!playerSendFrom.ssid.equals(playerSendTo.ssid))
+							continue;
+
+					packet.position(0);
+					playerSendTo.tunnelState.getConnection().send(packet);
+					playerSendTo.tunnelState.lastTunnelTime = System.currentTimeMillis();
 				}
 			} else {
-				TunnelState sendTo = room.tunnelsByMacAddress.get(destMac);
-				if (sendTo != null) {
-					sendTo.getConnection().send(packet);
-					sendTo.lastTunnelTime = System.currentTimeMillis();
-				}
+				TunnelState tunnelSendTo = room.tunnelsByMacAddress.get(destMac);
+				if (tunnelSendTo == null)
+					return true;
+				PlayerState playerSendTo = room.playersByName.get(tunnelSendTo.playerName);
+				if (playerSendFromSsidIsNotEmpty && !Utility.isEmpty(playerSendTo.ssid))
+					if (!playerSendFrom.ssid.equals(playerSendTo.ssid))
+						return true;
+
+				tunnelSendTo.getConnection().send(packet);
+				tunnelSendTo.lastTunnelTime = System.currentTimeMillis();
 			}
 
 			return true;

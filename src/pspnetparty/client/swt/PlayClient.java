@@ -90,17 +90,12 @@ import org.eclipse.swt.widgets.Text;
 import org.eclipse.swt.widgets.ToolTip;
 import org.eclipse.swt.widgets.Tray;
 import org.eclipse.swt.widgets.TrayItem;
-import org.jnetpcap.Pcap;
-import org.jnetpcap.PcapIf;
-import org.jnetpcap.nio.JMemory;
-import org.jnetpcap.packet.PcapPacket;
-import org.jnetpcap.protocol.lan.Ethernet;
 
 import pspnetparty.lib.AsyncTcpClient;
 import pspnetparty.lib.AsyncUdpClient;
 import pspnetparty.lib.CommandHandler;
 import pspnetparty.lib.IAsyncClientHandler;
-import pspnetparty.lib.IRoomMasterHandler;
+import pspnetparty.lib.IMyRoomMasterHandler;
 import pspnetparty.lib.ISocketConnection;
 import pspnetparty.lib.IniParser;
 import pspnetparty.lib.MyRoomEngine;
@@ -110,12 +105,12 @@ import pspnetparty.lib.Utility;
 import pspnetparty.lib.constants.AppConstants;
 import pspnetparty.lib.constants.IniConstants;
 import pspnetparty.lib.constants.ProtocolConstants;
-import pspnetparty.wlan.BSSID;
 import pspnetparty.wlan.Wlan;
+import pspnetparty.wlan.WlanDevice;
+import pspnetparty.wlan.WlanNetwork;
 
 public class PlayClient {
 
-	private static final int CAPTURE_BUFFER_SIZE = 2000;
 	private static final int MAX_SERVER_HISTORY = 10;
 	private static final int DEFAULT_MAX_PLAYERS = 4;
 
@@ -168,14 +163,19 @@ public class PlayClient {
 	private boolean isPortalTabSelected = true;
 	private boolean isPortalAutoQueryEnabled = true;
 
-	private ByteBuffer bufferForCapturing = ByteBuffer.allocate(CAPTURE_BUFFER_SIZE);
-	private ArrayList<PcapIf> wlanAdaptorList = new ArrayList<PcapIf>();
-	private HashMap<PcapIf, String> wlanAdaptorMacAddressMap = new HashMap<PcapIf, String>();
-	private Pcap currentPcapDevice;
-	private Wlan currentWlanDevice;
+	private int scanIntervalMillis = 2000;
+	private long nextSsidCheckTime = 0L;
+
+	private ByteBuffer bufferForCapturing = ByteBuffer.allocateDirect(Wlan.CAPTURE_BUFFER_SIZE);
+	private ArrayList<WlanDevice> wlanAdaptorList = new ArrayList<WlanDevice>();
+	private HashMap<WlanDevice, String> wlanAdaptorMacAddressMap = new HashMap<WlanDevice, String>();
+	private WlanDevice currentWlanDevice = Wlan.EMPTY_DEVICE;
 
 	private HashMap<String, Player> roomPlayerMap = new LinkedHashMap<String, Player>();
 	private HashMap<String, TraficStatistics> traficStatsMap = new HashMap<String, TraficStatistics>();
+
+	public int actualSentBytes;
+	public int actualRecievedBytes;
 
 	private Thread packetMonitorThread;
 	private Thread packetCaptureThread;
@@ -195,6 +195,7 @@ public class PlayClient {
 	private ComboHistoryManager queryRoomMasterNameNgHistoryManager;
 	private ComboHistoryManager queryRoomAddressHistoryManager;
 	private ComboHistoryManager queryRoomAddressNgHistoryManager;
+	private Thread wlanScannerThread;
 
 	public PlayClient(IniParser iniParser) {
 		this.iniParser = iniParser;
@@ -210,6 +211,7 @@ public class PlayClient {
 
 		window.roomPlayerListTableViewer.setInput(roomPlayerMap);
 		window.portalRoomServerTableViewer.setInput(roomServers);
+		window.ssidScanIntervalSpinner.setSelection(scanIntervalMillis);
 
 		initializeComponentListeners();
 
@@ -259,39 +261,31 @@ public class PlayClient {
 		String software = String.format("%s プレイクライアント バージョン: %s", AppConstants.APP_NAME, AppConstants.VERSION);
 		appendLogTo(window.portalLogText, software, window.colorAppInfo, false);
 		appendLogTo(window.portalLogText, "プロトコル: " + ProtocolConstants.PROTOCOL_NUMBER, window.colorAppInfo, false);
+		appendLogTo(window.portalLogText, "SSID機能: " + (Wlan.isLibraryAvailable ? "On" : "Off"), window.colorAppInfo, false);
 
 		initializeBackgroundThreads();
 	}
 
 	private static class Window {
 		private TabFolder mainTabFolder;
+
 		private TabItem portalTab;
 		private SashForm portalMainSash;
-		private SashForm portalLeftSash;
 		private TableViewer portalRoomServerTableViewer;
 		private StyledText portalLogText;
-		private Composite portalLeftContainer;
-		private Label portalServerAddressLabel;
 		private Combo portalServerAddressCombo;
 		private Button portalServerLoginButton;
-		private Label portalSearchFormTitleLabel;
 		private Combo portalSearchFormTitleCombo;
 		private Combo portalSearchFormTitleNgCombo;
-		private Label portalSearchFormMasterNameLabel;
 		private Combo portalSearchFormMasterNameCombo;
 		private Combo portalSearchFormMasterNameNgCombo;
-		private Label portalSearchFormServerNameLabel;
 		private Combo portalSearchFormServerNameCombo;
 		private Combo portalSearchFormServerNameNgCombo;
 		private Button portalSearchFormHasPassword;
 		private Button portalSearchFormAutoQuery;
 		private TableViewer portalRoomSearchResultTable;
+
 		private TabItem playRoomTab;
-		private SashForm roomMainSashForm;
-		private Composite roomLeftContainer;
-		private Composite roomFormControlContainer;
-		private Composite roomFormGridContainer;
-		private Label roomFormProxyModeAddressLabel;
 		private Composite roomFormModeSwitchContainer;
 		private StackLayout roomModeStackLayout;
 		private Combo roomFormModeSelectionCombo;
@@ -311,53 +305,35 @@ public class PlayClient {
 		private Button roomFormMyRoomModeStartButton;
 		private Combo roomFormMyRoomModeEntryCombo;
 		private Button roomFormMyRoomModeEntryButton;
-		private Label roomFormMasterLabel;
 		private Text roomFormMasterText;
-		private Label roomFormTitleLabel;
 		private Text roomFormTitleText;
-		private Label roomFormPasswordLabel;
 		private Text roomFormPasswordText;
-		private Label roomFormMaxPlayersLabel;
-		private Composite roomFormMaxPlayerContainer;
 		private Spinner roomFormMaxPlayersSpiner;
 		private Button roomFormEditButton;
-		private Label roomFormDescriptionLabel;
 		private Text roomFormDescriptionText;
-		private Composite roomRightContainer;
-		private Composite wlanAdaptorContainer;
-		private Label wlanAdapterListLabel;
 		private Combo wlanAdapterListCombo;
 		private Button wlanPspCommunicationButton;
-		private SashForm roomSubSashForm;
 		private TableViewer packetMonitorTable;
 		private Button ssidStartScan;
-		private Label ssidCurrentSsidLabel;
 		private Text ssidCurrentSsidText;
-		private Composite ssidContainer;
 		private Label ssidMatchLabel;
 		private Text ssidMatchText;
-		private Composite ssidControlContainer;
-		private Spinner ssidRefreshIntervalSpinner;
-		private Label ssidRefreshIntervalLabel;
+		private Spinner ssidScanIntervalSpinner;
+		private Label ssidScanIntervalLabel;
 		private Button ssidAutoDetectCheck;
 		private TableViewer ssidListTableViewer;
-		private SashForm roomInfoSashForm;
 		private StyledText roomChatLogText;
 		private TableViewer roomPlayerListTableViewer;
-		private TableColumn roomPlayerNameColumn;
-		private TableColumn roomPlayerPingColumn;
-		private Composite roomChatCommandContainer;
 		private Text roomChatSubmitText;
 		private Button roomChatSubmitButton;
+
 		private TabItem configTab;
-		private Composite configContainer;
-		private Label configUserNameLabel;
 		private Text configUserNameText;
 		private Label configUserNameAlertLabel;
 		private Button configAppCloseConfirmCheck;
 		private Button configEnableBalloonCheck;
-		private Group configMyRoomGroup;
 		private Button configMyRoomAllowEmptyMasterNameCheck;
+
 		private TabItem logTab;
 		private Text logText;
 		private Composite statusBarContainer;
@@ -374,6 +350,9 @@ public class PlayClient {
 		private MenuItem portalRoomServerSetAddress;
 		private MenuItem portalRoomServerSetAddress4MyRoom;
 		private Menu roomPlayerMenu;
+		private MenuItem roomPlayerChaseSsidMenuItem;
+		private MenuItem roomPlayerSetSsidMenuItem;
+		private MenuItem roomPlayerCopySsidMenuItem;
 		private MenuItem roomPlayerKickMenuItem;
 		private MenuItem roomPlayerMasterTransferMenuItem;
 		private Menu statusServerAddressMenu;
@@ -449,7 +428,7 @@ public class PlayClient {
 			portalMainSash = new SashForm(mainTabFolder, SWT.HORIZONTAL | SWT.SMOOTH);
 			portalTab.setControl(portalMainSash);
 
-			portalLeftContainer = new Composite(portalMainSash, SWT.NONE);
+			Composite portalLeftContainer = new Composite(portalMainSash, SWT.NONE);
 			gridLayout = new GridLayout(3, false);
 			gridLayout.horizontalSpacing = 3;
 			gridLayout.verticalSpacing = 3;
@@ -458,7 +437,7 @@ public class PlayClient {
 			gridLayout.marginTop = 3;
 			portalLeftContainer.setLayout(gridLayout);
 
-			portalServerAddressLabel = new Label(portalLeftContainer, SWT.NONE);
+			Label portalServerAddressLabel = new Label(portalLeftContainer, SWT.NONE);
 			portalServerAddressLabel.setText("ポータルサーバー");
 			portalServerAddressLabel.setLayoutData(new GridData(SWT.RIGHT, SWT.CENTER, false, false));
 
@@ -469,7 +448,7 @@ public class PlayClient {
 			portalServerLoginButton.setText("ログイン");
 			portalServerLoginButton.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, false, false));
 
-			portalLeftSash = new SashForm(portalLeftContainer, SWT.VERTICAL | SWT.SMOOTH);
+			SashForm portalLeftSash = new SashForm(portalLeftContainer, SWT.VERTICAL | SWT.SMOOTH);
 			portalLeftSash.setLayoutData(new GridData(SWT.FILL, SWT.FILL, true, true, 3, 1));
 
 			portalRoomServerTableViewer = new TableViewer(portalLeftSash, SWT.SINGLE | SWT.BORDER | SWT.FULL_SELECTION);
@@ -521,7 +500,7 @@ public class PlayClient {
 			searchFormGroup.setLayout(gridLayout);
 			searchFormGroup.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
 
-			portalSearchFormServerNameLabel = new Label(searchFormGroup, SWT.NONE);
+			Label portalSearchFormServerNameLabel = new Label(searchFormGroup, SWT.NONE);
 			portalSearchFormServerNameLabel.setText("ルームサーバー");
 			portalSearchFormServerNameLabel.setLayoutData(new GridData(SWT.CENTER, SWT.CENTER, false, false));
 
@@ -535,7 +514,7 @@ public class PlayClient {
 			portalSearchFormServerNameNgCombo = new Combo(searchFormGroup, SWT.NONE);
 			portalSearchFormServerNameNgCombo.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
 
-			portalSearchFormMasterNameLabel = new Label(searchFormGroup, SWT.NONE);
+			Label portalSearchFormMasterNameLabel = new Label(searchFormGroup, SWT.NONE);
 			portalSearchFormMasterNameLabel.setText("部屋主");
 			portalSearchFormMasterNameLabel.setLayoutData(new GridData(SWT.CENTER, SWT.CENTER, false, false));
 
@@ -549,7 +528,7 @@ public class PlayClient {
 			portalSearchFormMasterNameNgCombo = new Combo(searchFormGroup, SWT.NONE);
 			portalSearchFormMasterNameNgCombo.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
 
-			portalSearchFormTitleLabel = new Label(searchFormGroup, SWT.NONE);
+			Label portalSearchFormTitleLabel = new Label(searchFormGroup, SWT.NONE);
 			portalSearchFormTitleLabel.setText("部屋名");
 			portalSearchFormTitleLabel.setLayoutData(new GridData(SWT.CENTER, SWT.CENTER, false, false));
 
@@ -612,10 +591,10 @@ public class PlayClient {
 			playRoomTab = new TabItem(mainTabFolder, SWT.NONE);
 			playRoomTab.setText("プレイルーム");
 
-			roomMainSashForm = new SashForm(mainTabFolder, SWT.HORIZONTAL);
-			playRoomTab.setControl(roomMainSashForm);
+			SashForm roomSashForm = new SashForm(mainTabFolder, SWT.HORIZONTAL);
+			playRoomTab.setControl(roomSashForm);
 
-			roomLeftContainer = new Composite(roomMainSashForm, SWT.NONE);
+			Composite roomLeftContainer = new Composite(roomSashForm, SWT.NONE);
 			gridLayout = new GridLayout(1, false);
 			gridLayout.horizontalSpacing = 0;
 			gridLayout.verticalSpacing = 4;
@@ -624,7 +603,7 @@ public class PlayClient {
 			gridLayout.marginTop = 5;
 			roomLeftContainer.setLayout(gridLayout);
 
-			roomFormControlContainer = new Composite(roomLeftContainer, SWT.NONE);
+			Composite roomFormControlContainer = new Composite(roomLeftContainer, SWT.NONE);
 			gridLayout = new GridLayout(2, false);
 			gridLayout.horizontalSpacing = 8;
 			gridLayout.verticalSpacing = 3;
@@ -656,7 +635,7 @@ public class PlayClient {
 			gridLayout.marginHeight = 0;
 			roomFormMasterModeContainer.setLayout(gridLayout);
 
-			roomFormProxyModeAddressLabel = new Label(roomFormMasterModeContainer, SWT.NONE);
+			Label roomFormProxyModeAddressLabel = new Label(roomFormMasterModeContainer, SWT.NONE);
 			roomFormProxyModeAddressLabel.setText("ルームサーバー");
 			roomFormProxyModeAddressLabel.setLayoutData(new GridData(SWT.CENTER, SWT.CENTER, false, false));
 
@@ -752,7 +731,7 @@ public class PlayClient {
 			roomFormGroup.setLayoutData(new GridData(SWT.FILL, SWT.FILL, true, true));
 			roomFormGroup.setLayout(new FormLayout());
 
-			roomFormGridContainer = new Composite(roomFormGroup, SWT.NONE);
+			Composite roomFormGridContainer = new Composite(roomFormGroup, SWT.NONE);
 			roomFormGridContainer.setLayout(new GridLayout(2, false));
 			formData = new FormData();
 			formData.top = new FormAttachment(0, 1);
@@ -760,7 +739,7 @@ public class PlayClient {
 			formData.right = new FormAttachment(100, 0);
 			roomFormGridContainer.setLayoutData(formData);
 
-			roomFormMasterLabel = new Label(roomFormGridContainer, SWT.NONE);
+			Label roomFormMasterLabel = new Label(roomFormGridContainer, SWT.NONE);
 			roomFormMasterLabel.setText("部屋主");
 			roomFormMasterLabel.setLayoutData(new GridData(SWT.CENTER, SWT.CENTER, false, false));
 
@@ -768,7 +747,7 @@ public class PlayClient {
 			roomFormMasterText.setBackground(colorWhite);
 			roomFormMasterText.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
 
-			roomFormTitleLabel = new Label(roomFormGridContainer, SWT.NONE);
+			Label roomFormTitleLabel = new Label(roomFormGridContainer, SWT.NONE);
 			roomFormTitleLabel.setText("部屋名");
 			roomFormTitleLabel.setLayoutData(new GridData(SWT.CENTER, SWT.CENTER, false, false));
 
@@ -777,7 +756,7 @@ public class PlayClient {
 			roomFormTitleText.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
 			roomFormTitleText.setTextLimit(100);
 
-			roomFormPasswordLabel = new Label(roomFormGridContainer, SWT.NONE);
+			Label roomFormPasswordLabel = new Label(roomFormGridContainer, SWT.NONE);
 			roomFormPasswordLabel.setText("パスワード");
 			roomFormPasswordLabel.setLayoutData(new GridData(SWT.CENTER, SWT.CENTER, false, false));
 
@@ -786,11 +765,11 @@ public class PlayClient {
 			roomFormPasswordText.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
 			roomFormPasswordText.setTextLimit(30);
 
-			roomFormMaxPlayersLabel = new Label(roomFormGridContainer, SWT.NONE);
+			Label roomFormMaxPlayersLabel = new Label(roomFormGridContainer, SWT.NONE);
 			roomFormMaxPlayersLabel.setText("定員");
 			roomFormMaxPlayersLabel.setLayoutData(new GridData(SWT.CENTER, SWT.CENTER, false, false));
 
-			roomFormMaxPlayerContainer = new Composite(roomFormGridContainer, SWT.NONE);
+			Composite roomFormMaxPlayerContainer = new Composite(roomFormGridContainer, SWT.NONE);
 			roomFormMaxPlayerContainer.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
 			gridLayout = new GridLayout(2, false);
 			gridLayout.horizontalSpacing = 0;
@@ -811,7 +790,7 @@ public class PlayClient {
 			roomFormEditButton.setText("部屋情報を更新");
 			roomFormEditButton.setLayoutData(new GridData(SWT.RIGHT, SWT.CENTER, true, false));
 
-			roomFormDescriptionLabel = new Label(roomFormGroup, SWT.NONE);
+			Label roomFormDescriptionLabel = new Label(roomFormGroup, SWT.NONE);
 			roomFormDescriptionLabel.setText("部屋の紹介・備考");
 			formData = new FormData();
 			formData.top = new FormAttachment(roomFormGridContainer, 8);
@@ -829,15 +808,18 @@ public class PlayClient {
 			formData.bottom = new FormAttachment(100, -3);
 			roomFormDescriptionText.setLayoutData(formData);
 
-			roomRightContainer = new Composite(roomMainSashForm, SWT.NONE);
+			SashForm roomCenterSashForm = new SashForm(roomSashForm, SWT.VERTICAL);
+			roomCenterSashForm.setLayoutData(new GridData(SWT.FILL, SWT.FILL, true, true));
+
+			Composite roomCenterUpperContainer = new Composite(roomCenterSashForm, SWT.NONE);
 			gridLayout = new GridLayout(1, false);
 			gridLayout.verticalSpacing = 0;
 			gridLayout.horizontalSpacing = 0;
 			gridLayout.marginHeight = 0;
 			gridLayout.marginWidth = 0;
-			roomRightContainer.setLayout(gridLayout);
+			roomCenterUpperContainer.setLayout(gridLayout);
 
-			wlanAdaptorContainer = new Composite(roomRightContainer, SWT.NONE);
+			Composite wlanAdaptorContainer = new Composite(roomCenterUpperContainer, SWT.NONE);
 			gridLayout = new GridLayout(3, false);
 			gridLayout.verticalSpacing = 0;
 			gridLayout.horizontalSpacing = 3;
@@ -846,7 +828,7 @@ public class PlayClient {
 			wlanAdaptorContainer.setLayout(gridLayout);
 			wlanAdaptorContainer.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
 
-			wlanAdapterListLabel = new Label(wlanAdaptorContainer, SWT.NONE);
+			Label wlanAdapterListLabel = new Label(wlanAdaptorContainer, SWT.NONE);
 			wlanAdapterListLabel.setText("無線LANアダプタ");
 
 			wlanAdapterListCombo = new Combo(wlanAdaptorContainer, SWT.READ_ONLY);
@@ -855,13 +837,9 @@ public class PlayClient {
 			wlanPspCommunicationButton = new Button(wlanAdaptorContainer, SWT.TOGGLE);
 			wlanPspCommunicationButton.setText("PSPと通信開始");
 
-			roomSubSashForm = new SashForm(roomRightContainer, SWT.VERTICAL);
-			roomSubSashForm.setLayoutData(new GridData(SWT.FILL, SWT.FILL, true, true));
-
-			SashForm ssidSashForm = new SashForm(roomSubSashForm, SWT.HORIZONTAL);
-
-			packetMonitorTable = new TableViewer(ssidSashForm, SWT.SINGLE | SWT.BORDER | SWT.FULL_SELECTION);
+			packetMonitorTable = new TableViewer(roomCenterUpperContainer, SWT.SINGLE | SWT.BORDER | SWT.FULL_SELECTION);
 			packetMonitorTable.getTable().setHeaderVisible(true);
+			packetMonitorTable.getTable().setLayoutData(new GridData(SWT.FILL, SWT.FILL, true, true));
 
 			TableColumn packetMonitorIsMineColumn = new TableColumn(packetMonitorTable.getTable(), SWT.CENTER);
 			packetMonitorIsMineColumn.setText("");
@@ -901,96 +879,19 @@ public class PlayClient {
 			packetMonitorTable.setContentProvider(new TraficStatistics.ContentProvider());
 			packetMonitorTable.setLabelProvider(new TraficStatistics.LabelProvider());
 
-			ssidContainer = new Composite(ssidSashForm, SWT.NONE);
-			gridLayout = new GridLayout(2, false);
-			gridLayout.marginWidth = 0;
-			gridLayout.marginHeight = 2;
-			gridLayout.horizontalSpacing = 1;
-			gridLayout.verticalSpacing = 3;
-			gridLayout.marginRight = 1;
-			ssidContainer.setLayout(gridLayout);
-
-			ssidCurrentSsidLabel = new Label(ssidContainer, SWT.NONE);
-			ssidCurrentSsidLabel.setText("現在のSSID");
-			ssidCurrentSsidLabel.setLayoutData(new GridData(SWT.CENTER, SWT.CENTER, false, false));
-
-			ssidCurrentSsidText = new Text(ssidContainer, SWT.SINGLE | SWT.BORDER | SWT.READ_ONLY);
-			ssidCurrentSsidText.setBackground(colorWhite);
-			ssidCurrentSsidText.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
-
-			ssidMatchLabel = new Label(ssidContainer, SWT.NONE);
-			ssidMatchLabel.setText("絞り込み");
-			ssidMatchLabel.setLayoutData(new GridData(SWT.CENTER, SWT.CENTER, false, false));
-
-			ssidMatchText = new Text(ssidContainer, SWT.SINGLE | SWT.BORDER);
-			ssidMatchText.setText("PSP_");
-			ssidMatchText.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
-
-			ssidControlContainer = new Composite(ssidContainer, SWT.NONE);
-			ssidControlContainer.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false, 2, 1));
-			gridLayout = new GridLayout(4, false);
-			gridLayout.marginWidth = 0;
-			gridLayout.marginHeight = 0;
-			gridLayout.horizontalSpacing = 3;
+			Composite roomChatContainer = new Composite(roomCenterSashForm, SWT.NONE);
+			gridLayout = new GridLayout(1, false);
 			gridLayout.verticalSpacing = 0;
-			gridLayout.marginLeft = 2;
-			gridLayout.marginRight = 1;
-			ssidControlContainer.setLayout(gridLayout);
+			gridLayout.horizontalSpacing = 0;
+			gridLayout.marginHeight = 0;
+			gridLayout.marginWidth = 0;
+			roomChatContainer.setLayout(gridLayout);
 
-			ssidStartScan = new Button(ssidControlContainer, SWT.TOGGLE);
-			ssidStartScan.setText("スキャン開始");
-			ssidStartScan.setLayoutData(new GridData(SWT.LEFT, SWT.CENTER, false, false));
-
-			ssidRefreshIntervalSpinner = new Spinner(ssidControlContainer, SWT.BORDER);
-			ssidRefreshIntervalSpinner.setMaximum(9999);
-			ssidRefreshIntervalSpinner.setSelection(500);
-
-			ssidRefreshIntervalLabel = new Label(ssidControlContainer, SWT.NONE);
-			ssidRefreshIntervalLabel.setText("ミリ秒");
-
-			ssidAutoDetectCheck = new Button(ssidControlContainer, SWT.CHECK | SWT.FLAT);
-			ssidAutoDetectCheck.setText("自動追跡");
-			ssidAutoDetectCheck.setLayoutData(new GridData(SWT.LEFT, SWT.CENTER, true, false));
-
-			ssidListTableViewer = new TableViewer(ssidContainer, SWT.BORDER | SWT.FULL_SELECTION);
-			ssidListTableViewer.setContentProvider(new ArrayContentProvider());
-			ssidListTableViewer.setLabelProvider(new WlanUtils.LabelProvider());
-			Table ssidListTable = ssidListTableViewer.getTable();
-			ssidListTable.setHeaderVisible(true);
-			ssidListTable.setLayoutData(new GridData(SWT.FILL, SWT.FILL, true, true, 2, 1));
-
-			TableColumn ssidListTableSsidColumn = new TableColumn(ssidListTable, SWT.LEFT);
-			ssidListTableSsidColumn.setWidth(120);
-			ssidListTableSsidColumn.setText("SSID");
-
-			TableColumn ssidListTableRssiColumn = new TableColumn(ssidListTable, SWT.RIGHT);
-			ssidListTableRssiColumn.setWidth(40);
-			ssidListTableRssiColumn.setText("強度");
-
-			ssidSashForm.setWeights(new int[] { 3, 1 });
-
-			roomInfoSashForm = new SashForm(roomSubSashForm, SWT.HORIZONTAL);
-
-			roomChatLogText = new StyledText(roomInfoSashForm, SWT.MULTI | SWT.V_SCROLL | SWT.BORDER | SWT.READ_ONLY | SWT.WRAP);
+			roomChatLogText = new StyledText(roomChatContainer, SWT.MULTI | SWT.V_SCROLL | SWT.BORDER | SWT.READ_ONLY | SWT.WRAP);
 			roomChatLogText.setMargins(3, 1, 3, 1);
+			roomChatLogText.setLayoutData(new GridData(SWT.FILL, SWT.FILL, true, true));
 
-			roomPlayerListTableViewer = new TableViewer(roomInfoSashForm, SWT.SINGLE | SWT.BORDER);
-			roomPlayerListTableViewer.getTable().setHeaderVisible(true);
-
-			roomPlayerNameColumn = new TableColumn(roomPlayerListTableViewer.getTable(), SWT.LEFT);
-			roomPlayerNameColumn.setText("名前");
-			roomPlayerNameColumn.setWidth(100);
-			SwtUtils.installSorter(roomPlayerListTableViewer, roomPlayerNameColumn, new Player.NameSorter());
-
-			roomPlayerPingColumn = new TableColumn(roomPlayerListTableViewer.getTable(), SWT.RIGHT);
-			roomPlayerPingColumn.setText("PING");
-			roomPlayerPingColumn.setWidth(50);
-			SwtUtils.installSorter(roomPlayerListTableViewer, roomPlayerPingColumn, new Player.PingSorter());
-
-			roomPlayerListTableViewer.setContentProvider(new Player.PlayerListContentProvider());
-			roomPlayerListTableViewer.setLabelProvider(new Player.RoomPlayerLabelProvider());
-
-			roomChatCommandContainer = new Composite(roomRightContainer, SWT.NONE);
+			Composite roomChatCommandContainer = new Composite(roomChatContainer, SWT.NONE);
 			gridLayout = new GridLayout(2, false);
 			gridLayout.verticalSpacing = 0;
 			gridLayout.horizontalSpacing = 3;
@@ -1011,10 +912,105 @@ public class PlayClient {
 			roomChatSubmitButton.setText("発言");
 			roomChatSubmitButton.setLayoutData(new GridData(50, SWT.DEFAULT));
 
+			SashForm roomRightSashForm = new SashForm(roomSashForm, SWT.VERTICAL);
+
+			Composite ssidContainer = new Composite(roomRightSashForm, SWT.NONE);
+			gridLayout = new GridLayout(2, false);
+			gridLayout.marginWidth = 0;
+			gridLayout.marginHeight = 0;
+			gridLayout.horizontalSpacing = 1;
+			gridLayout.verticalSpacing = 3;
+			gridLayout.marginTop = 4;
+			gridLayout.marginRight = 1;
+			ssidContainer.setLayout(gridLayout);
+
+			Label ssidCurrentSsidLabel = new Label(ssidContainer, SWT.NONE);
+			ssidCurrentSsidLabel.setText("現在のSSID");
+			ssidCurrentSsidLabel.setLayoutData(new GridData(SWT.CENTER, SWT.CENTER, false, false));
+
+			ssidCurrentSsidText = new Text(ssidContainer, SWT.SINGLE | SWT.BORDER | SWT.READ_ONLY);
+			ssidCurrentSsidText.setBackground(colorWhite);
+			ssidCurrentSsidText.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+
+			ssidMatchLabel = new Label(ssidContainer, SWT.NONE);
+			ssidMatchLabel.setText("絞り込み");
+			ssidMatchLabel.setLayoutData(new GridData(SWT.CENTER, SWT.CENTER, false, false));
+
+			ssidMatchText = new Text(ssidContainer, SWT.SINGLE | SWT.BORDER);
+			ssidMatchText.setText("PSP_");
+			ssidMatchText.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+
+			Composite ssidControlContainer = new Composite(ssidContainer, SWT.NONE);
+			ssidControlContainer.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false, 2, 1));
+			gridLayout = new GridLayout(4, false);
+			gridLayout.marginWidth = 0;
+			gridLayout.marginHeight = 0;
+			gridLayout.horizontalSpacing = 3;
+			gridLayout.verticalSpacing = 0;
+			gridLayout.marginLeft = 2;
+			gridLayout.marginRight = 1;
+			ssidControlContainer.setLayout(gridLayout);
+
+			ssidStartScan = new Button(ssidControlContainer, SWT.TOGGLE);
+			ssidStartScan.setText("スキャン開始");
+			ssidStartScan.setLayoutData(new GridData(SWT.LEFT, SWT.CENTER, false, false));
+			ssidStartScan.setEnabled(false);
+
+			ssidScanIntervalSpinner = new Spinner(ssidControlContainer, SWT.BORDER);
+			ssidScanIntervalSpinner.setMinimum(500);
+			ssidScanIntervalSpinner.setMaximum(9999);
+
+			ssidScanIntervalLabel = new Label(ssidControlContainer, SWT.NONE);
+			ssidScanIntervalLabel.setText("ミリ秒");
+
+			ssidAutoDetectCheck = new Button(ssidControlContainer, SWT.CHECK | SWT.FLAT);
+			ssidAutoDetectCheck.setText("自動追跡");
+			ssidAutoDetectCheck.setLayoutData(new GridData(SWT.LEFT, SWT.CENTER, true, false));
+
+			ssidListTableViewer = new TableViewer(ssidContainer, SWT.BORDER | SWT.FULL_SELECTION);
+			ssidListTableViewer.setContentProvider(new ArrayContentProvider());
+			ssidListTableViewer.setLabelProvider(new WlanUtils.LabelProvider());
+			Table ssidListTable = ssidListTableViewer.getTable();
+			ssidListTable.setHeaderVisible(true);
+			ssidListTable.setLayoutData(new GridData(SWT.FILL, SWT.FILL, true, true, 2, 1));
+
+			TableColumn ssidListTableSsidColumn = new TableColumn(ssidListTable, SWT.LEFT);
+			ssidListTableSsidColumn.setWidth(150);
+			ssidListTableSsidColumn.setText("SSID");
+
+			TableColumn ssidListTableRssiColumn = new TableColumn(ssidListTable, SWT.RIGHT);
+			ssidListTableRssiColumn.setWidth(40);
+			ssidListTableRssiColumn.setText("強度");
+
+			roomPlayerListTableViewer = new TableViewer(roomRightSashForm, SWT.SINGLE | SWT.BORDER | SWT.FULL_SELECTION);
+			roomPlayerListTableViewer.getTable().setHeaderVisible(true);
+
+			TableColumn roomPlayerSsidChaseColumn = new TableColumn(roomPlayerListTableViewer.getTable(), SWT.CENTER);
+			roomPlayerSsidChaseColumn.setWidth(22);
+			SwtUtils.installSorter(roomPlayerListTableViewer, roomPlayerSsidChaseColumn, Player.SSID_CHASE_SORTER);
+
+			TableColumn roomPlayerNameColumn = new TableColumn(roomPlayerListTableViewer.getTable(), SWT.LEFT);
+			roomPlayerNameColumn.setText("名前");
+			roomPlayerNameColumn.setWidth(100);
+			SwtUtils.installSorter(roomPlayerListTableViewer, roomPlayerNameColumn, Player.NANE_SORTER);
+
+			TableColumn roomPlayerSsidColumn = new TableColumn(roomPlayerListTableViewer.getTable(), SWT.LEFT);
+			roomPlayerSsidColumn.setText("SSID");
+			roomPlayerSsidColumn.setWidth(100);
+			SwtUtils.installSorter(roomPlayerListTableViewer, roomPlayerSsidColumn, Player.SSID_SORTER);
+
+			TableColumn roomPlayerPingColumn = new TableColumn(roomPlayerListTableViewer.getTable(), SWT.RIGHT);
+			roomPlayerPingColumn.setText("PING");
+			roomPlayerPingColumn.setWidth(50);
+			SwtUtils.installSorter(roomPlayerListTableViewer, roomPlayerPingColumn, Player.PING_SORTER);
+
+			roomPlayerListTableViewer.setContentProvider(new Player.PlayerListContentProvider());
+			roomPlayerListTableViewer.setLabelProvider(new Player.RoomPlayerLabelProvider());
+
 			configTab = new TabItem(mainTabFolder, SWT.NONE);
 			configTab.setText("設定");
 
-			configContainer = new Composite(mainTabFolder, SWT.NONE);
+			Composite configContainer = new Composite(mainTabFolder, SWT.NONE);
 			gridLayout = new GridLayout(1, false);
 			gridLayout.horizontalSpacing = 0;
 			gridLayout.verticalSpacing = 5;
@@ -1031,7 +1027,7 @@ public class PlayClient {
 			rowLayout.marginLeft = 0;
 			configUserNameContainer.setLayout(rowLayout);
 
-			configUserNameLabel = new Label(configUserNameContainer, SWT.NONE);
+			Label configUserNameLabel = new Label(configUserNameContainer, SWT.NONE);
 			configUserNameLabel.setText("ユーザー名");
 
 			configUserNameText = new Text(configUserNameContainer, SWT.SINGLE | SWT.BORDER);
@@ -1048,7 +1044,7 @@ public class PlayClient {
 			configEnableBalloonCheck = new Button(configContainer, SWT.CHECK | SWT.FLAT);
 			configEnableBalloonCheck.setText("部屋のメッセージをタスクトレイからバルーンで通知する");
 
-			configMyRoomGroup = new Group(configContainer, SWT.SHADOW_IN);
+			Group configMyRoomGroup = new Group(configContainer, SWT.SHADOW_IN);
 			configMyRoomGroup.setText("マイルーム");
 			gridData = new GridData(SWT.FILL, SWT.CENTER, false, false);
 			configMyRoomGroup.setLayoutData(gridData);
@@ -1100,14 +1096,13 @@ public class PlayClient {
 
 			statusTraficStatusLabel = new Label(statusBarContainer, SWT.BORDER);
 			statusTraficStatusLabel.setText("トラフィック");
-			statusTraficStatusLabel.setVisible(false);
 			formData = new FormData();
 			formData.right = new FormAttachment(100, -20);
 			statusTraficStatusLabel.setLayoutData(formData);
 
-			roomInfoSashForm.setWeights(new int[] { 5, 2 });
-			roomSubSashForm.setWeights(new int[] { 1, 2 });
-			roomMainSashForm.setWeights(new int[] { 3, 7 });
+			roomSashForm.setWeights(new int[] { 4, 7, 4 });
+			roomCenterSashForm.setWeights(new int[] { 3, 5 });
+			roomRightSashForm.setWeights(new int[] { 2, 3 });
 		}
 	}
 
@@ -1175,10 +1170,10 @@ public class PlayClient {
 				iniSettingSection.set(IniConstants.Client.ROOM_SERVER_HISTORY, roomServerHistoryManager.makeCSV());
 
 				int index = window.wlanAdapterListCombo.getSelectionIndex() - 1;
-				if (index == -1) {
+				if (window.wlanAdapterListCombo.getItemCount() < 2 || index == -1) {
 					iniSettingSection.set(IniConstants.Client.LAST_LAN_ADAPTER, "");
 				} else {
-					PcapIf device = wlanAdaptorList.get(index);
+					WlanDevice device = wlanAdaptorList.get(index);
 					iniSettingSection.set(IniConstants.Client.LAST_LAN_ADAPTER, wlanAdaptorMacAddressMap.get(device));
 				}
 
@@ -1372,49 +1367,63 @@ public class PlayClient {
 					if (startPacketCapturing()) {
 						window.wlanPspCommunicationButton.setText("PSPと通信中");
 						window.wlanAdapterListCombo.setEnabled(false);
+
+						if (Wlan.isLibraryAvailable) {
+							window.ssidStartScan.setEnabled(true);
+						}
 					} else {
 						window.wlanPspCommunicationButton.setSelection(false);
 					}
 				} else {
 					window.wlanPspCommunicationButton.setEnabled(false);
 					isPacketCapturing = false;
+
+					if (Wlan.isLibraryAvailable) {
+						updateSsidStartScan(false);
+						window.ssidStartScan.setEnabled(false);
+
+						setAndSendInformNewSSID("");
+						nextSsidCheckTime = 0L;
+					}
 				}
+			}
+		});
+
+		window.ssidScanIntervalSpinner.addModifyListener(new ModifyListener() {
+			@Override
+			public void modifyText(ModifyEvent e) {
+				scanIntervalMillis = window.ssidScanIntervalSpinner.getSelection();
 			}
 		});
 
 		window.ssidStartScan.addListener(SWT.Selection, new Listener() {
 			@Override
 			public void handleEvent(Event event) {
-				if (!Wlan.isSupported)
-					return;
-
-				if (currentWlanDevice == null) {
-					window.ssidStartScan.setSelection(false);
-					isSSIDScaning = false;
+				if (!Wlan.isLibraryAvailable || currentWlanDevice == null) {
+					updateSsidStartScan(false);
 				} else {
-					isSSIDScaning = window.ssidStartScan.getSelection();
+					updateSsidStartScan(window.ssidStartScan.getSelection());
 				}
-				updateSsidStartScan();
 			}
 		});
 
 		window.ssidListTableViewer.addDoubleClickListener(new IDoubleClickListener() {
 			@Override
 			public void doubleClick(DoubleClickEvent e) {
-				if (!Wlan.isSupported)
+				if (!Wlan.isLibraryAvailable || currentWlanDevice == null) {
 					return;
-
+				}
 				IStructuredSelection sel = (IStructuredSelection) e.getSelection();
-				BSSID bssid = (BSSID) sel.getFirstElement();
-				if (bssid == null || currentWlanDevice == null)
+				WlanNetwork network = (WlanNetwork) sel.getFirstElement();
+				if (network == null)
 					return;
 
-				currentWlanDevice.setSSID(bssid.getSsid());
-				window.ssidCurrentSsidText.setText(bssid.getSsid());
+				String selectedSSID = network.getSsid();
+				String currentSSID = window.ssidCurrentSsidText.getText();
+				if (currentSSID.equals(selectedSSID))
+					return;
 
-				isSSIDScaning = false;
-				window.ssidStartScan.setSelection(false);
-				updateSsidStartScan();
+				changeSSID(selectedSSID);
 			}
 		});
 
@@ -1452,6 +1461,18 @@ public class PlayClient {
 			}
 		});
 
+		window.roomFormMyRoomModeHostText.addModifyListener(new ModifyListener() {
+			@Override
+			public void modifyText(ModifyEvent e) {
+				switch (currentRoomState) {
+				case MyRoomMaster:
+					roomServerAddressPort = window.roomFormMyRoomModeHostText.getText() + ":"
+							+ window.roomFormMyRoomModePortSpinner.getSelection();
+					updateServerAddress();
+				}
+			}
+		});
+
 		window.configUserNameText.addModifyListener(new ModifyListener() {
 			@Override
 			public void modifyText(ModifyEvent e) {
@@ -1474,18 +1495,6 @@ public class PlayClient {
 			@Override
 			public void handleEvent(Event event) {
 				myRoomEngine.setAllowEmptyMasterNameLogin(window.configMyRoomAllowEmptyMasterNameCheck.getSelection());
-			}
-		});
-
-		window.roomFormMyRoomModeHostText.addModifyListener(new ModifyListener() {
-			@Override
-			public void modifyText(ModifyEvent e) {
-				switch (currentRoomState) {
-				case MyRoomMaster:
-					roomServerAddressPort = window.roomFormMyRoomModeHostText.getText() + ":"
-							+ window.roomFormMyRoomModePortSpinner.getSelection();
-					updateServerAddress();
-				}
 			}
 		});
 
@@ -1626,6 +1635,51 @@ public class PlayClient {
 
 		window.roomPlayerMenu = new Menu(shell, SWT.POP_UP);
 
+		window.roomPlayerChaseSsidMenuItem = new MenuItem(window.roomPlayerMenu, SWT.CHECK);
+		window.roomPlayerChaseSsidMenuItem.setText("このプレイヤーのSSIDを追跡");
+		window.roomPlayerChaseSsidMenuItem.addListener(SWT.Selection, new Listener() {
+			@Override
+			public void handleEvent(Event event) {
+				IStructuredSelection selection = (IStructuredSelection) window.roomPlayerListTableViewer.getSelection();
+				Player player = (Player) selection.getFirstElement();
+				if (player == null)
+					return;
+
+				player.setSSIDChased(window.roomPlayerChaseSsidMenuItem.getSelection());
+				window.roomPlayerListTableViewer.refresh(player);
+			}
+		});
+
+		window.roomPlayerSetSsidMenuItem = new MenuItem(window.roomPlayerMenu, SWT.PUSH);
+		window.roomPlayerSetSsidMenuItem.setText("このSSIDに設定");
+		window.roomPlayerSetSsidMenuItem.addListener(SWT.Selection, new Listener() {
+			@Override
+			public void handleEvent(Event event) {
+				IStructuredSelection selection = (IStructuredSelection) window.roomPlayerListTableViewer.getSelection();
+				Player player = (Player) selection.getFirstElement();
+				if (player == null)
+					return;
+
+				changeSSID(player.getSsid());
+			}
+		});
+
+		window.roomPlayerCopySsidMenuItem = new MenuItem(window.roomPlayerMenu, SWT.PUSH);
+		window.roomPlayerCopySsidMenuItem.setText("このSSIDをコピー");
+		window.roomPlayerCopySsidMenuItem.addListener(SWT.Selection, new Listener() {
+			@Override
+			public void handleEvent(Event event) {
+				IStructuredSelection selection = (IStructuredSelection) window.roomPlayerListTableViewer.getSelection();
+				Player player = (Player) selection.getFirstElement();
+				if (player == null)
+					return;
+
+				window.clipboard.setContents(new Object[] { player.getSsid() }, window.textTransfers);
+			}
+		});
+
+		new MenuItem(window.roomPlayerMenu, SWT.SEPARATOR);
+
 		window.roomPlayerKickMenuItem = new MenuItem(window.roomPlayerMenu, SWT.PUSH);
 		window.roomPlayerKickMenuItem.setText("キック");
 		window.roomPlayerKickMenuItem.addListener(SWT.Selection, new Listener() {
@@ -1633,7 +1687,7 @@ public class PlayClient {
 			public void handleEvent(Event event) {
 				IStructuredSelection selection = (IStructuredSelection) window.roomPlayerListTableViewer.getSelection();
 				Player player = (Player) selection.getFirstElement();
-				if (player == null)
+				if (player == null || loginUserName.equals(player.getName()))
 					return;
 
 				String kickedName = player.getName();
@@ -1678,23 +1732,52 @@ public class PlayClient {
 		window.roomPlayerListTableViewer.getTable().addMenuDetectListener(new MenuDetectListener() {
 			@Override
 			public void menuDetected(MenuDetectEvent e) {
+				IStructuredSelection selection = (IStructuredSelection) window.roomPlayerListTableViewer.getSelection();
+				Player player = (Player) selection.getFirstElement();
+
+				if (player == null) {
+					window.roomPlayerKickMenuItem.setEnabled(false);
+					window.roomPlayerMasterTransferMenuItem.setEnabled(false);
+
+					window.roomPlayerChaseSsidMenuItem.setSelection(false);
+					window.roomPlayerChaseSsidMenuItem.setEnabled(false);
+					window.roomPlayerSetSsidMenuItem.setEnabled(false);
+					window.roomPlayerCopySsidMenuItem.setEnabled(false);
+					return;
+				}
+
 				boolean isMasterAndOtherSelected = false;
 				switch (currentRoomState) {
 				case MyRoomMaster:
 				case RoomMaster:
-					IStructuredSelection selection = (IStructuredSelection) window.roomPlayerListTableViewer.getSelection();
-					Player player = (Player) selection.getFirstElement();
-					if (player != null && !roomMasterName.equals(player.getName())) {
+					if (!roomMasterName.equals(player.getName())) {
 						isMasterAndOtherSelected = true;
 					}
 					break;
 				}
-
 				window.roomPlayerKickMenuItem.setEnabled(isMasterAndOtherSelected);
 				if (currentRoomState == RoomState.RoomMaster) {
 					window.roomPlayerMasterTransferMenuItem.setEnabled(isMasterAndOtherSelected);
 				} else {
 					window.roomPlayerMasterTransferMenuItem.setEnabled(false);
+				}
+
+				boolean isSelfSelected = Utility.equals(loginUserName, player.getName());
+
+				if (isSelfSelected || !isPacketCapturing) {
+					window.roomPlayerChaseSsidMenuItem.setEnabled(false);
+					window.roomPlayerChaseSsidMenuItem.setSelection(false);
+				} else {
+					window.roomPlayerChaseSsidMenuItem.setEnabled(Wlan.isLibraryAvailable);
+					window.roomPlayerChaseSsidMenuItem.setSelection(player.isSSIDChased());
+				}
+
+				if (Utility.isEmpty(player.getSsid())) {
+					window.roomPlayerSetSsidMenuItem.setEnabled(false);
+					window.roomPlayerCopySsidMenuItem.setEnabled(false);
+				} else {
+					window.roomPlayerSetSsidMenuItem.setEnabled(Wlan.isLibraryAvailable && !isSelfSelected && isPacketCapturing);
+					window.roomPlayerCopySsidMenuItem.setEnabled(true);
 				}
 			}
 		});
@@ -1784,50 +1867,157 @@ public class PlayClient {
 	}
 
 	private void initializeBackgroundThreads() {
-		packetMonitorThread = new Thread(new Runnable() {
+		packetCaptureThread = new Thread(new Runnable() {
 			@Override
 			public void run() {
-				int intervalMillis = 1000;
-				final List<BSSID> bssidList = new ArrayList<BSSID>();
+				Runnable prepareCaptureEndAction = new Runnable() {
+					@Override
+					public void run() {
+						try {
+							isPacketCapturing = false;
+							window.wlanPspCommunicationButton.setEnabled(false);
+						} catch (SWTException e) {
+						}
+					}
+				};
+				Runnable captureEndAction = new Runnable() {
+					@Override
+					public void run() {
+						try {
+							window.wlanAdapterListCombo.setEnabled(true);
+							window.wlanPspCommunicationButton.setText("PSPと通信開始");
+							window.wlanPspCommunicationButton.setEnabled(true);
+
+							if (Wlan.isLibraryAvailable)
+								updateSsidStartScan(false);
+						} catch (SWTException e) {
+						}
+					}
+				};
+
+				try {
+					while (!shell.isDisposed()) {
+						synchronized (packetCaptureThread) {
+							if (!isPacketCapturing)
+								packetCaptureThread.wait();
+						}
+
+						try {
+							while (isPacketCapturing) {
+								bufferForCapturing.clear();
+								int ret = currentWlanDevice.capturePacket(bufferForCapturing);
+								if (ret > 0) {
+									// bufferForCapturing.position(ret);
+									bufferForCapturing.flip();
+									processCapturedPacket();
+								} else if (ret == 0) {
+								} else {
+									display.syncExec(prepareCaptureEndAction);
+									break;
+								}
+							}
+						} catch (Exception e) {
+							appendLogTo(window.logText, Utility.makeStackTrace(e));
+							isPacketCapturing = false;
+						}
+
+						currentWlanDevice.close();
+						currentWlanDevice = Wlan.EMPTY_DEVICE;
+
+						display.syncExec(captureEndAction);
+					}
+				} catch (SWTException e) {
+				} catch (Exception e) {
+					appendLogTo(window.logText, Utility.makeStackTrace(e));
+				}
+			}
+		}, "PacketCaptureThread");
+		packetCaptureThread.setDaemon(true);
+
+		wlanScannerThread = new Thread(new Runnable() {
+			@Override
+			public void run() {
+				final List<WlanNetwork> networkList = new ArrayList<WlanNetwork>();
 
 				Runnable refreshAction = new Runnable() {
 					@Override
 					public void run() {
 						try {
-							window.packetMonitorTable.setInput(traficStatsMap);
-							window.packetMonitorTable.refresh();
+							if (window.ssidAutoDetectCheck.getSelection()) {
+								String currentSSID = window.ssidCurrentSsidText.getText();
+								String match = window.ssidMatchText.getText();
+								for (WlanNetwork bssid : networkList) {
+									String ssid = bssid.getSsid();
 
-							if (currentWlanDevice != null && isSSIDScaning) {
-								String currentSSID = currentWlanDevice.getSSID();
-								if (currentSSID == null)
-									currentSSID = "";
-
-								window.ssidCurrentSsidText.setText(currentSSID);
-
-								bssidList.clear();
-								currentWlanDevice.scanBSSID();
-								currentWlanDevice.findBSSIDs(bssidList);
-
-								if (window.ssidAutoDetectCheck.getSelection()) {
-									String match = window.ssidMatchText.getText();
-									for (BSSID bssid : bssidList) {
-										String ssid = bssid.getSsid();
-
-										if (!ssid.equals(currentSSID) && ssid.startsWith(match)) {
-											currentWlanDevice.setSSID(ssid);
-
-											isSSIDScaning = false;
-											window.ssidStartScan.setSelection(false);
-											window.ssidCurrentSsidText.setText(ssid);
-											bssidList.clear();
-											break;
-										}
+									if (!ssid.equals(currentSSID) && ssid.startsWith(match)) {
+										changeSSID(ssid);
+										break;
 									}
 								}
-
-								window.ssidListTableViewer.setInput(bssidList);
-								window.ssidListTableViewer.refresh();
+							} else {
+								checkSsidChange();
 							}
+							window.ssidListTableViewer.setInput(networkList);
+							window.ssidListTableViewer.refresh();
+						} catch (SWTException e) {
+						}
+					}
+				};
+				Runnable clearAction = new Runnable() {
+					@Override
+					public void run() {
+						try {
+							networkList.clear();
+							window.ssidListTableViewer.setInput(networkList);
+							window.ssidListTableViewer.refresh();
+						} catch (SWTException e) {
+						}
+					}
+				};
+
+				try {
+					while (!shell.isDisposed()) {
+						synchronized (wlanScannerThread) {
+							while (!isSSIDScaning)
+								wlanScannerThread.wait();
+						}
+
+						while (isSSIDScaning) {
+							long nextIteration = System.currentTimeMillis() + scanIntervalMillis;
+
+							networkList.clear();
+							currentWlanDevice.findNetworks(networkList);
+							display.syncExec(refreshAction);
+
+							currentWlanDevice.scanNetwork();
+
+							long diff = nextIteration - System.currentTimeMillis();
+							if (diff > 0)
+								Thread.sleep(diff);
+						}
+
+						display.asyncExec(clearAction);
+					}
+				} catch (SWTException e) {
+				} catch (InterruptedException e) {
+				}
+			}
+		}, "WlanScannerThread");
+		wlanScannerThread.setDaemon(true);
+
+		packetMonitorThread = new Thread(new Runnable() {
+			@Override
+			public void run() {
+				int intervalMillis = 1000;
+
+				Runnable refreshAction = new Runnable() {
+					@Override
+					public void run() {
+						try {
+							checkSsidChange();
+
+							window.packetMonitorTable.setInput(traficStatsMap);
+							window.packetMonitorTable.refresh();
 						} catch (SWTException e) {
 						}
 					}
@@ -1840,10 +2030,6 @@ public class PlayClient {
 								traficStatsMap.clear();
 							}
 							window.packetMonitorTable.setInput(traficStatsMap);
-
-							bssidList.clear();
-							window.ssidListTableViewer.setInput(bssidList);
-							window.ssidListTableViewer.refresh();
 						} catch (SWTException e) {
 						}
 					}
@@ -1876,6 +2062,19 @@ public class PlayClient {
 									stats.currentInBytes = 0;
 									stats.currentOutBytes = 0;
 								}
+
+								String text;
+								if (actualSentBytes == 0 && actualRecievedBytes == 0) {
+									text = " トラフィックはありません ";
+								} else {
+									double totalInKbps = ((double) actualRecievedBytes) * 8 / intervalMillis;
+									double totalOutKbps = ((double) actualSentBytes) * 8 / intervalMillis;
+									text = String.format(" In: %.1f Kbps   Out: %.1f Kbps ", totalInKbps, totalOutKbps);
+
+									actualSentBytes = 0;
+									actualRecievedBytes = 0;
+								}
+								updateTraficStatus(text);
 							}
 
 							display.syncExec(refreshAction);
@@ -1891,71 +2090,6 @@ public class PlayClient {
 			}
 		}, "PacketMonitorThread");
 		packetMonitorThread.setDaemon(true);
-
-		packetCaptureThread = new Thread(new Runnable() {
-			@Override
-			public void run() {
-				Runnable prepareCaptureEndAction = new Runnable() {
-					@Override
-					public void run() {
-						try {
-							isPacketCapturing = false;
-							window.wlanPspCommunicationButton.setEnabled(false);
-						} catch (SWTException e) {
-						}
-					}
-				};
-				Runnable captureEndAction = new Runnable() {
-					@Override
-					public void run() {
-						try {
-							window.wlanAdapterListCombo.setEnabled(true);
-							window.wlanPspCommunicationButton.setText("PSPと通信開始");
-							window.wlanPspCommunicationButton.setEnabled(true);
-						} catch (SWTException e) {
-						}
-					}
-				};
-
-				PcapPacket packet;
-				try {
-					while (!shell.isDisposed()) {
-						synchronized (packetCaptureThread) {
-							if (!isPacketCapturing)
-								packetCaptureThread.wait();
-						}
-
-						packet = new PcapPacket(JMemory.POINTER);
-						while (isPacketCapturing) {
-							switch (currentPcapDevice.nextEx(packet)) {
-							case 1:
-								processCapturedPacket(packet);
-								break;
-							case 0:
-								break;
-							case -1:
-							case -2:
-								display.syncExec(prepareCaptureEndAction);
-								break;
-							}
-						}
-
-						currentPcapDevice.close();
-						currentPcapDevice = null;
-
-						if (currentWlanDevice != null) {
-							currentWlanDevice.close();
-							currentWlanDevice = null;
-						}
-
-						display.syncExec(captureEndAction);
-					}
-				} catch (SWTException e) {
-				} catch (Exception e) {
-				}
-			}
-		}, "PacketCaptureThread");
-		packetCaptureThread.setDaemon(true);
 
 		pingThread = new Thread(new Runnable() {
 			@Override
@@ -2111,6 +2245,45 @@ public class PlayClient {
 
 	private boolean isNotSwtUIThread() {
 		return Thread.currentThread() != display.getThread();
+	}
+
+	private void checkSsidChange() {
+		if (System.currentTimeMillis() < nextSsidCheckTime)
+			return;
+		String latestSSID = currentWlanDevice.getSSID();
+		if (latestSSID == null)
+			latestSSID = "";
+
+		String currentSSID = window.ssidCurrentSsidText.getText();
+		if (!latestSSID.equals(currentSSID))
+			setAndSendInformNewSSID(latestSSID);
+
+		nextSsidCheckTime = System.currentTimeMillis() + 3000;
+	}
+
+	private void changeSSID(String newSSID) {
+		if (!Utility.isEmpty(newSSID))
+			currentWlanDevice.setSSID(newSSID);
+		setAndSendInformNewSSID(newSSID);
+		updateSsidStartScan(false);
+
+		nextSsidCheckTime += System.currentTimeMillis() + 10000;
+	}
+
+	private void setAndSendInformNewSSID(String latestSSID) {
+		window.ssidCurrentSsidText.setText(latestSSID);
+		updatePlayerSSID(loginUserName, latestSSID);
+
+		switch (currentRoomState) {
+		case MyRoomMaster:
+			myRoomEngine.informSSID(latestSSID);
+			break;
+		case RoomMaster:
+		case RoomParticipant:
+			if (roomConnection != null)
+				roomConnection.send(ProtocolConstants.Room.COMMAND_INFORM_SSID + ProtocolConstants.ARGUMENT_SEPARATOR + latestSSID);
+			break;
+		}
 	}
 
 	private void updateRoomModeSelection() {
@@ -2518,8 +2691,14 @@ public class PlayClient {
 		}
 	}
 
-	private void updateSsidStartScan() {
+	private void updateSsidStartScan(boolean startScan) {
+		if (!Wlan.isLibraryAvailable)
+			return;
+		isSSIDScaning = startScan;
+		window.ssidStartScan.setSelection(isSSIDScaning);
 		window.ssidStartScan.setText(isSSIDScaning ? "スキャン中" : "スキャン開始");
+		if (isSSIDScaning)
+			wakeupThread(wlanScannerThread);
 	}
 
 	private void updateServerAddress() {
@@ -2581,13 +2760,31 @@ public class PlayClient {
 		}
 	}
 
-	private void replacePlayerList(final TableViewer viewer, final String[] players) {
+	private void updateTraficStatus(final String text) {
 		try {
 			if (isNotSwtUIThread()) {
 				display.asyncExec(new Runnable() {
 					@Override
 					public void run() {
-						replacePlayerList(viewer, players);
+						updateTraficStatus(text);
+					}
+				});
+				return;
+			}
+
+			window.statusTraficStatusLabel.setText(text);
+			window.statusBarContainer.layout();
+		} catch (SWTException e) {
+		}
+	}
+
+	private void replacePlayerList(final TableViewer viewer, final String[] playerInfoList) {
+		try {
+			if (isNotSwtUIThread()) {
+				display.asyncExec(new Runnable() {
+					@Override
+					public void run() {
+						replacePlayerList(viewer, playerInfoList);
 					}
 				});
 				return;
@@ -2595,10 +2792,16 @@ public class PlayClient {
 
 			viewer.getTable().clearAll();
 			roomPlayerMap.clear();
-			for (String name : players) {
+			for (int i = 0; i < playerInfoList.length - 1; i++) {
+				String name = playerInfoList[i];
+				String ssid = playerInfoList[++i];
+
 				if (Utility.isEmpty(name))
 					continue;
+
 				Player player = new Player(name);
+				player.setSsid(ssid);
+
 				roomPlayerMap.put(name, player);
 				viewer.add(player);
 			}
@@ -2698,6 +2901,33 @@ public class PlayClient {
 
 			player.setPing(ping);
 			window.roomPlayerListTableViewer.refresh(player);
+		} catch (SWTException e) {
+		}
+	}
+
+	private void updatePlayerSSID(final String name, final String ssid) {
+		try {
+			if (isNotSwtUIThread()) {
+				display.asyncExec(new Runnable() {
+					@Override
+					public void run() {
+						updatePlayerSSID(name, ssid);
+					}
+				});
+				return;
+			}
+
+			HashMap<String, Player> map = roomPlayerMap;
+			Player player = map.get(name);
+			if (player == null)
+				return;
+
+			player.setSsid(ssid);
+			window.roomPlayerListTableViewer.refresh(player);
+
+			if (player.isSSIDChased() && isPacketCapturing) {
+				changeSSID(ssid);
+			}
 		} catch (SWTException e) {
 		}
 	}
@@ -3411,7 +3641,7 @@ public class PlayClient {
 		}
 	}
 
-	private class RoomServerHandler implements IRoomMasterHandler {
+	private class RoomServerHandler implements IMyRoomMasterHandler {
 		@Override
 		public void log(String message) {
 			appendLogTo(window.logText, message);
@@ -3438,17 +3668,40 @@ public class PlayClient {
 		}
 
 		@Override
+		public void ssidInformed(String player, String ssid) {
+			updatePlayerSSID(player, ssid);
+		}
+
+		@Override
 		public void tunnelPacketReceived(ByteBuffer packet, String playerName) {
 			processRemotePspPacket(packet, playerName);
 		}
 
 		@Override
 		public void roomOpened(String authCode) {
-			roomMasterAuthCode = authCode;
-			goTo(RoomState.MyRoomMaster);
-			updateServerAddress();
-			appendLogTo(window.roomChatLogText, "マイルームを起動しました", window.colorRoomInfo, false);
-			addPlayer(window.roomPlayerListTableViewer, loginUserName);
+			try {
+				if (isNotSwtUIThread()) {
+					roomMasterAuthCode = authCode;
+
+					display.asyncExec(new Runnable() {
+						@Override
+						public void run() {
+							roomOpened(null);
+						}
+					});
+					return;
+				}
+
+				goTo(RoomState.MyRoomMaster);
+				updateServerAddress();
+				appendLogTo(window.roomChatLogText, "マイルームを起動しました", window.colorRoomInfo, false);
+				addPlayer(window.roomPlayerListTableViewer, loginUserName);
+
+				String ssid = window.ssidCurrentSsidText.getText();
+				updatePlayerSSID(loginUserName, ssid);
+				myRoomEngine.informSSID(ssid);
+			} catch (SWTException e) {
+			}
 		}
 
 		@Override
@@ -3482,6 +3735,7 @@ public class PlayClient {
 			handlers.put(ProtocolConstants.Room.NOTIFY_ROOM_PASSWORD_REQUIRED, new NotifyRoomPasswordRequiredHandler());
 			handlers.put(ProtocolConstants.Room.NOTIFY_FROM_ADMIN, new NotifyFromAdminHandler());
 			handlers.put(ProtocolConstants.Room.NOTIFY_ROOM_DELETED, new NotifyRoomDeletedHandler());
+			handlers.put(ProtocolConstants.Room.NOTIFY_SSID_CHANGED, new NotifySSIDHandler());
 			handlers.put(ProtocolConstants.Room.ERROR_LOGIN_DUPLICATED_NAME, new ErrorLoginDuplicatedNameHandler());
 			handlers.put(ProtocolConstants.Room.ERROR_LOGIN_ROOM_NOT_EXIST, new ErrorLoginRoomNotExistHandler());
 			handlers.put(ProtocolConstants.Room.ERROR_LOGIN_BEYOND_CAPACITY, new ErrorLoginBeyondCapacityHandler());
@@ -3500,39 +3754,46 @@ public class PlayClient {
 
 		@Override
 		public void connectCallback(final ISocketConnection connection) {
-			StringBuilder sb;
-			switch (currentRoomState) {
-			case ConnectingAsRoomParticipant:
-				appendLogTo(window.roomChatLogText, "サーバーに接続しました", window.colorServerInfo, false);
+			try {
+				if (isNotSwtUIThread()) {
+					display.asyncExec(new Runnable() {
+						@Override
+						public void run() {
+							connectCallback(connection);
+						}
+					});
+					return;
+				}
 
-				sb = new StringBuilder();
-				sb.append(ProtocolConstants.PROTOCOL_ROOM);
-				sb.append(ProtocolConstants.ARGUMENT_SEPARATOR);
-				sb.append(ProtocolConstants.PROTOCOL_NUMBER);
-				sb.append(ProtocolConstants.MESSAGE_SEPARATOR);
+				StringBuilder sb;
+				switch (currentRoomState) {
+				case ConnectingAsRoomParticipant:
+					appendLogTo(window.roomChatLogText, "サーバーに接続しました", window.colorServerInfo, false);
 
-				sb.append(ProtocolConstants.Room.COMMAND_LOGIN);
-				sb.append(ProtocolConstants.ARGUMENT_SEPARATOR);
-				sb.append(loginUserName);
-				sb.append(ProtocolConstants.ARGUMENT_SEPARATOR);
-				sb.append(roomMasterName);
+					sb = new StringBuilder();
+					sb.append(ProtocolConstants.PROTOCOL_ROOM);
+					sb.append(ProtocolConstants.ARGUMENT_SEPARATOR);
+					sb.append(ProtocolConstants.PROTOCOL_NUMBER);
 
-				roomConnection.send(sb.toString());
+					sb.append(ProtocolConstants.MESSAGE_SEPARATOR);
 
-				currentRoomState = RoomState.Negotiating;
+					sb.append(ProtocolConstants.Room.COMMAND_LOGIN);
+					sb.append(ProtocolConstants.ARGUMENT_SEPARATOR);
+					sb.append(loginUserName);
+					sb.append(ProtocolConstants.ARGUMENT_SEPARATOR);
+					sb.append(roomMasterName);
 
-				break;
-			case ConnectingAsRoomMaster:
-				try {
-					if (isNotSwtUIThread()) {
-						display.asyncExec(new Runnable() {
-							@Override
-							public void run() {
-								connectCallback(connection);
-							}
-						});
-						return;
-					}
+					sb.append(ProtocolConstants.MESSAGE_SEPARATOR);
+					sb.append(ProtocolConstants.Room.COMMAND_INFORM_SSID);
+					sb.append(ProtocolConstants.ARGUMENT_SEPARATOR);
+					sb.append(window.ssidCurrentSsidText.getText());
+
+					roomConnection.send(sb.toString());
+
+					currentRoomState = RoomState.Negotiating;
+
+					break;
+				case ConnectingAsRoomMaster:
 
 					appendLogTo(window.roomChatLogText, "サーバーに接続しました", window.colorServerInfo, false);
 
@@ -3550,10 +3811,9 @@ public class PlayClient {
 					roomConnection.send(sb.toString());
 
 					currentRoomState = RoomState.Negotiating;
-				} catch (SWTException e) {
+					break;
 				}
-
-				break;
+			} catch (SWTException e) {
 			}
 		}
 
@@ -3739,8 +3999,9 @@ public class PlayClient {
 		private class NotifyUserListHandler implements CommandHandler {
 			@Override
 			public void process(String args) {
-				String[] players = args.split(ProtocolConstants.ARGUMENT_SEPARATOR, -1);
-				replacePlayerList(window.roomPlayerListTableViewer, players);
+				// System.out.println(args);
+				String[] playerInfoList = args.split(ProtocolConstants.ARGUMENT_SEPARATOR, -1);
+				replacePlayerList(window.roomPlayerListTableViewer, playerInfoList);
 			}
 		}
 
@@ -3802,6 +4063,16 @@ public class PlayClient {
 			@Override
 			public void process(String argument) {
 				roomMasterAuthCode = argument;
+			}
+		}
+
+		private class NotifySSIDHandler implements CommandHandler {
+			@Override
+			public void process(String argument) {
+				String[] values = argument.split(ProtocolConstants.ARGUMENT_SEPARATOR, -1);
+				if (values.length == 2) {
+					updatePlayerSSID(values[0], values[1]);
+				}
 			}
 		}
 
@@ -4000,14 +4271,13 @@ public class PlayClient {
 		window.wlanAdapterListCombo.removeAll();
 		window.wlanAdapterListCombo.add("選択されていません");
 
-		StringBuilder errBuf = new StringBuilder();
 		wlanAdaptorList.clear();
+
 		try {
-			int r = Pcap.findAllDevs(wlanAdaptorList, errBuf);
-			if (r == Pcap.NOT_OK || wlanAdaptorList.isEmpty()) {
-				appendLogTo(window.logText, errBuf.toString());
-				return;
-			}
+			Wlan.findDevices(wlanAdaptorList);
+		} catch (RuntimeException e) {
+			appendLogTo(window.logText, Utility.makeStackTrace(e));
+			return;
 		} catch (UnsatisfiedLinkError e) {
 			appendLogTo(window.logText, Utility.makeStackTrace(e));
 			return;
@@ -4020,39 +4290,32 @@ public class PlayClient {
 
 		int maxNameLength = 5;
 		int i = 1;
-		for (Iterator<PcapIf> iter = wlanAdaptorList.iterator(); iter.hasNext(); i++) {
-			PcapIf device = iter.next();
-			try {
-				String macAddress = Utility.makeMacAddressString(device.getHardwareAddress(), 0, true);
-				if (lastUsedMacAddress.equals(macAddress)) {
-					lastUsedIndex = i;
-				}
-
-				String description = nicSection.get(macAddress, null);
-
-				if (description == null) {
-					description = device.getDescription();
-					if (description == null) {
-						description = device.getName();
-					}
-					description = description.replace("(Microsoft's Packet Scheduler)", "");
-					description = description.replaceAll(" {2,}", " ").trim();
-
-					nicSection.set(macAddress, description);
-				} else if (description.equals("")) {
-					iter.remove();
-					continue;
-				}
-
-				description += " [" + macAddress + "]";
-				window.wlanAdapterListCombo.add(description);
-
-				wlanAdaptorMacAddressMap.put(device, macAddress);
-
-				maxNameLength = Math.max(description.length(), maxNameLength);
-			} catch (IOException e) {
-				appendLogTo(window.logText, Utility.makeStackTrace(e));
+		for (Iterator<WlanDevice> iter = wlanAdaptorList.iterator(); iter.hasNext(); i++) {
+			WlanDevice device = iter.next();
+			String macAddress = Utility.makeMacAddressString(device.getHardwareAddress(), 0, true);
+			if (lastUsedMacAddress.equals(macAddress)) {
+				lastUsedIndex = i;
 			}
+
+			String description = nicSection.get(macAddress, null);
+
+			if (description == null) {
+				description = device.getName();
+				description = description.replace("(Microsoft's Packet Scheduler)", "");
+				description = description.replaceAll(" {2,}", " ").trim();
+
+				nicSection.set(macAddress, description);
+			} else if (description.equals("")) {
+				iter.remove();
+				continue;
+			}
+
+			description += " [" + macAddress + "]";
+			window.wlanAdapterListCombo.add(description);
+
+			wlanAdaptorMacAddressMap.put(device, macAddress);
+
+			maxNameLength = Math.max(description.length(), maxNameLength);
 		}
 
 		StringBuilder sb = new StringBuilder(maxNameLength);
@@ -4088,9 +4351,11 @@ public class PlayClient {
 			}
 		}
 
+		int packetLength = packet.limit();
+
 		srcStats.lastModified = System.currentTimeMillis();
-		srcStats.currentInBytes += packet.limit();
-		srcStats.totalInBytes += packet.limit();
+		srcStats.currentInBytes += packetLength;
+		srcStats.totalInBytes += packetLength;
 		if (!Utility.isEmpty(playerName)) {
 			srcStats.playerName = playerName;
 		} else if (Utility.isEmpty(srcStats.playerName) && !Utility.isMacBroadCastAddress(srcMac)) {
@@ -4098,27 +4363,28 @@ public class PlayClient {
 		}
 
 		destStats.lastModified = srcStats.lastModified;
-		destStats.currentInBytes += packet.limit();
-		destStats.totalInBytes += packet.limit();
+		destStats.currentInBytes += packetLength;
+		destStats.totalInBytes += packetLength;
 		if (destStats.isMine)
 			destStats.playerName = loginUserName;
 
-		if (isPacketCapturing && currentPcapDevice != null) {
+		if (isPacketCapturing && currentWlanDevice != null) {
 			// send packet
-			currentPcapDevice.sendPacket(packet);
+			currentWlanDevice.sendPacket(packet);
 		}
+		actualRecievedBytes += packetLength;
 	}
 
-	private void processCapturedPacket(PcapPacket packet) {
+	private void processCapturedPacket() {
 		// if (packet != null) {
 		// System.out.println(packet.toHexdump());
 		// return;
 		// }
 
-		Ethernet ethernet = new Ethernet();
-		if (packet.hasHeader(ethernet) && Utility.isPspPacket(ethernet)) {
-			String srcMac = Utility.makeMacAddressString(ethernet.source(), 0, false);
-			String destMac = Utility.makeMacAddressString(ethernet.destination(), 0, false);
+		// System.out.println(bufferForCapturing);
+		if (Utility.isPspPacket(bufferForCapturing)) {
+			String srcMac = Utility.makeMacAddressString(bufferForCapturing, 6, false);
+			String destMac = Utility.makeMacAddressString(bufferForCapturing, 0, false);
 
 			TraficStatistics srcStats, destStats;
 			synchronized (traficStatsMap) {
@@ -4143,7 +4409,7 @@ public class PlayClient {
 				}
 			}
 
-			int packetLength = packet.size();
+			int packetLength = bufferForCapturing.limit();
 
 			srcStats.lastModified = System.currentTimeMillis();
 			srcStats.currentOutBytes += packetLength;
@@ -4161,10 +4427,6 @@ public class PlayClient {
 				// packetLength);
 				// System.out.println(packet.toHexdump());
 
-				bufferForCapturing.clear();
-				packet.transferTo(bufferForCapturing);
-				bufferForCapturing.flip();
-
 				switch (currentRoomState) {
 				case MyRoomMaster:
 					myRoomEngine.sendTunnelPacketToParticipants(bufferForCapturing, srcMac, destMac);
@@ -4174,28 +4436,28 @@ public class PlayClient {
 					tunnelConnection.send(bufferForCapturing);
 					break;
 				}
+				actualSentBytes += packetLength;
 			}
 		}
 	}
 
 	private boolean startPacketCapturing() {
 		int index = window.wlanAdapterListCombo.getSelectionIndex() - 1;
-		PcapIf device = wlanAdaptorList.get(index);
+		WlanDevice device = wlanAdaptorList.get(index);
 
-		StringBuilder errbuf = new StringBuilder();
-		currentPcapDevice = Pcap.openLive(device.getName(), CAPTURE_BUFFER_SIZE, Pcap.MODE_PROMISCUOUS, 1, errbuf);
-		if (currentPcapDevice == null) {
-			appendLogTo(window.logText, errbuf.toString());
+		try {
+			device.open();
+		} catch (RuntimeException e) {
+			appendLogTo(window.logText, Utility.makeStackTrace(e));
+			return false;
+		} catch (Exception e) {
+			appendLogTo(window.logText, Utility.makeStackTrace(e));
 			return false;
 		}
 
-		if (Wlan.isSupported) {
-			currentWlanDevice = Wlan.open(device.getName());
-			if (currentWlanDevice == null) {
-				appendLogTo(window.logText, "Wlanデバイスをオープンできませんでした");
-				return false;
-			}
-		}
+		currentWlanDevice = device;
+
+		checkSsidChange();
 
 		isPacketCapturing = true;
 		wakeupThread(packetCaptureThread);

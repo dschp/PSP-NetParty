@@ -4,7 +4,7 @@ import org.eclipse.jface.viewers.ILabelProviderListener;
 import org.eclipse.jface.viewers.ITableLabelProvider;
 import org.eclipse.swt.graphics.Image;
 
-import pspnetparty.wlan.BSSID;
+import pspnetparty.wlan.WlanNetwork;
 
 public class WlanUtils {
 
@@ -34,13 +34,13 @@ public class WlanUtils {
 
 		@Override
 		public String getColumnText(Object element, int index) {
-			BSSID bssid = (BSSID) element;
+			WlanNetwork network = (WlanNetwork) element;
 
 			switch (index) {
 			case 0:
-				return bssid.getSsid();
+				return network.getSsid();
 			case 1:
-				return Integer.toString(Math.abs(bssid.getRssi()));
+				return Integer.toString(Math.abs(network.getRssi()));
 			}
 
 			return "";

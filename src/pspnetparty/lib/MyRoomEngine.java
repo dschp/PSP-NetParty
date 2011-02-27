@@ -38,7 +38,9 @@ public class MyRoomEngine {
 	private ConcurrentHashMap<InetSocketAddress, TunnelState> notYetLinkedTunnels;
 
 	private String masterName;
-	private IRoomMasterHandler roomMasterHandler;
+	private String masterSsid = "";
+
+	private IMyRoomMasterHandler roomMasterHandler;
 
 	private int maxPlayers = 4;
 	private String title;
@@ -58,7 +60,7 @@ public class MyRoomEngine {
 	private Object serverCountLock = new Object();
 	private int activeServerCount = 0;
 
-	public MyRoomEngine(IRoomMasterHandler masterHandler) {
+	public MyRoomEngine(IMyRoomMasterHandler masterHandler) {
 		this.roomMasterHandler = masterHandler;
 
 		playersByName = new ConcurrentSkipListMap<String, PlayerState>();
@@ -135,10 +137,16 @@ public class MyRoomEngine {
 
 	private void appendNotifyUserList(StringBuilder sb) {
 		sb.append(ProtocolConstants.Room.NOTIFY_USER_LIST);
-		sb.append(ProtocolConstants.ARGUMENT_SEPARATOR).append(masterName);
+		sb.append(ProtocolConstants.ARGUMENT_SEPARATOR);
+		sb.append(masterName);
+		sb.append(ProtocolConstants.ARGUMENT_SEPARATOR);
+		sb.append(masterSsid);
 		for (Entry<String, PlayerState> entry : playersByName.entrySet()) {
 			PlayerState state = entry.getValue();
-			sb.append(ProtocolConstants.ARGUMENT_SEPARATOR).append(state.name);
+			sb.append(ProtocolConstants.ARGUMENT_SEPARATOR);
+			sb.append(state.name);
+			sb.append(ProtocolConstants.ARGUMENT_SEPARATOR);
+			sb.append(state.ssid);
 		}
 	}
 
@@ -187,6 +195,25 @@ public class MyRoomEngine {
 
 	public void sendChat(String text) {
 		processChat(masterName, text);
+	}
+
+	public void informSSID(String ssid) {
+		masterSsid = ssid != null ? ssid : "";
+
+		StringBuilder sb = new StringBuilder();
+		sb.append(ProtocolConstants.Room.NOTIFY_SSID_CHANGED);
+		sb.append(ProtocolConstants.ARGUMENT_SEPARATOR);
+		sb.append(masterName);
+		sb.append(ProtocolConstants.ARGUMENT_SEPARATOR);
+		sb.append(masterSsid);
+
+		final String message = sb.toString();
+		forEachParticipant(new IClientStateAction<PlayerState>() {
+			@Override
+			public void action(PlayerState p) {
+				p.getConnection().send(message);
+			}
+		});
 	}
 
 	private void processChat(String player, String text) {
@@ -256,6 +283,7 @@ public class MyRoomEngine {
 		private HashMap<String, IServerMessageHandler<PlayerState>> messageHandlers;
 		private String name;
 		private TunnelState tunnelState;
+		private String ssid = "";
 
 		PlayerState(ISocketConnection conn) {
 			connection = conn;
@@ -286,6 +314,7 @@ public class MyRoomEngine {
 			sessionHandlers.put(ProtocolConstants.Room.COMMAND_INFORM_PING, new InformPingHandler());
 			sessionHandlers.put(ProtocolConstants.Room.COMMAND_INFORM_TUNNEL_UDP_PORT, new InformTunnelPortHandler());
 			sessionHandlers.put(ProtocolConstants.Room.COMMAND_MAC_ADDRESS_PLAYER, new MacAddressPlayerHandler());
+			sessionHandlers.put(ProtocolConstants.Room.COMMAND_INFORM_SSID, new InformSSIDHandler());
 		}
 
 		@Override
@@ -555,6 +584,33 @@ public class MyRoomEngine {
 				return true;
 			}
 		}
+
+		private class InformSSIDHandler implements IServerMessageHandler<PlayerState> {
+			@Override
+			public boolean process(final PlayerState state, String argument) {
+				state.ssid = argument;
+
+				roomMasterHandler.ssidInformed(state.name, state.ssid);
+
+				StringBuilder sb = new StringBuilder();
+				sb.append(ProtocolConstants.Room.NOTIFY_SSID_CHANGED);
+				sb.append(ProtocolConstants.ARGUMENT_SEPARATOR);
+				sb.append(state.name);
+				sb.append(ProtocolConstants.ARGUMENT_SEPARATOR);
+				sb.append(state.ssid);
+
+				final String notify = sb.toString();
+				forEachParticipant(new IClientStateAction<PlayerState>() {
+					@Override
+					public void action(PlayerState p) {
+						if (p != state)
+							p.getConnection().send(notify);
+					}
+				});
+
+				return true;
+			}
+		}
 	}
 
 	private static class TunnelState implements IClientState {
@@ -613,6 +669,11 @@ public class MyRoomEngine {
 				return true;
 			}
 
+			PlayerState playerSendFrom = playersByName.get(state.playerName);
+			if (playerSendFrom == null)
+				return true;
+			boolean playerSendFromSsidIsNotEmpty = !Utility.isEmpty(playerSendFrom.ssid);
+
 			String destMac = Utility.makeMacAddressString(packet, 0, false);
 			String srcMac = Utility.makeMacAddressString(packet, 6, false);
 
@@ -622,20 +683,32 @@ public class MyRoomEngine {
 				roomMasterHandler.tunnelPacketReceived(packet, state.playerName);
 
 				for (Entry<String, PlayerState> entry : playersByName.entrySet()) {
-					PlayerState sendTo = entry.getValue();
-					if (sendTo.tunnelState != null && sendTo.tunnelState != state) {
-						packet.position(0);
-						sendTo.tunnelState.getConnection().send(packet);
-						sendTo.tunnelState.lastTunnelTime = System.currentTimeMillis();
-					}
+					PlayerState playerSendTo = entry.getValue();
+					if (playerSendTo.tunnelState == null || playerSendTo.tunnelState == state)
+						continue;
+
+					if (playerSendFromSsidIsNotEmpty && !Utility.isEmpty(playerSendTo.ssid))
+						if (!playerSendFrom.ssid.equals(playerSendTo.ssid))
+							continue;
+
+					packet.position(0);
+					playerSendTo.tunnelState.getConnection().send(packet);
+					playerSendTo.tunnelState.lastTunnelTime = System.currentTimeMillis();
 				}
 			} else if (masterMacAddresses.containsKey(destMac)) {
 				masterMacAddresses.put(destMac, System.currentTimeMillis());
 				roomMasterHandler.tunnelPacketReceived(packet, state.playerName);
 			} else if (tunnelsByMacAddress.containsKey(destMac)) {
-				TunnelState sendTo = tunnelsByMacAddress.get(destMac);
-				sendTo.getConnection().send(packet);
-				sendTo.lastTunnelTime = System.currentTimeMillis();
+				TunnelState tunnelSendTo = tunnelsByMacAddress.get(destMac);
+				if (tunnelSendTo == null)
+					return true;
+				PlayerState playerSendTo = playersByName.get(tunnelSendTo.playerName);
+				if (playerSendFromSsidIsNotEmpty && !Utility.isEmpty(playerSendTo.ssid))
+					if (!playerSendFrom.ssid.equals(playerSendTo.ssid))
+						return true;
+
+				tunnelSendTo.getConnection().send(packet);
+				tunnelSendTo.lastTunnelTime = System.currentTimeMillis();
 			}
 
 			return true;

@@ -16,16 +16,17 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-package pspnetparty.lib;
+package pspnetparty.wlan;
 
-import java.nio.ByteBuffer;
+public class WlanNetwork {
+	private String ssid;
+	private int rssi;
 
-public interface IRoomMasterHandler extends ILogger {
-	public void chatReceived(String message);
-	public void playerEntered(String player);
-	public void playerExited(String player);
-	public void pingInformed(String player, int ping);
-	public void tunnelPacketReceived(ByteBuffer packet, String playerName);
-	public void roomOpened(String authCode);
-	public void roomClosed();
+	public String getSsid() {
+		return ssid;
+	}
+
+	public int getRssi() {
+		return rssi;
+	}
 }
