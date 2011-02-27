@@ -2267,7 +2267,7 @@ public class PlayClient {
 		setAndSendInformNewSSID(newSSID);
 		updateSsidStartScan(false);
 
-		nextSsidCheckTime += System.currentTimeMillis() + 10000;
+		nextSsidCheckTime = System.currentTimeMillis() + 7000;
 	}
 
 	private void setAndSendInformNewSSID(String latestSSID) {
