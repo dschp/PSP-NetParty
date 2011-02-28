@@ -3335,7 +3335,7 @@ public class PlayClient {
 		private class ErrorProtocolMismatchHandler implements CommandHandler {
 			@Override
 			public void process(String num) {
-				String message = String.format("サーバーとのプロトコルナンバーが一致ないので接続できません サーバー:%s クライアント:%s", num, ProtocolConstants.PROTOCOL_NUMBER);
+				String message = String.format("サーバーとのプロトコルナンバーが一致しないので接続できません サーバー:%s クライアント:%s", num, ProtocolConstants.PROTOCOL_NUMBER);
 				appendLogTo(window.roomChatLogText, message, window.colorLogError, false);
 			}
 		}
@@ -3476,6 +3476,7 @@ public class PlayClient {
 					command = message;
 					argument = "";
 				}
+				// appendLogTo(window.logText, message);
 
 				if (handlers.containsKey(command)) {
 					CommandHandler handler = handlers.get(command);
@@ -3628,7 +3629,7 @@ public class PlayClient {
 		private class ErrorProtocolMismatchHandler implements CommandHandler {
 			@Override
 			public void process(String argument) {
-				String error = String.format("サーバーとのプロトコルナンバーが一致しません サーバー:%s クライアント:%s", argument, ProtocolConstants.PROTOCOL_NUMBER);
+				String error = String.format("サーバーとのプロトコルナンバーが一致しないので接続できません サーバー:%s クライアント:%s", argument, ProtocolConstants.PROTOCOL_NUMBER);
 				appendLogTo(window.portalLogText, error, window.colorLogError, false);
 			}
 		}
@@ -3860,7 +3861,7 @@ public class PlayClient {
 		private class ErrorProtocolMismatchHandler implements CommandHandler {
 			@Override
 			public void process(String num) {
-				String message = String.format("サーバーとのプロトコルナンバーが一致ないので接続できません サーバー:%s クライアント:%s", num, ProtocolConstants.PROTOCOL_NUMBER);
+				String message = String.format("サーバーとのプロトコルナンバーが一致しないので接続できません サーバー:%s クライアント:%s", num, ProtocolConstants.PROTOCOL_NUMBER);
 				appendLogTo(window.roomChatLogText, message, window.colorLogError, false);
 			}
 		}

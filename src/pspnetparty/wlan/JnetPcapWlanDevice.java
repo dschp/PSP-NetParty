@@ -27,6 +27,8 @@ import org.jnetpcap.PcapIf;
 import org.jnetpcap.nio.JMemory;
 import org.jnetpcap.packet.PcapPacket;
 
+import pspnetparty.lib.Utility;
+
 public class JnetPcapWlanDevice implements WlanDevice {
 	private PcapIf pcapIf;
 	private Pcap pcapDevice;
@@ -38,7 +40,10 @@ public class JnetPcapWlanDevice implements WlanDevice {
 
 	@Override
 	public String getName() {
-		return pcapIf.getDescription();
+		String name =  pcapIf.getDescription();
+		if (Utility.isEmpty(name))
+			name = pcapIf.getName();
+		return name;
 	}
 
 	@Override

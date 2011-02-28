@@ -814,15 +814,16 @@ public class PortalEngine {
 					// System.out.println(queryBuilder);
 					// System.out.println(query);
 
-					if (indexSearcher == null)
-						indexSearcher = new IndexSearcher(ramDirectory);
+					IndexSearcher localIndexSearcher = indexSearcher;
+					if (localIndexSearcher == null)
+						indexSearcher = localIndexSearcher = new IndexSearcher(ramDirectory);
 
-					TopDocs docs = indexSearcher.search(query, maxSearchResults);
+					TopDocs docs = localIndexSearcher.search(query, maxSearchResults);
 					ScoreDoc[] hits = docs.scoreDocs;
 
 					StringBuilder sb = new StringBuilder();
 					for (int i = 0; i < hits.length; i++) {
-						Document d = indexSearcher.doc(hits[i].doc);
+						Document d = localIndexSearcher.doc(hits[i].doc);
 						String address = d.get("address");
 						PlayRoom room = playRoomEntries.get(address);
 						if (room == null) {

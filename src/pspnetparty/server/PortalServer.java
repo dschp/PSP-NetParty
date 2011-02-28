@@ -90,6 +90,7 @@ public class PortalServer {
 		engine.setMaxUsers(maxUsers);
 		engine.setDescriptionMaxLength(descriptionMaxLength);
 		engine.setMaxSearchResults(maxSearchResults);
+		engine.setLoginMessageFile(loginMessageFile);
 
 		engine.start(port);
 
