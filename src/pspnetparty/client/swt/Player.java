@@ -19,6 +19,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 package pspnetparty.client.swt;
 
 import java.util.HashMap;
+import java.util.Map;
 
 import org.eclipse.jface.viewers.ILabelProviderListener;
 import org.eclipse.jface.viewers.IStructuredContentProvider;
@@ -78,46 +79,8 @@ public class Player {
 		@Override
 		public Object[] getElements(Object input) {
 			@SuppressWarnings("unchecked")
-			HashMap<String, Player> players = (HashMap<String, Player>) input;
+			Map<String, Player> players = (HashMap<String, Player>) input;
 			return players.values().toArray();
-		}
-	}
-
-	public static class LobbyPlayerLabelProvider implements ITableLabelProvider {
-		@Override
-		public void addListener(ILabelProviderListener arg0) {
-		}
-
-		@Override
-		public void dispose() {
-		}
-
-		@Override
-		public boolean isLabelProperty(Object arg0, String arg1) {
-			return false;
-		}
-
-		@Override
-		public void removeListener(ILabelProviderListener arg0) {
-		}
-
-		@Override
-		public Image getColumnImage(Object arg0, int arg1) {
-			return null;
-		}
-
-		@Override
-		public String getColumnText(Object element, int columnIndex) {
-			Player player = (Player) element;
-
-			String result = "";
-			switch (columnIndex) {
-			case 0:
-				result = player.name;
-				break;
-			}
-
-			return result;
 		}
 	}
 
@@ -140,15 +103,15 @@ public class Player {
 		}
 
 		@Override
-		public Image getColumnImage(Object arg0, int arg1) {
+		public Image getColumnImage(Object element, int index) {
 			return null;
 		}
 
 		@Override
-		public String getColumnText(Object element, int columnIndex) {
+		public String getColumnText(Object element, int index) {
 			Player player = (Player) element;
 
-			switch (columnIndex) {
+			switch (index) {
 			case 0:
 				return player.isSsidChased ? "追" : "";
 			case 1:

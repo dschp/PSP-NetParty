@@ -18,6 +18,8 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 package pspnetparty.client.swt;
 
+import java.text.SimpleDateFormat;
+import java.util.Date;
 import java.util.HashMap;
 
 import org.eclipse.jface.viewers.ILabelProviderListener;
@@ -27,11 +29,13 @@ import org.eclipse.jface.viewers.Viewer;
 import org.eclipse.jface.viewers.ViewerSorter;
 import org.eclipse.swt.graphics.Image;
 
-import pspnetparty.lib.PlayRoom;
+import pspnetparty.lib.engine.PlayRoom;
 
 public class PlayRoomUtils {
 	private PlayRoomUtils() {
 	}
+
+	public static final SimpleDateFormat DATE_FORMAT = new SimpleDateFormat("M/d HH:mm:ss");
 
 	public class ListContentProvider implements IStructuredContentProvider {
 		@Override
@@ -77,74 +81,79 @@ public class PlayRoomUtils {
 		public String getColumnText(Object element, int columnIndex) {
 			PlayRoom room = (PlayRoom) element;
 
-			String result = "";
 			switch (columnIndex) {
 			case 0:
-				result = room.getServerAddress();
-				break;
+				return room.getMasterName();
 			case 1:
-				result = room.getMasterName();
-				break;
+				return room.getTitle();
 			case 2:
-				result = room.getTitle();
-				break;
+				return room.getCurrentPlayers() + " / " + room.getMaxPlayers();
 			case 3:
-				result = room.getCurrentPlayers() + " / " + room.getMaxPlayers();
-				break;
+				return room.hasPassword() ? "有" : "";
 			case 4:
-				result = room.hasPassword() ? "有" : "";
-				break;
+				return DATE_FORMAT.format(new Date(room.getCreatedTime()));
 			case 5:
-				result = room.getDescription();
-				break;
+				return room.getDescription();
+			case 6:
+				return room.getServerAddress();
 			}
 
-			return result;
+			return "";
 		}
 	}
 
-	public static class AddressSorter extends ViewerSorter {
+	public static final ViewerSorter ADDRESS_SORTER = new ViewerSorter() {
 		@Override
 		public int compare(Viewer viewer, Object e1, Object e2) {
 			PlayRoom r1 = (PlayRoom) e1;
 			PlayRoom r2 = (PlayRoom) e2;
 			return r1.getRoomAddress().compareTo(r2.getRoomAddress());
 		}
-	}
+	};
 
-	public static class MasterNameSorter extends ViewerSorter {
+	public static final ViewerSorter MASTER_NAME_SORTER = new ViewerSorter() {
 		@Override
 		public int compare(Viewer viewer, Object e1, Object e2) {
 			PlayRoom r1 = (PlayRoom) e1;
 			PlayRoom r2 = (PlayRoom) e2;
 			return r1.getMasterName().compareTo(r2.getMasterName());
 		}
-	}
+	};
 
-	public static class TitleSorter extends ViewerSorter {
+	public static final ViewerSorter TITLE_SORTER = new ViewerSorter() {
 		@Override
 		public int compare(Viewer viewer, Object e1, Object e2) {
 			PlayRoom r1 = (PlayRoom) e1;
 			PlayRoom r2 = (PlayRoom) e2;
 			return r1.getTitle().compareTo(r2.getTitle());
 		}
-	}
+	};
 
-	public static class CapacitySorter extends ViewerSorter {
+	public static final ViewerSorter CAPACITY_SORTER = new ViewerSorter() {
 		@Override
 		public int compare(Viewer viewer, Object e1, Object e2) {
 			PlayRoom r1 = (PlayRoom) e1;
 			PlayRoom r2 = (PlayRoom) e2;
-			return Integer.valueOf(r1.getCurrentPlayers()).compareTo(r2.getCurrentPlayers());
+			int capacity1 = r1.getMaxPlayers() - r1.getCurrentPlayers();
+			int capacity2 = r2.getMaxPlayers() - r2.getCurrentPlayers();
+			return capacity1 - capacity2;
 		}
-	}
+	};
 
-	public static class HasPasswordSorter extends ViewerSorter {
+	public static final ViewerSorter HAS_PASSWORD_SORTER = new ViewerSorter() {
 		@Override
 		public int compare(Viewer viewer, Object e1, Object e2) {
 			PlayRoom r1 = (PlayRoom) e1;
 			PlayRoom r2 = (PlayRoom) e2;
 			return Boolean.valueOf(r1.hasPassword()).compareTo(r2.hasPassword());
 		}
-	}
+	};
+
+	public static final ViewerSorter TIMESTAMP_SORTER = new ViewerSorter() {
+		public int compare(Viewer viewer, Object e1, Object e2) {
+			PlayRoom r1 = (PlayRoom) e1;
+			PlayRoom r2 = (PlayRoom) e2;
+			return (int) (r1.getCreatedTime() - r2.getCreatedTime());
+		};
+	};
 }

@@ -22,6 +22,7 @@ import java.util.LinkedList;
 
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.SWTException;
+import org.eclipse.swt.graphics.Point;
 import org.eclipse.swt.widgets.Combo;
 import org.eclipse.swt.widgets.Event;
 import org.eclipse.swt.widgets.Listener;
@@ -38,7 +39,7 @@ public class ComboHistoryManager {
 
 	private int lastSelectedIndex = 0;
 
-	public ComboHistoryManager(Combo combo, String[] history, int maxHistory) {
+	public ComboHistoryManager(Combo combo, String[] history, int maxHistory, boolean initialSelect) {
 		this.combo = combo;
 		this.maxHistory = maxHistory;
 
@@ -67,8 +68,10 @@ public class ComboHistoryManager {
 					break;
 			}
 
-		if (combo.getItemCount() > 0)
+		if (initialSelect && combo.getItemCount() > 0)
 			combo.select(0);
+		else
+			combo.setText("");
 	}
 
 	public void addCurrentItem() {
@@ -91,7 +94,9 @@ public class ComboHistoryManager {
 
 				combo.remove(historyStartIndex + index);
 				combo.add(item, historyStartIndex);
-				combo.select(historyStartIndex);
+
+				combo.setText(item);
+				combo.setSelection(new Point(item.length(), item.length()));
 			}
 		} catch (SWTException e) {
 		}

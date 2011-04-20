@@ -40,6 +40,8 @@ public class Wlan {
 		} catch (ClassNotFoundException e) {
 			e.printStackTrace();
 			throw new IllegalStateException(e);
+		} catch (RuntimeException e) {
+			e.printStackTrace();
 		}
 		isLibraryAvailable = success;
 	}

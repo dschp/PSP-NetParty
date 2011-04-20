@@ -42,7 +42,7 @@ public class TraficStatistics {
 
 	public long totalInBytes;
 	public long totalOutBytes;
-	
+
 	public TraficStatistics(String macAddress, boolean isMine) {
 		this.macAddress = macAddress;
 		this.isMine = isMine;
@@ -120,7 +120,7 @@ public class TraficStatistics {
 		}
 	}
 
-	public static class MineSorter extends ViewerSorter {
+	public static final ViewerSorter MINE_SORTER = new ViewerSorter() {
 		@Override
 		public int compare(Viewer viewer, Object e1, Object e2) {
 			TraficStatistics s1 = (TraficStatistics) e1;
@@ -129,59 +129,59 @@ public class TraficStatistics {
 				return 0;
 			return s1.isMine ? 1 : -1;
 		}
-	}
+	};
 
-	public static class MacAddressSorter extends ViewerSorter {
+	public static final ViewerSorter MAC_ADDRESS_SORTER = new ViewerSorter() {
 		@Override
 		public int compare(Viewer viewer, Object e1, Object e2) {
 			TraficStatistics s1 = (TraficStatistics) e1;
 			TraficStatistics s2 = (TraficStatistics) e2;
 			return s1.macAddress.compareTo(s2.macAddress);
 		}
-	}
-	
-	public static class PlayerNameSorter extends ViewerSorter {
+	};
+
+	public static final ViewerSorter PLAYER_NAME_SORTER = new ViewerSorter() {
 		@Override
 		public int compare(Viewer viewer, Object e1, Object e2) {
 			TraficStatistics s1 = (TraficStatistics) e1;
 			TraficStatistics s2 = (TraficStatistics) e2;
 			return s1.playerName.compareTo(s2.playerName);
 		}
-	}
+	};
 
-	public static class InSpeedSorter extends ViewerSorter {
+	public static final ViewerSorter IN_SPEED_SORTER = new ViewerSorter() {
 		@Override
 		public int compare(Viewer viewer, Object e1, Object e2) {
 			TraficStatistics s1 = (TraficStatistics) e1;
 			TraficStatistics s2 = (TraficStatistics) e2;
 			return Double.compare(s1.currentInKbps, s2.currentInKbps);
 		}
-	}
+	};
 
-	public static class OutSpeedSorter extends ViewerSorter {
+	public static final ViewerSorter OUT_SPEED_SORTER = new ViewerSorter() {
 		@Override
 		public int compare(Viewer viewer, Object e1, Object e2) {
 			TraficStatistics s1 = (TraficStatistics) e1;
 			TraficStatistics s2 = (TraficStatistics) e2;
 			return Double.compare(s1.currentOutKbps, s2.currentOutKbps);
 		}
-	}
+	};
 
-	public static class TotalInSorter extends ViewerSorter {
+	public static final ViewerSorter TOTAL_IN_SORTER = new ViewerSorter() {
 		@Override
 		public int compare(Viewer viewer, Object e1, Object e2) {
 			TraficStatistics s1 = (TraficStatistics) e1;
 			TraficStatistics s2 = (TraficStatistics) e2;
 			return Long.valueOf(s1.totalInBytes).compareTo(s2.totalInBytes);
 		}
-	}
+	};
 
-	public static class TotalOutSorter extends ViewerSorter {
+	public static final ViewerSorter TOTAL_OUT_SORTER = new ViewerSorter() {
 		@Override
 		public int compare(Viewer viewer, Object e1, Object e2) {
 			TraficStatistics s1 = (TraficStatistics) e1;
 			TraficStatistics s2 = (TraficStatistics) e2;
 			return Long.valueOf(s1.totalOutBytes).compareTo(s2.totalOutBytes);
 		}
-	}
+	};
 }

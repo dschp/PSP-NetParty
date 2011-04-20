@@ -1,16 +1,10 @@
 bin
 build.properties
-jnetpcap.jar
-jnetpcap.dll
-libjnetpcap.so
+*.jar
+*.dll
+*.so
 
-ArenaClient.ini
-PlayClient.ini
-Test.ini
-Test2.ini
-ProxyRoomServer.ini
-RoomSearchServer.ini
+*.ini
+Test*
 /lib_db
-/PortalServer.ini
-/RoomServer.ini
-/pnpwlan.dll
+/PlayClient.appdata

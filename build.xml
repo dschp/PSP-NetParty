@@ -18,13 +18,13 @@
 		</mapper>
 	</pathconvert>
 
-	<path id="build.classpath.portal">
+	<path id="build.classpath.search">
 		<fileset dir="${basedir}">
 			<include name="lib_lucene/*.jar" />
 		</fileset>
 	</path>
-	<pathconvert property="manifest.classpath.portal" pathsep=" ">
-		<path refid="build.classpath.portal" />
+	<pathconvert property="manifest.classpath.search" pathsep=" ">
+		<path refid="build.classpath.search" />
 		<mapper>
 			<chainedmapper>
 				<flattenmapper />
@@ -33,14 +33,14 @@
 		</mapper>
 	</pathconvert>
 
-	<target name="jar" depends="jar-lib, jar-swt, jar-portal, jar-room">
+	<target name="jar" depends="jar-lib, jar-swt, jar-portal, jar-room, jar-search, jar-lobby, jar-allinone">
 	</target>
 
 	<target name="jar-lib">
 		<jar jarfile="${publish_directory}/PspNetParty.jar">
 			<fileset dir="bin" includes="">
-				<include name="pspnetparty/lib/**"/>
-				<include name="pspnetparty/wlan/**"/>
+				<include name="pspnetparty/lib/**" />
+				<include name="pspnetparty/wlan/**" />
 			</fileset>
 		</jar>
 	</target>
@@ -49,16 +49,7 @@
 		<jar basedir="bin" jarfile="${publish_directory}/PlayClient.jar" includes="pspnetparty/client/swt/**">
 			<manifest>
 				<attribute name="Main-Class" value="pspnetparty.client.swt.PlayClient" />
-				<attribute name="Class-Path" value="PlayClient.jar PspNetParty.jar ${manifest.classpath.swt}" />
-			</manifest>
-		</jar>
-	</target>
-
-	<target name="jar-room">
-		<jar basedir="bin" jarfile="${publish_directory}/RoomServer.jar" includes="pspnetparty/server/RoomServer*">
-			<manifest>
-				<attribute name="Main-Class" value="pspnetparty.server.RoomServer" />
-				<attribute name="Class-Path" value="ProxyRoomServer.jar PspNetParty.jar" />
+				<attribute name="Class-Path" value="PspNetParty.jar ${manifest.classpath.swt}" />
 			</manifest>
 		</jar>
 	</target>
@@ -67,7 +58,43 @@
 		<jar basedir="bin" jarfile="${publish_directory}/PortalServer.jar" includes="pspnetparty/server/PortalServer*">
 			<manifest>
 				<attribute name="Main-Class" value="pspnetparty.server.PortalServer" />
-				<attribute name="Class-Path" value="RoomSearchServer.jar PspNetParty.jar ${manifest.classpath.portal}" />
+				<attribute name="Class-Path" value="PspNetParty.jar" />
+			</manifest>
+		</jar>
+	</target>
+
+	<target name="jar-room">
+		<jar basedir="bin" jarfile="${publish_directory}/RoomServer.jar" includes="pspnetparty/server/RoomServer*">
+			<manifest>
+				<attribute name="Main-Class" value="pspnetparty.server.RoomServer" />
+				<attribute name="Class-Path" value="PspNetParty.jar" />
+			</manifest>
+		</jar>
+	</target>
+
+	<target name="jar-search">
+		<jar basedir="bin" jarfile="${publish_directory}/SearchServer.jar" includes="pspnetparty/server/SearchServer*">
+			<manifest>
+				<attribute name="Main-Class" value="pspnetparty.server.SearchServer" />
+				<attribute name="Class-Path" value="PspNetParty.jar ${manifest.classpath.search}" />
+			</manifest>
+		</jar>
+	</target>
+
+	<target name="jar-lobby">
+		<jar basedir="bin" jarfile="${publish_directory}/LobbyServer.jar" includes="pspnetparty/server/LobbyServer*">
+			<manifest>
+				<attribute name="Main-Class" value="pspnetparty.server.LobbyServer" />
+				<attribute name="Class-Path" value="PspNetParty.jar" />
+			</manifest>
+		</jar>
+	</target>
+
+	<target name="jar-allinone">
+		<jar basedir="bin" jarfile="${publish_directory}/AllInOneServer.jar" includes="pspnetparty/server/AllInOneServer*">
+			<manifest>
+				<attribute name="Main-Class" value="pspnetparty.server.AllInOneServer" />
+				<attribute name="Class-Path" value="PspNetParty.jar ${manifest.classpath.search}" />
 			</manifest>
 		</jar>
 	</target>

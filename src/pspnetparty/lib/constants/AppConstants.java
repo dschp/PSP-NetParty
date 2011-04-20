@@ -26,8 +26,10 @@ public class AppConstants {
 	}
 
 	public static final String APP_NAME = "PSP NetParty";
-	public static final String VERSION = "0.5";
+	public static final String VERSION = "0.6";
 
 	public static final Charset CHARSET = Charset.forName("UTF-8");
 	public static final String NEW_LINE = System.getProperty("line.separator");
+
+	public static final int LOGIN_NAME_LIMIT = 50;
 }

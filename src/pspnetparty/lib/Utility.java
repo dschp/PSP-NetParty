@@ -24,6 +24,7 @@ import java.io.IOException;
 import java.io.PrintWriter;
 import java.io.RandomAccessFile;
 import java.io.StringWriter;
+import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 
@@ -40,7 +41,7 @@ public class Utility {
 		return AppConstants.CHARSET.decode(buffer).toString();
 	}
 
-	public static String makeStackTrace(Throwable exception) {
+	public static String stackTraceToString(Throwable exception) {
 		StringWriter sw = new StringWriter();
 		PrintWriter pw = new PrintWriter(sw);
 		exception.printStackTrace(pw);
@@ -69,6 +70,16 @@ public class Utility {
 		return string.substring(0, Math.min(maxLength, string.length()));
 	}
 
+	public static String validateUserName(String name) {
+		return name.replaceAll("(^[\\s　]+|[\\s　]+$)", "").replaceAll("[\\s　]{2,}", " ");
+	}
+
+	public static boolean isValidUserName(String name) {
+		if (name == null || name.length() == 0 || name.length() > AppConstants.LOGIN_NAME_LIMIT)
+			return false;
+		return !name.matches("(^[\\s　]+.*|.*[\\s　]{2,}.*|.*[\\s　]+$)");
+	}
+
 	public static boolean isPspPacket(ByteBuffer packet) {
 		return packet.limit() > 14 && packet.get(12) == -120 && packet.get(13) == -56;
 	}
@@ -77,7 +88,39 @@ public class Utility {
 		return ethernet.type() == 35016;// 0x88c8;
 	}
 
-	public static String makeMacAddressString(ByteBuffer packet, int offset, boolean needHyphen) {
+	public static InetSocketAddress parseSocketAddress(String address) {
+		String[] tokens = address.split(":");
+
+		if (tokens.length != 2)
+			return null;
+
+		return parseSocketAddress(tokens[0], tokens[1]);
+	}
+
+	public static InetSocketAddress parseSocketAddress(String hostname, String port) {
+		int portNum;
+		try {
+			portNum = Integer.parseInt(port);
+			if (portNum > 0 && portNum < 65536)
+				return new InetSocketAddress(hostname, portNum);
+		} catch (NumberFormatException e) {
+		}
+		return null;
+	}
+
+	public static String socketAddressToStringByHostName(InetSocketAddress address) {
+		return address.getHostName() + ":" + address.getPort();
+	}
+
+	public static String socketAddressToStringByIP(InetSocketAddress address) {
+		return address.getAddress().getHostAddress() + ":" + address.getPort();
+	}
+
+	public static void appendSocketHostNameAddress(StringBuilder sb, InetSocketAddress address) {
+		sb.append(address.getHostName()).append(':').append(address.getPort());
+	}
+
+	public static String macAddressToString(ByteBuffer packet, int offset, boolean needHyphen) {
 		if (packet == null)
 			return "";
 
@@ -88,7 +131,7 @@ public class Utility {
 				packet.get(offset + 4), packet.get(offset + 5));
 	}
 
-	public static String makeMacAddressString(byte[] packet, int offset, boolean needHyphen) {
+	public static String macAddressToString(byte[] packet, int offset, boolean needHyphen) {
 		if (packet == null)
 			return "";
 
@@ -104,7 +147,8 @@ public class Utility {
 	}
 
 	public static String makeAuthCode() {
-		return Long.toString(System.currentTimeMillis());
+		long val = (long) (Math.random() * 1000000000);
+		return Long.toString(val);
 	}
 
 	public static String getFileContent(File file) {
@@ -129,11 +173,11 @@ public class Utility {
 		byte[] data = new byte[] { (byte) 255, (byte) 255, (byte) 255, (byte) 255, (byte) 255, (byte) 255 };
 		ByteBuffer mac = ByteBuffer.wrap(data);
 
-		System.out.println(makeMacAddressString(mac, 0, true));
-		System.out.println(makeMacAddressString(mac, 0, false));
+		System.out.println(macAddressToString(mac, 0, true));
+		System.out.println(macAddressToString(mac, 0, false));
 
-		System.out.println(makeMacAddressString(data, 0, true));
-		System.out.println(makeMacAddressString(data, 0, false));
+		System.out.println(macAddressToString(data, 0, true));
+		System.out.println(macAddressToString(data, 0, false));
 
 		System.out.println(mac);
 
