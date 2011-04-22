@@ -8,3 +8,4 @@ build.properties
 Test*
 /lib_db
 /PlayClient.appdata
+/PublicServerList

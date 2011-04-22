@@ -1,6 +1,9 @@
 package pspnetparty.lib.constants;
 
+import java.io.File;
 import java.io.IOException;
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 
 import pspnetparty.lib.IniFile;
 import pspnetparty.lib.IniSection;
@@ -13,9 +16,15 @@ public class IniPublicServer {
 	private static final String SEARCH_SERVER_LIST = "SearchServers";
 	private static final String LOBBY_SERVER_LIST = "LobbyServers";
 
+	private File file;
+	private long lastModified;
+
 	private IniSection section;
 
 	public IniPublicServer() throws IOException {
+		file = new File(FILE_NAME);
+		lastModified = file.lastModified();
+
 		IniFile iniFile = new IniFile(FILE_NAME);
 		section = iniFile.getSection(null);
 	}
@@ -34,5 +43,31 @@ public class IniPublicServer {
 
 	public String[] getLobbyServers() {
 		return section.get(LOBBY_SERVER_LIST, "").split(",");
+	}
+
+	public void reload() {
+		if (lastModified >= file.lastModified())
+			return;
+
+		try {
+			IniFile iniFile = new IniFile(FILE_NAME);
+			section = iniFile.getSection(null);
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+	}
+
+	public boolean isValidPortalServer(InetAddress address) {
+		for (String server : getPortalServers()) {
+			try {
+				String[] tokens = server.split(":");
+				InetAddress serverAddress = InetAddress.getByName(tokens[0]);
+				if (serverAddress.equals(address))
+					return true;
+			} catch (UnknownHostException e) {
+				e.printStackTrace();
+			}
+		}
+		return false;
 	}
 }

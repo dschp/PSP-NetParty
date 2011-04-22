@@ -19,6 +19,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 package pspnetparty.lib.engine;
 
 import java.io.File;
+import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -28,6 +29,7 @@ import java.util.concurrent.ConcurrentHashMap;
 
 import pspnetparty.lib.ILogger;
 import pspnetparty.lib.Utility;
+import pspnetparty.lib.constants.IniPublicServer;
 import pspnetparty.lib.constants.ProtocolConstants;
 import pspnetparty.lib.socket.IProtocol;
 import pspnetparty.lib.socket.IProtocolDriver;
@@ -46,11 +48,14 @@ public class LobbyEngine {
 	private int maxUsers = Integer.MAX_VALUE;
 	private ConcurrentHashMap<String, LobbyProtocolDriver> loginUsers;
 
+	private IniPublicServer iniPublicServer;
 	private ConcurrentHashMap<LobbyStatusProtocolDriver, Object> portalConnections;
 	private boolean isAcceptingPortal;
 
-	public LobbyEngine(IServer server, ILogger logger) {
+	public LobbyEngine(IServer server, ILogger logger) throws IOException {
 		this.logger = logger;
+
+		iniPublicServer = new IniPublicServer();
 
 		loginUsers = new ConcurrentHashMap<String, LobbyProtocolDriver>();
 		portalConnections = new ConcurrentHashMap<LobbyStatusProtocolDriver, Object>();
@@ -436,6 +441,10 @@ public class LobbyEngine {
 
 		@Override
 		public IProtocolDriver createDriver(ISocketConnection connection) {
+			iniPublicServer.reload();
+			if (!iniPublicServer.isValidPortalServer(connection.getRemoteAddress().getAddress()))
+				return null;
+
 			LobbyStatusProtocolDriver driver = new LobbyStatusProtocolDriver(connection);
 
 			logger.log("ポータルから接続されました: " + driver.address);

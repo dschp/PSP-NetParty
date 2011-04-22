@@ -397,6 +397,8 @@ public class SearchWindow {
 	public void show() {
 		if (!searchConnection.isConnected())
 			connectToSearchServer();
+		if (shell.getMinimized())
+			shell.setMinimized(false);
 		shell.open();
 	}
 

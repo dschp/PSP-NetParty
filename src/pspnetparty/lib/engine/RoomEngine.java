@@ -35,6 +35,7 @@ import pspnetparty.lib.CountDownSynchronizer;
 import pspnetparty.lib.ILogger;
 import pspnetparty.lib.Utility;
 import pspnetparty.lib.constants.AppConstants;
+import pspnetparty.lib.constants.IniPublicServer;
 import pspnetparty.lib.constants.ProtocolConstants;
 import pspnetparty.lib.socket.AsyncTcpClient;
 import pspnetparty.lib.socket.AsyncUdpClient;
@@ -63,15 +64,16 @@ public class RoomEngine {
 	private int maxRooms = 10;
 	private File loginMessageFile;
 
+	private IniPublicServer iniPublicServer;
 	private ConcurrentHashMap<RoomStatusProtocolDriver, Object> portalConnections;
-	private HashSet<PlayRoom> myRoomEntries = new HashSet<PlayRoom>();
 	private boolean isAcceptingPortal = true;
 
-	private CountDownSynchronizer countDownSynchronizer;
+	private HashSet<PlayRoom> myRoomEntries = new HashSet<PlayRoom>();
 
+	private CountDownSynchronizer countDownSynchronizer;
 	private ExecutorService executorService = Executors.newCachedThreadPool();
 
-	public RoomEngine(IServer roomServer, IServer tunnelServer, ILogger logger) {
+	public RoomEngine(IServer roomServer, IServer tunnelServer, ILogger logger) throws IOException {
 		this.logger = logger;
 
 		masterNameRoomMap = new ConcurrentHashMap<String, Room>(20, 0.75f, 1);
@@ -80,6 +82,8 @@ public class RoomEngine {
 
 		tcpClient = new AsyncTcpClient(4000, 3000);
 		udpClient = new AsyncUdpClient();
+
+		iniPublicServer = new IniPublicServer();
 
 		countDownSynchronizer = new CountDownSynchronizer(2);
 
@@ -1024,17 +1028,21 @@ public class RoomEngine {
 				TunnelProtocolDriver tunnelState = room.tunnelsByMacAddress.get(macAddress);
 				if (tunnelState == null)
 					return true;
-				if (Utility.isEmpty(tunnelState.player.name))
-					return true;
+				try {
+					String name = tunnelState.player.name;
+					if (Utility.isEmpty(name))
+						return true;
 
-				StringBuilder sb = new StringBuilder();
-				sb.append(ProtocolConstants.Room.COMMAND_MAC_ADDRESS_PLAYER);
-				sb.append(TextProtocolDriver.ARGUMENT_SEPARATOR);
-				sb.append(macAddress);
-				sb.append(TextProtocolDriver.ARGUMENT_SEPARATOR);
-				sb.append(tunnelState.player.name);
+					StringBuilder sb = new StringBuilder();
+					sb.append(ProtocolConstants.Room.COMMAND_MAC_ADDRESS_PLAYER);
+					sb.append(TextProtocolDriver.ARGUMENT_SEPARATOR);
+					sb.append(macAddress);
+					sb.append(TextProtocolDriver.ARGUMENT_SEPARATOR);
+					sb.append(name);
 
-				player.getConnection().send(sb.toString());
+					player.getConnection().send(sb.toString());
+				} catch (NullPointerException e) {
+				}
 				return true;
 			}
 		});
@@ -1211,13 +1219,15 @@ public class RoomEngine {
 					RoomProtocolDriver playerSendTo = entry.getValue();
 					if (playerSendTo.tunnel == null || playerSendTo.tunnel == this)
 						continue;
+					try {
+						if (playerSendFromSsidIsNotEmpty && !Utility.isEmpty(playerSendTo.ssid))
+							if (!playerSendFrom.ssid.equals(playerSendTo.ssid))
+								continue;
 
-					if (playerSendFromSsidIsNotEmpty && !Utility.isEmpty(playerSendTo.ssid))
-						if (!playerSendFrom.ssid.equals(playerSendTo.ssid))
-							continue;
-
-					packet.position(0);
-					playerSendTo.tunnel.getConnection().send(packet);
+						packet.position(0);
+						playerSendTo.tunnel.getConnection().send(packet);
+					} catch (NullPointerException e) {
+					}
 				}
 			} else {
 				if (room.testWhiteListBlackList(srcMac, destMac))
@@ -1226,12 +1236,15 @@ public class RoomEngine {
 				TunnelProtocolDriver tunnelSendTo = room.tunnelsByMacAddress.get(destMac);
 				if (tunnelSendTo == null)
 					return true;
-				RoomProtocolDriver playerSendTo = room.playersByName.get(tunnelSendTo.player.name);
-				if (playerSendFromSsidIsNotEmpty && !Utility.isEmpty(playerSendTo.ssid))
-					if (!playerSendFrom.ssid.equals(playerSendTo.ssid))
-						return true;
+				try {
+					RoomProtocolDriver playerSendTo = room.playersByName.get(tunnelSendTo.player.name);
+					if (playerSendFromSsidIsNotEmpty && !Utility.isEmpty(playerSendTo.ssid))
+						if (!playerSendFrom.ssid.equals(playerSendTo.ssid))
+							return true;
 
-				tunnelSendTo.getConnection().send(packet);
+					tunnelSendTo.getConnection().send(packet);
+				} catch (NullPointerException e) {
+				}
 			}
 
 			return true;
@@ -1278,6 +1291,10 @@ public class RoomEngine {
 		@Override
 		public IProtocolDriver createDriver(ISocketConnection connection) {
 			if (!isAcceptingPortal)
+				return null;
+
+			iniPublicServer.reload();
+			if (!iniPublicServer.isValidPortalServer(connection.getRemoteAddress().getAddress()))
 				return null;
 
 			RoomStatusProtocolDriver driver = new RoomStatusProtocolDriver(connection);

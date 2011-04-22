@@ -392,6 +392,8 @@ public class LobbyWindow implements IMessageSource {
 	}
 
 	public void show() {
+		if (shell.getMinimized())
+			shell.setMinimized(false);
 		shell.open();
 	}
 

@@ -2121,6 +2121,10 @@ public class RoomWindow implements IMessageSource {
 	}
 
 	public void enterRoom(PlayRoom room) {
+		if (shell.getMinimized())
+			shell.setMinimized(false);
+		shell.open();
+
 		if (roomSessionState != RoomSessionState.OFFLINE) {
 			ErrorLog log = new ErrorLog("現在部屋にログイン中です");
 			widgets.logViewer.appendMessage(log);
@@ -2785,7 +2789,7 @@ public class RoomWindow implements IMessageSource {
 					continue;
 
 				Player player = new Player(name);
-				player.setSsid(ssid);
+				player.setSsid(name.equals(roomLoginName) ? widgets.ssidCurrentSsidText.getText() : ssid);
 
 				roomPlayerMap.put(name, player);
 				viewer.add(player);
@@ -2914,8 +2918,7 @@ public class RoomWindow implements IMessageSource {
 				return;
 			}
 
-			HashMap<String, Player> map = roomPlayerMap;
-			Player player = map.get(name);
+			Player player = roomPlayerMap.get(name);
 			if (player == null)
 				return;
 

@@ -235,8 +235,8 @@ public class MyRoomEngine {
 			p.getConnection().send(notify);
 		}
 
-		if (kickedPlayer.tunnelDriver != null)
-			notYetLinkedTunnels.remove(kickedPlayer.tunnelDriver.getConnection().getRemoteAddress());
+		if (kickedPlayer.tunnel != null)
+			notYetLinkedTunnels.remove(kickedPlayer.tunnel.getConnection().getRemoteAddress());
 
 		kickedPlayer.getConnection().send(ProtocolConstants.Room.NOTIFY_ROOM_PLAYER_KICKED + TextProtocolDriver.ARGUMENT_SEPARATOR + name);
 		kickedPlayer.getConnection().disconnect();
@@ -365,7 +365,7 @@ public class MyRoomEngine {
 
 	private class RoomProtocolDriver extends TextProtocolDriver {
 		private String name;
-		private TunnelProtocolDriver tunnelDriver;
+		private TunnelProtocolDriver tunnel;
 		private String ssid = "";
 
 		private RoomProtocolDriver(ISocketConnection connection) {
@@ -379,8 +379,8 @@ public class MyRoomEngine {
 
 		@Override
 		public void connectionDisconnected() {
-			if (tunnelDriver != null)
-				notYetLinkedTunnels.remove(tunnelDriver.getConnection().getRemoteAddress());
+			if (tunnel != null)
+				notYetLinkedTunnels.remove(tunnel.getConnection().getRemoteAddress());
 
 			if (!Utility.isEmpty(name)) {
 				playersByName.remove(name);
@@ -563,11 +563,11 @@ public class MyRoomEngine {
 			try {
 				int port = Integer.parseInt(argument);
 				InetSocketAddress remoteEP = new InetSocketAddress(player.getConnection().getRemoteAddress().getAddress(), port);
-				player.tunnelDriver = notYetLinkedTunnels.remove(remoteEP);
+				player.tunnel = notYetLinkedTunnels.remove(remoteEP);
 
-				if (player.tunnelDriver != null) {
+				if (player.tunnel != null) {
 					player.getConnection().send(ProtocolConstants.Room.COMMAND_INFORM_TUNNEL_UDP_PORT);
-					player.tunnelDriver.playerName = player.name;
+					player.tunnel.playerName = player.name;
 				}
 			} catch (NumberFormatException e) {
 			}
@@ -706,15 +706,18 @@ public class MyRoomEngine {
 
 				for (Entry<String, RoomProtocolDriver> entry : playersByName.entrySet()) {
 					RoomProtocolDriver playerSendTo = entry.getValue();
-					if (playerSendTo.tunnelDriver == null || playerSendTo.tunnelDriver == this)
+					if (playerSendTo.tunnel == null || playerSendTo.tunnel == this)
 						continue;
 
-					if (playerSendFromSsidIsNotEmpty && !Utility.isEmpty(playerSendTo.ssid))
-						if (!playerSendFrom.ssid.equals(playerSendTo.ssid))
-							continue;
+					try {
+						if (playerSendFromSsidIsNotEmpty && !Utility.isEmpty(playerSendTo.ssid))
+							if (!playerSendFrom.ssid.equals(playerSendTo.ssid))
+								continue;
 
-					packet.position(0);
-					playerSendTo.tunnelDriver.getConnection().send(packet);
+						packet.position(0);
+						playerSendTo.tunnel.getConnection().send(packet);
+					} catch (NullPointerException e) {
+					}
 				}
 			} else if (masterMacAddresses.containsKey(destMac)) {
 				if (testWhiteListBlackList(srcMac))
@@ -729,12 +732,15 @@ public class MyRoomEngine {
 				TunnelProtocolDriver tunnelSendTo = tunnelsByMacAddress.get(destMac);
 				if (tunnelSendTo == null)
 					return true;
-				RoomProtocolDriver playerSendTo = playersByName.get(tunnelSendTo.playerName);
-				if (playerSendFromSsidIsNotEmpty && !Utility.isEmpty(playerSendTo.ssid))
-					if (!playerSendFrom.ssid.equals(playerSendTo.ssid))
-						return true;
+				try {
+					RoomProtocolDriver playerSendTo = playersByName.get(tunnelSendTo.playerName);
+					if (playerSendFromSsidIsNotEmpty && !Utility.isEmpty(playerSendTo.ssid))
+						if (!playerSendFrom.ssid.equals(playerSendTo.ssid))
+							return true;
 
-				tunnelSendTo.getConnection().send(packet);
+					tunnelSendTo.getConnection().send(packet);
+				} catch (NullPointerException e) {
+				}
 			}
 
 			return true;
@@ -756,9 +762,9 @@ public class MyRoomEngine {
 		if (Utility.isMacBroadCastAddress(destMac)) {
 			for (Entry<String, RoomProtocolDriver> entry : playersByName.entrySet()) {
 				RoomProtocolDriver sendTo = entry.getValue();
-				if (sendTo.tunnelDriver != null) {
+				if (sendTo.tunnel != null) {
 					packet.position(0);
-					sendTo.tunnelDriver.getConnection().send(packet);
+					sendTo.tunnel.getConnection().send(packet);
 				}
 			}
 		} else if (tunnelsByMacAddress.containsKey(destMac)) {

@@ -5,7 +5,8 @@ LobbyServers00=pnp2.team-monketsu.net:60000,pspnetparty.dip.jp:60000
 
 PortalServers=pnp2.team-monketsu.net:50000,pnp02.dip.jp:50000,pnp3.team-monketsu.net:50000,pnp1.team-monketsu.net:50000
 
-PortalServers0=test.team-monketsu.net:50000
+PortalServers11=test.team-monketsu.net:50000
+PortalServers111=
 RoomServers=test.team-monketsu.net:30000
 SearchServers=test.team-monketsu.net:40000
 LobbyServers=test.team-monketsu.net:60000
