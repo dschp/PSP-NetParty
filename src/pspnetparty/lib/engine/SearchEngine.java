@@ -45,7 +45,7 @@ import org.apache.lucene.util.Version;
 
 import pspnetparty.lib.ILogger;
 import pspnetparty.lib.Utility;
-import pspnetparty.lib.constants.IniPublicServer;
+import pspnetparty.lib.constants.IServerNetwork;
 import pspnetparty.lib.constants.ProtocolConstants;
 import pspnetparty.lib.constants.ProtocolConstants.Search;
 import pspnetparty.lib.socket.IProtocol;
@@ -68,7 +68,7 @@ public class SearchEngine {
 	private ConcurrentHashMap<String, SearchPlayRoom> playRoomEntries;
 	private ConcurrentHashMap<SearchProtocolDriver, Object> searchClientConnections;
 
-	private IniPublicServer iniPublicServer;
+	private IServerNetwork serverNetwork;
 	private ConcurrentSkipListMap<SearchStatusProtocolDriver, Object> portalConnections;
 	private SearchStatusProtocolDriver roomDataSource;
 
@@ -81,10 +81,10 @@ public class SearchEngine {
 
 	private int updateCount = 0;
 
-	public SearchEngine(IServer server, ILogger logger) throws IOException {
+	public SearchEngine(IServer server, ILogger logger, IServerNetwork net) throws IOException {
 		this.logger = logger;
 
-		iniPublicServer = new IniPublicServer();
+		serverNetwork = net;
 
 		playRoomEntries = new ConcurrentHashMap<String, SearchPlayRoom>();
 		searchClientConnections = new ConcurrentHashMap<SearchProtocolDriver, Object>();
@@ -300,8 +300,8 @@ public class SearchEngine {
 			if (!isAcceptingPortal)
 				return null;
 
-			iniPublicServer.reload();
-			if (!iniPublicServer.isValidPortalServer(connection.getRemoteAddress().getAddress()))
+			serverNetwork.reload();
+			if (!serverNetwork.isValidPortalServer(connection.getRemoteAddress().getAddress()))
 				return null;
 
 			SearchStatusProtocolDriver driver = new SearchStatusProtocolDriver(connection);

@@ -4,6 +4,7 @@ import java.io.File;
 import java.io.IOException;
 import java.net.BindException;
 import java.net.InetSocketAddress;
+import java.net.SocketTimeoutException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Date;
@@ -2085,10 +2086,10 @@ public class RoomWindow implements IMessageSource {
 								application.connectTcp(socketAddress, roomProtocol);
 								return;
 							} catch (IOException e) {
-								ErrorLog log = new ErrorLog(e.getLocalizedMessage());
+								ErrorLog log = new ErrorLog(e.getMessage());
 								widgets.logViewer.appendMessage(log);
 							} catch (RuntimeException e) {
-								ErrorLog log = new ErrorLog(e.getLocalizedMessage());
+								ErrorLog log = new ErrorLog(e.getMessage());
 								widgets.logViewer.appendMessage(log);
 							}
 							changeStateTo(RoomSessionState.OFFLINE);
@@ -2150,11 +2151,14 @@ public class RoomWindow implements IMessageSource {
 			changeStateTo(RoomSessionState.CONNECTING_ROOM_PARTICIPANT);
 			application.connectTcp(socketAddress, roomProtocol);
 			return;
+		} catch (SocketTimeoutException e) {
+			ErrorLog log = new ErrorLog("部屋に接続できませんでした");
+			widgets.logViewer.appendMessage(log);
 		} catch (IOException e) {
-			ErrorLog log = new ErrorLog(e.getLocalizedMessage());
+			ErrorLog log = new ErrorLog(e.getMessage());
 			widgets.logViewer.appendMessage(log);
 		} catch (RuntimeException e) {
-			ErrorLog log = new ErrorLog(e.getLocalizedMessage());
+			ErrorLog log = new ErrorLog(e.getMessage());
 			widgets.logViewer.appendMessage(log);
 		}
 		changeStateTo(RoomSessionState.OFFLINE);
@@ -2189,11 +2193,14 @@ public class RoomWindow implements IMessageSource {
 			roomMasterName = roomLoginName;
 			application.connectTcp(socketAddress, roomProtocol);
 			return;
+		} catch (SocketTimeoutException e) {
+			ErrorLog log = new ErrorLog("ルームサーバーに接続できませんでした");
+			widgets.logViewer.appendMessage(log);
 		} catch (IOException e) {
-			ErrorLog log = new ErrorLog(e.getLocalizedMessage());
+			ErrorLog log = new ErrorLog(e.getMessage());
 			widgets.logViewer.appendMessage(log);
 		} catch (RuntimeException e) {
-			ErrorLog log = new ErrorLog(e.getLocalizedMessage());
+			ErrorLog log = new ErrorLog(e.getMessage());
 			widgets.logViewer.appendMessage(log);
 		}
 		changeStateTo(RoomSessionState.OFFLINE);
@@ -2248,11 +2255,14 @@ public class RoomWindow implements IMessageSource {
 			changeStateTo(RoomSessionState.CONNECTING_ROOM_PARTICIPANT);
 			application.connectTcp(socketAddress, roomProtocol);
 			return;
+		} catch (SocketTimeoutException e) {
+			ErrorLog log = new ErrorLog("部屋に接続できませんでした");
+			widgets.logViewer.appendMessage(log);
 		} catch (IOException e) {
-			ErrorLog log = new ErrorLog(e.getLocalizedMessage());
+			ErrorLog log = new ErrorLog(e.getMessage());
 			widgets.logViewer.appendMessage(log);
 		} catch (RuntimeException e) {
-			ErrorLog log = new ErrorLog(e.getLocalizedMessage());
+			ErrorLog log = new ErrorLog(e.getMessage());
 			widgets.logViewer.appendMessage(log);
 		}
 		changeStateTo(RoomSessionState.OFFLINE);
@@ -2354,10 +2364,10 @@ public class RoomWindow implements IMessageSource {
 								application.connectTcp(socketAddress, myRoomEntryProtocol);
 								return;
 							} catch (IOException e) {
-								ErrorLog log = new ErrorLog(e.getLocalizedMessage());
+								ErrorLog log = new ErrorLog(e.getMessage());
 								widgets.logViewer.appendMessage(log);
 							} catch (RuntimeException e) {
-								ErrorLog log = new ErrorLog(e.getLocalizedMessage());
+								ErrorLog log = new ErrorLog(e.getMessage());
 								widgets.logViewer.appendMessage(log);
 							}
 							updateMyRoomEntryForm(false);
@@ -3608,7 +3618,7 @@ public class RoomWindow implements IMessageSource {
 		try {
 			application.connectUdp(roomConnection.getRemoteAddress(), tunnelProtocol);
 		} catch (IOException e) {
-			ErrorLog log = new ErrorLog(e.getLocalizedMessage());
+			ErrorLog log = new ErrorLog(e.getMessage());
 			widgets.logViewer.appendMessage(log);
 		} catch (RuntimeException e) {
 			application.getLogWindow().appendLogTo(Utility.stackTraceToString(e), true, true);

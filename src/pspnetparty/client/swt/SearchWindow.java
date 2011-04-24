@@ -479,7 +479,7 @@ public class SearchWindow {
 							} catch (IOException e) {
 								sessionState = SessionState.OFFLINE;
 								updateServerLoginButton(false);
-								application.getLogWindow().appendLogTo(e.getLocalizedMessage(), true, true);
+								application.getLogWindow().appendLogTo(e.getMessage(), true, true);
 							}
 						}
 					};

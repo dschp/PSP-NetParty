@@ -26,6 +26,7 @@ import pspnetparty.lib.IniFile;
 import pspnetparty.lib.IniSection;
 import pspnetparty.lib.Utility;
 import pspnetparty.lib.constants.AppConstants;
+import pspnetparty.lib.constants.IniPublicServer;
 import pspnetparty.lib.engine.RoomEngine;
 import pspnetparty.lib.server.IniConstants;
 import pspnetparty.lib.server.ServerUtils;
@@ -71,7 +72,7 @@ public class RoomServer {
 		AsyncTcpServer tcpServer = new AsyncTcpServer(40000);
 		AsyncUdpServer udpServer = new AsyncUdpServer();
 
-		final RoomEngine engine = new RoomEngine(tcpServer, udpServer, ServerUtils.createLogger());
+		final RoomEngine engine = new RoomEngine(tcpServer, udpServer, ServerUtils.createLogger(), new IniPublicServer());
 		engine.setMaxRooms(maxRooms);
 		engine.setLoginMessageFile(loginMessageFile);
 

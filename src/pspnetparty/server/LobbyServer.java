@@ -26,6 +26,7 @@ import pspnetparty.lib.IniFile;
 import pspnetparty.lib.IniSection;
 import pspnetparty.lib.Utility;
 import pspnetparty.lib.constants.AppConstants;
+import pspnetparty.lib.constants.IniPublicServer;
 import pspnetparty.lib.engine.LobbyEngine;
 import pspnetparty.lib.server.IniConstants;
 import pspnetparty.lib.server.ServerUtils;
@@ -65,7 +66,7 @@ public class LobbyServer {
 
 		AsyncTcpServer tcpServer = new AsyncTcpServer(40000);
 
-		final LobbyEngine engine = new LobbyEngine(tcpServer, ServerUtils.createLogger());
+		final LobbyEngine engine = new LobbyEngine(tcpServer, ServerUtils.createLogger(), new IniPublicServer());
 		engine.setTitle(title);
 		engine.setLoginMessageFile(loginMessageFile);
 

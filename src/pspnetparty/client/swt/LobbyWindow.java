@@ -512,7 +512,7 @@ public class LobbyWindow implements IMessageSource {
 		} catch (IOException e) {
 			updateLobbyServerLoginButton(false);
 
-			ErrorLog log = new ErrorLog(e.getLocalizedMessage());
+			ErrorLog log = new ErrorLog(e.getMessage());
 			chatLogViewer.appendMessage(log);
 		}
 	}

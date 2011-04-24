@@ -50,6 +50,8 @@ public class BouyomiChanPlugin implements IPlugin, IPluginConfigPageProvider {
 	private boolean readLobbyChat;
 	private boolean readPrivateChat;
 
+	private int errorCount = 0;
+
 	public BouyomiChanPlugin() {
 		headerBuffer = ByteBuffer.allocate(15);
 		headerBuffer.order(ByteOrder.LITTLE_ENDIAN);
@@ -78,9 +80,22 @@ public class BouyomiChanPlugin implements IPlugin, IPluginConfigPageProvider {
 			channel.write(new ByteBuffer[] { headerBuffer, buffer });
 
 			channel.close();
+
+			errorCount = 0;
 		} catch (IOException e) {
-			application.getLogWindow().appendLogTo(Utility.stackTraceToString(e), true, true);
-			e.printStackTrace();
+			if (errorCount < 5) {
+				errorCount++;
+
+				application.getLogWindow().appendLogTo(Utility.stackTraceToString(e), true, true);
+				e.printStackTrace();
+			} else {
+				socketAddress = null;
+				use = false;
+				iniSection.set(INI_USE, false);
+
+				errorCount = 0;
+				application.getLogWindow().appendLogTo("棒読みちゃんに接続できませんでした。設定を見直してください。", true, true);
+			}
 		}
 	}
 

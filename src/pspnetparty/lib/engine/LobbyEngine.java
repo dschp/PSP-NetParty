@@ -29,7 +29,7 @@ import java.util.concurrent.ConcurrentHashMap;
 
 import pspnetparty.lib.ILogger;
 import pspnetparty.lib.Utility;
-import pspnetparty.lib.constants.IniPublicServer;
+import pspnetparty.lib.constants.IServerNetwork;
 import pspnetparty.lib.constants.ProtocolConstants;
 import pspnetparty.lib.socket.IProtocol;
 import pspnetparty.lib.socket.IProtocolDriver;
@@ -48,14 +48,14 @@ public class LobbyEngine {
 	private int maxUsers = Integer.MAX_VALUE;
 	private ConcurrentHashMap<String, LobbyProtocolDriver> loginUsers;
 
-	private IniPublicServer iniPublicServer;
+	private IServerNetwork serverNetWork;
 	private ConcurrentHashMap<LobbyStatusProtocolDriver, Object> portalConnections;
 	private boolean isAcceptingPortal;
 
-	public LobbyEngine(IServer server, ILogger logger) throws IOException {
+	public LobbyEngine(IServer server, ILogger logger, IServerNetwork net) throws IOException {
 		this.logger = logger;
 
-		iniPublicServer = new IniPublicServer();
+		serverNetWork = net;
 
 		loginUsers = new ConcurrentHashMap<String, LobbyProtocolDriver>();
 		portalConnections = new ConcurrentHashMap<LobbyStatusProtocolDriver, Object>();
@@ -441,8 +441,8 @@ public class LobbyEngine {
 
 		@Override
 		public IProtocolDriver createDriver(ISocketConnection connection) {
-			iniPublicServer.reload();
-			if (!iniPublicServer.isValidPortalServer(connection.getRemoteAddress().getAddress()))
+			serverNetWork.reload();
+			if (!serverNetWork.isValidPortalServer(connection.getRemoteAddress().getAddress()))
 				return null;
 
 			LobbyStatusProtocolDriver driver = new LobbyStatusProtocolDriver(connection);

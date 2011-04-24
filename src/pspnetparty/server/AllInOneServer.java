@@ -1,5 +1,6 @@
 package pspnetparty.server;
 
+import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -10,6 +11,7 @@ import pspnetparty.lib.IniFile;
 import pspnetparty.lib.IniSection;
 import pspnetparty.lib.Utility;
 import pspnetparty.lib.constants.AppConstants;
+import pspnetparty.lib.constants.IServerNetwork;
 import pspnetparty.lib.engine.LobbyEngine;
 import pspnetparty.lib.engine.PortalEngine;
 import pspnetparty.lib.engine.RoomEngine;
@@ -58,6 +60,17 @@ public class AllInOneServer {
 		AsyncTcpServer tcpServer = new AsyncTcpServer(100000);
 		AsyncUdpServer udpServer = new AsyncUdpServer();
 
+		IServerNetwork network = new IServerNetwork() {
+			@Override
+			public void reload() {
+			}
+
+			@Override
+			public boolean isValidPortalServer(InetAddress address) {
+				return true;
+			}
+		};
+
 		{
 			int maxRooms = settings.get(IniConstants.MAX_ROOMS, 10);
 			if (maxRooms < 1) {
@@ -66,7 +79,7 @@ public class AllInOneServer {
 			}
 			System.out.println("最大部屋数: " + maxRooms);
 
-			RoomEngine roomEngine = new RoomEngine(tcpServer, udpServer, logger);
+			RoomEngine roomEngine = new RoomEngine(tcpServer, udpServer, logger, network);
 			roomEngine.setMaxRooms(maxRooms);
 			roomEngine.setLoginMessageFile(loginMessageFile);
 		}
@@ -92,13 +105,13 @@ public class AllInOneServer {
 			}
 			System.out.println("部屋の詳細・備考の最大文字数: " + descriptionMaxLength);
 
-			SearchEngine searchEngine = new SearchEngine(tcpServer, logger);
+			SearchEngine searchEngine = new SearchEngine(tcpServer, logger, network);
 			searchEngine.setMaxUsers(maxUsers);
 			searchEngine.setMaxSearchResults(maxSearchResults);
 			searchEngine.setDescriptionMaxLength(descriptionMaxLength);
 		}
 		{
-			LobbyEngine lobbyEngine = new LobbyEngine(tcpServer, logger);
+			LobbyEngine lobbyEngine = new LobbyEngine(tcpServer, logger, network);
 			lobbyEngine.setTitle("ロビー");
 			lobbyEngine.setLoginMessageFile(loginMessageFile);
 		}

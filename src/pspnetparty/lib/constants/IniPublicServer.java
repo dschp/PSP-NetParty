@@ -8,7 +8,7 @@ import java.net.UnknownHostException;
 import pspnetparty.lib.IniFile;
 import pspnetparty.lib.IniSection;
 
-public class IniPublicServer {
+public class IniPublicServer implements IServerNetwork {
 	private static final String FILE_NAME = "PublicServerList";
 
 	private static final String PORTAL_SERVER_LIST = "PortalServers";
@@ -45,6 +45,10 @@ public class IniPublicServer {
 		return section.get(LOBBY_SERVER_LIST, "").split(",");
 	}
 
+	/* (non-Javadoc)
+	 * @see pspnetparty.lib.constants.IPublicServer#reload()
+	 */
+	@Override
 	public void reload() {
 		if (lastModified >= file.lastModified())
 			return;
@@ -57,6 +61,10 @@ public class IniPublicServer {
 		}
 	}
 
+	/* (non-Javadoc)
+	 * @see pspnetparty.lib.constants.IPublicServer#isValidPortalServer(java.net.InetAddress)
+	 */
+	@Override
 	public boolean isValidPortalServer(InetAddress address) {
 		for (String server : getPortalServers()) {
 			try {

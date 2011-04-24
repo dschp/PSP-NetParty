@@ -35,7 +35,7 @@ import pspnetparty.lib.CountDownSynchronizer;
 import pspnetparty.lib.ILogger;
 import pspnetparty.lib.Utility;
 import pspnetparty.lib.constants.AppConstants;
-import pspnetparty.lib.constants.IniPublicServer;
+import pspnetparty.lib.constants.IServerNetwork;
 import pspnetparty.lib.constants.ProtocolConstants;
 import pspnetparty.lib.socket.AsyncTcpClient;
 import pspnetparty.lib.socket.AsyncUdpClient;
@@ -64,7 +64,7 @@ public class RoomEngine {
 	private int maxRooms = 10;
 	private File loginMessageFile;
 
-	private IniPublicServer iniPublicServer;
+	private IServerNetwork serverNetwork;
 	private ConcurrentHashMap<RoomStatusProtocolDriver, Object> portalConnections;
 	private boolean isAcceptingPortal = true;
 
@@ -73,7 +73,7 @@ public class RoomEngine {
 	private CountDownSynchronizer countDownSynchronizer;
 	private ExecutorService executorService = Executors.newCachedThreadPool();
 
-	public RoomEngine(IServer roomServer, IServer tunnelServer, ILogger logger) throws IOException {
+	public RoomEngine(IServer roomServer, IServer tunnelServer, ILogger logger, IServerNetwork net) throws IOException {
 		this.logger = logger;
 
 		masterNameRoomMap = new ConcurrentHashMap<String, Room>(20, 0.75f, 1);
@@ -83,7 +83,7 @@ public class RoomEngine {
 		tcpClient = new AsyncTcpClient(4000, 3000);
 		udpClient = new AsyncUdpClient();
 
-		iniPublicServer = new IniPublicServer();
+		serverNetwork = net;
 
 		countDownSynchronizer = new CountDownSynchronizer(2);
 
@@ -1293,8 +1293,8 @@ public class RoomEngine {
 			if (!isAcceptingPortal)
 				return null;
 
-			iniPublicServer.reload();
-			if (!iniPublicServer.isValidPortalServer(connection.getRemoteAddress().getAddress()))
+			serverNetwork.reload();
+			if (!serverNetwork.isValidPortalServer(connection.getRemoteAddress().getAddress()))
 				return null;
 
 			RoomStatusProtocolDriver driver = new RoomStatusProtocolDriver(connection);

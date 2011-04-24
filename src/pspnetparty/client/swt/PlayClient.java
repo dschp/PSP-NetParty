@@ -655,7 +655,7 @@ public class PlayClient implements IApplication {
 						}
 					});
 				} catch (IOException e) {
-					query.failCallback(new ErrorLog(e.getLocalizedMessage()));
+					query.failCallback(new ErrorLog(e.getMessage()));
 				}
 			}
 		};
