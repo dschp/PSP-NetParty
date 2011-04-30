@@ -114,8 +114,11 @@ public class RoomEngine {
 		roomServer.addProtocol(new RoomStatusProtocol());
 		roomServer.addProtocol(new MyRoomProtocol());
 
+		TunnelProtocol tunnelProtocol = new TunnelProtocol();
+		roomServer.addProtocol(tunnelProtocol);
+
 		tunnelServer.addServerListener(listener);
-		tunnelServer.addProtocol(new TunnelProtocol());
+		tunnelServer.addProtocol(tunnelProtocol);
 	}
 
 	private void initBackgroudThread() {

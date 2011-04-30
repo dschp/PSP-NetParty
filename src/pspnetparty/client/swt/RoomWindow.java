@@ -33,6 +33,8 @@ import org.eclipse.swt.events.MenuDetectEvent;
 import org.eclipse.swt.events.MenuDetectListener;
 import org.eclipse.swt.events.ModifyEvent;
 import org.eclipse.swt.events.ModifyListener;
+import org.eclipse.swt.events.MouseEvent;
+import org.eclipse.swt.events.MouseListener;
 import org.eclipse.swt.events.ShellEvent;
 import org.eclipse.swt.events.ShellListener;
 import org.eclipse.swt.graphics.Color;
@@ -101,7 +103,7 @@ public class RoomWindow implements IMessageSource {
 	private static final String INI_ROOM_DESCRIPTION = "Description";
 	private static final String INI_ROOM_REMARKS = "Remarks";
 
-	enum RoomSessionState {
+	enum SessionState {
 		OFFLINE, MY_ROOM_MASTER, CONNECTING_ROOM_PARTICIPANT, ROOM_PARTICIPANT, CONNECTING_ROOM_MASTER, ROOM_MASTER, NEGOTIATING,
 	};
 
@@ -110,7 +112,7 @@ public class RoomWindow implements IMessageSource {
 	private Shell shell;
 	private boolean isActive;
 
-	private RoomSessionState roomSessionState;
+	private SessionState sessionState;
 	private String roomLoginName;
 	private String roomMasterName;
 	private String roomServerAddressPort;
@@ -175,7 +177,7 @@ public class RoomWindow implements IMessageSource {
 		widgets.initWidgetListeners();
 		widgets.initMenus();
 
-		changeStateTo(RoomSessionState.OFFLINE);
+		changeStateTo(SessionState.OFFLINE);
 
 		refreshLanAdapterList();
 
@@ -276,15 +278,12 @@ public class RoomWindow implements IMessageSource {
 
 		private Color colorOK, colorNG, colorAppNumber;
 
-		// private Menu playerMenu;
 		private MenuItem playerMenuChaseSsid;
 		private MenuItem playerMenuSetSsid;
 		private MenuItem playerMenuCopySsid;
 		private MenuItem playerMenuKick;
 		private MenuItem playerMenuMasterTransfer;
-		// private Menu statusServerAddressMenu;
 		private MenuItem statusServerAddressMenuCopy;
-		// private Menu packetMonitorMenu;
 		private MenuItem packetMonitorMenuCopy;
 		private MenuItem packetMonitorMenuWhiteList;
 		private MenuItem packetMonitorMenuBlackList;
@@ -883,7 +882,7 @@ public class RoomWindow implements IMessageSource {
 
 			statusTunnelConnectionLabel = new Label(statusBarContainer, SWT.NONE);
 			statusTunnelConnectionLabel.setForeground(colorNG);
-			statusTunnelConnectionLabel.setText(" UDPトンネル未接続 ");
+			statusTunnelConnectionLabel.setText("トンネル未接続");
 			application.initControl(statusTunnelConnectionLabel);
 
 			new Label(statusBarContainer, SWT.SEPARATOR | SWT.VERTICAL).setLayoutData(gridData);
@@ -953,7 +952,7 @@ public class RoomWindow implements IMessageSource {
 				@Override
 				public void shellActivated(ShellEvent e) {
 					isActive = true;
-					switch (roomSessionState) {
+					switch (sessionState) {
 					case MY_ROOM_MASTER:
 					case ROOM_MASTER:
 					case ROOM_PARTICIPANT:
@@ -1074,9 +1073,9 @@ public class RoomWindow implements IMessageSource {
 			formAutoModeRoomButton.addListener(SWT.Selection, new Listener() {
 				@Override
 				public void handleEvent(Event event) {
-					switch (roomSessionState) {
+					switch (sessionState) {
 					case OFFLINE:
-						connectToRoomServerAsMaster();
+						autoConnectAsMaster();
 						break;
 					case ROOM_MASTER:
 						confirmRoomDelete(false);
@@ -1086,6 +1085,61 @@ public class RoomWindow implements IMessageSource {
 						tunnelConnection.disconnect();
 						break;
 					}
+				}
+			});
+			formAutoModeRoomButton.addMouseListener(new MouseListener() {
+				@Override
+				public void mouseUp(MouseEvent e) {
+					if (sessionState != SessionState.OFFLINE)
+						return;
+					if (e.button != 3)
+						return;
+					if (e.x < 0 || e.y < 0)
+						return;
+					Point size = formAutoModeRoomButton.getSize();
+					if (e.x > size.x || e.y > size.y)
+						return;
+
+					if (!checkConfigUserName() || !checkRoomFormTitle())
+						return;
+
+					formAutoModeRoomButton.setEnabled(false);
+					selectRoomServer(new ServerSelectAction() {
+						@Override
+						public String getOkLabel() {
+							return "部屋を作成する";
+						}
+
+						@Override
+						public void select(String address) {
+							autoConnectAsMaster(address);
+						}
+
+						@Override
+						public void cancel() {
+							try {
+								if (SwtUtils.isNotUIThread()) {
+									SwtUtils.DISPLAY.asyncExec(new Runnable() {
+										public void run() {
+											cancel();
+										}
+									});
+									return;
+								}
+
+								formAutoModeRoomButton.setEnabled(true);
+							} catch (SWTException e) {
+							}
+						}
+					});
+				}
+
+				@Override
+				public void mouseDown(MouseEvent e) {
+				}
+
+				@Override
+				public void mouseDoubleClick(MouseEvent e) {
 				}
 			});
 
@@ -1100,7 +1154,7 @@ public class RoomWindow implements IMessageSource {
 					case SWT.CR:
 					case SWT.LF:
 						e.doit = false;
-						manualConnectToRoomServerAsMaster();
+						manualConnectAsMaster();
 						break;
 					}
 				}
@@ -1108,8 +1162,8 @@ public class RoomWindow implements IMessageSource {
 			formManualModeRoomServerButton.addListener(SWT.Selection, new Listener() {
 				@Override
 				public void handleEvent(Event event) {
-					if (roomSessionState == RoomSessionState.OFFLINE) {
-						manualConnectToRoomServerAsMaster();
+					if (sessionState == SessionState.OFFLINE) {
+						manualConnectAsMaster();
 					} else {
 						confirmRoomDelete(false);
 					}
@@ -1127,7 +1181,7 @@ public class RoomWindow implements IMessageSource {
 					case SWT.CR:
 					case SWT.LF:
 						e.doit = false;
-						manualConnectToRoomServerAsParticipant();
+						manualConnectAsParticipant();
 						break;
 					}
 				}
@@ -1135,8 +1189,8 @@ public class RoomWindow implements IMessageSource {
 			formManualModeRoomAddressButton.addListener(SWT.Selection, new Listener() {
 				@Override
 				public void handleEvent(Event event) {
-					if (roomSessionState == RoomSessionState.OFFLINE) {
-						manualConnectToRoomServerAsParticipant();
+					if (sessionState == SessionState.OFFLINE) {
+						manualConnectAsParticipant();
 					} else {
 						roomConnection.send(ProtocolConstants.Room.COMMAND_LOGOUT);
 						tunnelConnection.disconnect();
@@ -1165,7 +1219,7 @@ public class RoomWindow implements IMessageSource {
 					String host = formMyRoomModeHostText.getText();
 					application.getSettings().setMyRoomHostName(host);
 
-					switch (roomSessionState) {
+					switch (sessionState) {
 					case MY_ROOM_MASTER:
 						roomServerAddressPort = host + ":" + formMyRoomModePortSpinner.getSelection();
 						updateServerAddress();
@@ -1184,8 +1238,63 @@ public class RoomWindow implements IMessageSource {
 					if (myRoomEntryConnection.isConnected()) {
 						myRoomEntryConnection.send(ProtocolConstants.MyRoom.COMMAND_LOGOUT);
 					} else {
-						connectToRoomServerAsMyRoom();
+						autoConnectAsMyRoom();
 					}
+				}
+			});
+			formMyRoomModeEntryButton.addMouseListener(new MouseListener() {
+				@Override
+				public void mouseUp(MouseEvent e) {
+					if (myRoomEntryConnection.isConnected())
+						return;
+					if (e.button != 3)
+						return;
+					if (e.x < 0 || e.y < 0)
+						return;
+					Point size = formMyRoomModeEntryButton.getSize();
+					if (e.x > size.x || e.y > size.y)
+						return;
+
+					if (!checkConfigUserName() || !checkRoomFormTitle())
+						return;
+
+					formMyRoomModeEntryButton.setEnabled(false);
+					selectRoomServer(new ServerSelectAction() {
+						@Override
+						public String getOkLabel() {
+							return "検索に登録する";
+						}
+
+						@Override
+						public void select(String address) {
+							autoConnectAsMyRoom(address);
+						}
+
+						@Override
+						public void cancel() {
+							try {
+								if (SwtUtils.isNotUIThread()) {
+									SwtUtils.DISPLAY.asyncExec(new Runnable() {
+										public void run() {
+											cancel();
+										}
+									});
+									return;
+								}
+
+								formAutoModeRoomButton.setEnabled(true);
+							} catch (SWTException e) {
+							}
+						}
+					});
+				}
+
+				@Override
+				public void mouseDown(MouseEvent e) {
+				}
+
+				@Override
+				public void mouseDoubleClick(MouseEvent e) {
 				}
 			});
 
@@ -1209,7 +1318,7 @@ public class RoomWindow implements IMessageSource {
 			multilineChatButton.addListener(SWT.Selection, new Listener() {
 				@Override
 				public void handleEvent(Event event) {
-					switch (roomSessionState) {
+					switch (sessionState) {
 					case MY_ROOM_MASTER:
 					case ROOM_MASTER:
 					case ROOM_PARTICIPANT:
@@ -1311,7 +1420,7 @@ public class RoomWindow implements IMessageSource {
 			macFilteringWhiteListCheck.addListener(SWT.Selection, new Listener() {
 				@Override
 				public void handleEvent(Event event) {
-					switch (roomSessionState) {
+					switch (sessionState) {
 					case MY_ROOM_MASTER:
 						myRoomEngine.enableMacAddressWhiteList(macFilteringWhiteListCheck.getSelection());
 						break;
@@ -1329,7 +1438,7 @@ public class RoomWindow implements IMessageSource {
 			macFilteringBlackListCheck.addListener(SWT.Selection, new Listener() {
 				@Override
 				public void handleEvent(Event event) {
-					switch (roomSessionState) {
+					switch (sessionState) {
 					case MY_ROOM_MASTER:
 						myRoomEngine.enableMacAddressBlackList(macFilteringBlackListCheck.getSelection());
 						break;
@@ -1429,7 +1538,7 @@ public class RoomWindow implements IMessageSource {
 					if (isRoomInfoUpdating)
 						return;
 
-					switch (roomSessionState) {
+					switch (sessionState) {
 					case MY_ROOM_MASTER:
 					case ROOM_MASTER:
 						formEditSubmitButton.setEnabled(true);
@@ -1503,7 +1612,7 @@ public class RoomWindow implements IMessageSource {
 						return;
 
 					String kickedName = player.getName();
-					switch (roomSessionState) {
+					switch (sessionState) {
 					case MY_ROOM_MASTER:
 						myRoomEngine.kickPlayer(kickedName);
 						removeKickedRoomPlayer(kickedName);
@@ -1529,7 +1638,7 @@ public class RoomWindow implements IMessageSource {
 						return;
 
 					String newMasterName = player.getName();
-					switch (roomSessionState) {
+					switch (sessionState) {
 					case ROOM_MASTER:
 						roomConnection.send(ProtocolConstants.Room.COMMAND_ROOM_MASTER_TRANSFER + TextProtocolDriver.ARGUMENT_SEPARATOR
 								+ newMasterName);
@@ -1559,7 +1668,7 @@ public class RoomWindow implements IMessageSource {
 					}
 
 					boolean isMasterAndOtherSelected = false;
-					switch (roomSessionState) {
+					switch (sessionState) {
 					case MY_ROOM_MASTER:
 					case ROOM_MASTER:
 						if (!roomMasterName.equals(player.getName())) {
@@ -1568,7 +1677,7 @@ public class RoomWindow implements IMessageSource {
 						break;
 					}
 					playerMenuKick.setEnabled(isMasterAndOtherSelected);
-					if (roomSessionState == RoomSessionState.ROOM_MASTER) {
+					if (sessionState == SessionState.ROOM_MASTER) {
 						playerMenuMasterTransfer.setEnabled(isMasterAndOtherSelected);
 					} else {
 						playerMenuMasterTransfer.setEnabled(false);
@@ -1610,7 +1719,7 @@ public class RoomWindow implements IMessageSource {
 			statusRoomServerAddressLabel.addMenuDetectListener(new MenuDetectListener() {
 				@Override
 				public void menuDetected(MenuDetectEvent e) {
-					switch (roomSessionState) {
+					switch (sessionState) {
 					case MY_ROOM_MASTER:
 					case ROOM_PARTICIPANT:
 					case ROOM_MASTER:
@@ -2021,7 +2130,7 @@ public class RoomWindow implements IMessageSource {
 	private long nextPingTime = 0L;
 
 	public void cronJob() {
-		switch (roomSessionState) {
+		switch (sessionState) {
 		case ROOM_MASTER:
 		case ROOM_PARTICIPANT:
 			long now = System.currentTimeMillis();
@@ -2035,7 +2144,107 @@ public class RoomWindow implements IMessageSource {
 		}
 	}
 
-	private void connectToRoomServerAsMaster() {
+	private void connectToRoomServer(final InetSocketAddress socketAddress) {
+		Runnable task = new Runnable() {
+			@Override
+			public void run() {
+				try {
+					application.connectTcp(socketAddress, roomProtocol);
+					return;
+				} catch (SocketTimeoutException e) {
+					ErrorLog log = new ErrorLog("サーバーに接続できませんでした");
+					widgets.logViewer.appendMessage(log);
+				} catch (IOException e) {
+					ErrorLog log = new ErrorLog(e.getMessage());
+					widgets.logViewer.appendMessage(log);
+				} catch (RuntimeException e) {
+					ErrorLog log = new ErrorLog(e.getMessage());
+					widgets.logViewer.appendMessage(log);
+				}
+				changeStateTo(SessionState.OFFLINE);
+			}
+		};
+		application.execute(task);
+	}
+
+	private interface ServerSelectAction {
+		public String getOkLabel();
+
+		public void select(String address);
+
+		public void cancel();
+	}
+
+	private void selectRoomServer(final ServerSelectAction action) {
+		PortalQuery query = new PortalQuery() {
+			@Override
+			public String getCommand() {
+				return ProtocolConstants.Portal.COMMAND_LIST_ROOM_SERVERS;
+			}
+
+			@Override
+			public void failCallback(ErrorLog log) {
+				action.cancel();
+				widgets.logViewer.appendMessage(log);
+			}
+
+			@Override
+			public void successCallback(String message) {
+				ArrayList<RoomServerInfo> list = new ArrayList<RoomServerInfo>();
+				for (String info : message.split("\n")) {
+					try {
+						String[] values = info.split("\t");
+						String address = values[0];
+						int currentRooms = Integer.parseInt(values[1]);
+						int maxRooms = Integer.parseInt(values[2]);
+
+						RoomServerInfo server = new RoomServerInfo(address, currentRooms, maxRooms);
+						list.add(server);
+					} catch (NumberFormatException e) {
+					}
+				}
+
+				showRoomServerSelectDialog(list, action);
+			}
+		};
+		application.queryPortalServer(query);
+	}
+
+	private void showRoomServerSelectDialog(final java.util.List<RoomServerInfo> list, final ServerSelectAction action) {
+		try {
+			if (SwtUtils.isNotUIThread()) {
+				SwtUtils.DISPLAY.asyncExec(new Runnable() {
+					@Override
+					public void run() {
+						showRoomServerSelectDialog(list, action);
+					}
+				});
+				return;
+			}
+
+			if (list.isEmpty()) {
+				ErrorLog log = new ErrorLog("ルームサーバーが見つかりません");
+				widgets.logViewer.appendMessage(log);
+
+				action.cancel();
+			} else {
+				RoomServerSelectDialog dialog = new RoomServerSelectDialog(shell, list, action.getOkLabel());
+				switch (dialog.open()) {
+				case IDialogConstants.OK_ID:
+					RoomServerInfo selected = dialog.getSelectedServer();
+					action.select(selected.getAddress());
+					break;
+				case IDialogConstants.CANCEL_ID:
+					action.cancel();
+					break;
+				}
+			}
+		} catch (SWTException e) {
+		}
+
+	}
+
+	private void autoConnectAsMaster() {
 		if (!checkConfigUserName() || !checkRoomFormTitle())
 			return;
 
@@ -2055,53 +2264,49 @@ public class RoomWindow implements IMessageSource {
 			}
 
 			@Override
-			public void successCallback(final String address) {
-				try {
-					if (SwtUtils.isNotUIThread()) {
-						if (address == null) {
-							revertRoomFormAutoModeButton();
-
-							ErrorLog log = new ErrorLog("アドレスを取得できませんでした");
-							widgets.logViewer.appendMessage(log);
-							return;
-						}
-						SwtUtils.DISPLAY.asyncExec(new Runnable() {
-							@Override
-							public void run() {
-								successCallback(address);
-							}
-						});
-						return;
-					}
-
-					changeStateTo(RoomSessionState.CONNECTING_ROOM_MASTER);
-					roomMasterName = roomLoginName;
-					roomServerAddressPort = address;
-
-					Runnable task = new Runnable() {
-						@Override
-						public void run() {
-							try {
-								InetSocketAddress socketAddress = Utility.parseSocketAddress(address);
-								application.connectTcp(socketAddress, roomProtocol);
-								return;
-							} catch (IOException e) {
-								ErrorLog log = new ErrorLog(e.getMessage());
-								widgets.logViewer.appendMessage(log);
-							} catch (RuntimeException e) {
-								ErrorLog log = new ErrorLog(e.getMessage());
-								widgets.logViewer.appendMessage(log);
-							}
-							changeStateTo(RoomSessionState.OFFLINE);
-						}
-					};
-					application.execute(task);
-				} catch (SWTException e) {
-				}
+			public void successCallback(String address) {
+				autoConnectAsMaster(address);
 			}
 		};
 
 		application.queryPortalServer(query);
+	}
+
+	private void autoConnectAsMaster(final String address) {
+		try {
+			if (SwtUtils.isNotUIThread()) {
+				if (address == null) {
+					revertRoomFormAutoModeButton();
+
+					ErrorLog log = new ErrorLog("アドレスを取得できませんでした");
+					widgets.logViewer.appendMessage(log);
+					return;
+				}
+				SwtUtils.DISPLAY.asyncExec(new Runnable() {
+					@Override
+					public void run() {
+						autoConnectAsMaster(address);
+					}
+				});
+				return;
+			}
+
+			InetSocketAddress socketAddress = Utility.parseSocketAddress(address);
+			if (socketAddress == null) {
+				revertRoomFormAutoModeButton();
+
+				ErrorLog log = new ErrorLog("サーバーアドレスが正しくありません");
+				widgets.logViewer.appendMessage(log);
+				return;
+			}
+
+			changeStateTo(SessionState.CONNECTING_ROOM_MASTER);
+			roomMasterName = roomLoginName;
+			roomServerAddressPort = address;
+
+			connectToRoomServer(socketAddress);
+		} catch (SWTException e) {
+		}
 	}
 
 	private void revertRoomFormAutoModeButton() {
@@ -2121,12 +2326,12 @@ public class RoomWindow implements IMessageSource {
 		}
 	}
 
-	public void enterRoom(PlayRoom room) {
+	public void autoConnectAsParticipant(PlayRoom room) {
 		if (shell.getMinimized())
 			shell.setMinimized(false);
 		shell.open();
 
-		if (roomSessionState != RoomSessionState.OFFLINE) {
+		if (sessionState != SessionState.OFFLINE) {
 			ErrorLog log = new ErrorLog("現在部屋にログイン中です");
 			widgets.logViewer.appendMessage(log);
 			return;
@@ -2144,27 +2349,14 @@ public class RoomWindow implements IMessageSource {
 		widgets.formModeSelectionCombo.select(0);
 		updateRoomModeSelection();
 
-		try {
-			roomMasterName = room.getMasterName();
-			roomServerAddressPort = room.getServerAddress();
+		changeStateTo(SessionState.CONNECTING_ROOM_PARTICIPANT);
+		roomMasterName = room.getMasterName();
+		roomServerAddressPort = room.getServerAddress();
 
-			changeStateTo(RoomSessionState.CONNECTING_ROOM_PARTICIPANT);
-			application.connectTcp(socketAddress, roomProtocol);
-			return;
-		} catch (SocketTimeoutException e) {
-			ErrorLog log = new ErrorLog("部屋に接続できませんでした");
-			widgets.logViewer.appendMessage(log);
-		} catch (IOException e) {
-			ErrorLog log = new ErrorLog(e.getMessage());
-			widgets.logViewer.appendMessage(log);
-		} catch (RuntimeException e) {
-			ErrorLog log = new ErrorLog(e.getMessage());
-			widgets.logViewer.appendMessage(log);
-		}
-		changeStateTo(RoomSessionState.OFFLINE);
+		connectToRoomServer(socketAddress);
 	}
 
-	private void manualConnectToRoomServerAsMaster() {
+	private void manualConnectAsMaster() {
 		if (!checkConfigUserName() || !checkRoomFormTitle())
 			return;
 
@@ -2182,31 +2374,18 @@ public class RoomWindow implements IMessageSource {
 			return;
 		}
 
-		try {
-			if (socketAddress.getAddress().isLoopbackAddress()) {
-				roomServerAddressPort = ":" + socketAddress.getPort();
-			} else {
-				roomServerAddressPort = address;
-			}
-
-			changeStateTo(RoomSessionState.CONNECTING_ROOM_MASTER);
-			roomMasterName = roomLoginName;
-			application.connectTcp(socketAddress, roomProtocol);
-			return;
-		} catch (SocketTimeoutException e) {
-			ErrorLog log = new ErrorLog("ルームサーバーに接続できませんでした");
-			widgets.logViewer.appendMessage(log);
-		} catch (IOException e) {
-			ErrorLog log = new ErrorLog(e.getMessage());
-			widgets.logViewer.appendMessage(log);
-		} catch (RuntimeException e) {
-			ErrorLog log = new ErrorLog(e.getMessage());
-			widgets.logViewer.appendMessage(log);
+		changeStateTo(SessionState.CONNECTING_ROOM_MASTER);
+		if (socketAddress.getAddress().isLoopbackAddress()) {
+			roomServerAddressPort = ":" + socketAddress.getPort();
+		} else {
+			roomServerAddressPort = address;
 		}
-		changeStateTo(RoomSessionState.OFFLINE);
+		roomMasterName = roomLoginName;
+
+		connectToRoomServer(socketAddress);
 	}
 
-	private void manualConnectToRoomServerAsParticipant() {
+	private void manualConnectAsParticipant() {
 		if (!checkConfigUserName())
 			return;
 
@@ -2240,32 +2419,19 @@ public class RoomWindow implements IMessageSource {
 			return;
 		}
 
-		try {
-			if (socketAddress.getAddress().isLoopbackAddress()) {
-				roomServerAddressPort = ":" + socketAddress.getPort();
-				if (roomMasterName.equals("")) {
-					widgets.formManualModeRoomAddressCombo.setText(roomServerAddressPort);
-				} else {
-					widgets.formManualModeRoomAddressCombo.setText(roomServerAddressPort + ":" + roomMasterName);
-				}
+		changeStateTo(SessionState.CONNECTING_ROOM_PARTICIPANT);
+		if (socketAddress.getAddress().isLoopbackAddress()) {
+			roomServerAddressPort = ":" + socketAddress.getPort();
+			if (roomMasterName.equals("")) {
+				widgets.formManualModeRoomAddressCombo.setText(roomServerAddressPort);
 			} else {
-				roomServerAddressPort = Utility.socketAddressToStringByHostName(socketAddress);
+				widgets.formManualModeRoomAddressCombo.setText(roomServerAddressPort + ":" + roomMasterName);
 			}
-
-			changeStateTo(RoomSessionState.CONNECTING_ROOM_PARTICIPANT);
-			application.connectTcp(socketAddress, roomProtocol);
-			return;
-		} catch (SocketTimeoutException e) {
-			ErrorLog log = new ErrorLog("部屋に接続できませんでした");
-			widgets.logViewer.appendMessage(log);
-		} catch (IOException e) {
-			ErrorLog log = new ErrorLog(e.getMessage());
-			widgets.logViewer.appendMessage(log);
-		} catch (RuntimeException e) {
-			ErrorLog log = new ErrorLog(e.getMessage());
-			widgets.logViewer.appendMessage(log);
+		} else {
+			roomServerAddressPort = Utility.socketAddressToStringByHostName(socketAddress);
 		}
-		changeStateTo(RoomSessionState.OFFLINE);
+
+		connectToRoomServer(socketAddress);
 	}
 
 	private void startMyRoomServer() throws IOException {
@@ -2306,8 +2472,8 @@ public class RoomWindow implements IMessageSource {
 		}
 	}
 
-	private void connectToRoomServerAsMyRoom() {
-		if (roomSessionState != RoomSessionState.MY_ROOM_MASTER) {
+	private void autoConnectAsMyRoom() {
+		if (sessionState != SessionState.MY_ROOM_MASTER) {
 			return;
 		}
 
@@ -2335,51 +2501,55 @@ public class RoomWindow implements IMessageSource {
 			}
 
 			@Override
-			public void successCallback(final String address) {
-				try {
-					if (SwtUtils.isNotUIThread()) {
-						if (address == null) {
-							updateMyRoomEntryForm(false);
-
-							ErrorLog log = new ErrorLog("アドレスを取得できませんでした");
-							widgets.logViewer.appendMessage(log);
-							return;
-						}
-						SwtUtils.DISPLAY.asyncExec(new Runnable() {
-							@Override
-							public void run() {
-								successCallback(address);
-							}
-						});
-						return;
-					}
-
-					widgets.formMyRoomModeRoomServer.setText(address);
-
-					Runnable task = new Runnable() {
-						@Override
-						public void run() {
-							try {
-								InetSocketAddress socketAddress = Utility.parseSocketAddress(address);
-								application.connectTcp(socketAddress, myRoomEntryProtocol);
-								return;
-							} catch (IOException e) {
-								ErrorLog log = new ErrorLog(e.getMessage());
-								widgets.logViewer.appendMessage(log);
-							} catch (RuntimeException e) {
-								ErrorLog log = new ErrorLog(e.getMessage());
-								widgets.logViewer.appendMessage(log);
-							}
-							updateMyRoomEntryForm(false);
-						}
-					};
-					application.execute(task);
-				} catch (SWTException e) {
-				}
+			public void successCallback(String address) {
+				autoConnectAsMyRoom(address);
 			}
 		};
 
 		application.queryPortalServer(query);
+	}
+
+	private void autoConnectAsMyRoom(final String address) {
+		try {
+			if (SwtUtils.isNotUIThread()) {
+				if (address == null) {
+					updateMyRoomEntryForm(false);
+
+					ErrorLog log = new ErrorLog("アドレスを取得できませんでした");
+					widgets.logViewer.appendMessage(log);
+					return;
+				}
+				SwtUtils.DISPLAY.asyncExec(new Runnable() {
+					@Override
+					public void run() {
+						autoConnectAsMyRoom(address);
+					}
+				});
+				return;
+			}
+
+			widgets.formMyRoomModeRoomServer.setText(address);
+
+			Runnable task = new Runnable() {
+				@Override
+				public void run() {
+					try {
+						InetSocketAddress socketAddress = Utility.parseSocketAddress(address);
+						application.connectTcp(socketAddress, myRoomEntryProtocol);
+						return;
+					} catch (IOException e) {
+						ErrorLog log = new ErrorLog(e.getMessage());
+						widgets.logViewer.appendMessage(log);
+					} catch (RuntimeException e) {
+						ErrorLog log = new ErrorLog(e.getMessage());
+						widgets.logViewer.appendMessage(log);
+					}
+					updateMyRoomEntryForm(false);
+				}
+			};
+			application.execute(task);
+		} catch (SWTException e) {
+		}
 	}
 
 	private void updateMyRoomEntryForm(final boolean entryOn) {
@@ -2403,7 +2573,7 @@ public class RoomWindow implements IMessageSource {
 				widgets.formMyRoomModeRoomServer.setText("");
 				widgets.formMyRoomModeEntryButton.setText("検索登録");
 				widgets.formMyRoomModeEntryButton.setSelection(false);
-				widgets.formMyRoomModeEntryButton.setEnabled(roomSessionState != RoomSessionState.OFFLINE);
+				widgets.formMyRoomModeEntryButton.setEnabled(sessionState != SessionState.OFFLINE);
 				widgets.formMyRoomModeHostText.setEnabled(true);
 			}
 		} catch (SWTException e) {
@@ -2411,7 +2581,7 @@ public class RoomWindow implements IMessageSource {
 	}
 
 	private void addMacAddressToWhiteList(String macAddress) {
-		switch (roomSessionState) {
+		switch (sessionState) {
 		case MY_ROOM_MASTER: {
 			myRoomEngine.addMacAddressToWhiteList(macAddress);
 			break;
@@ -2429,7 +2599,7 @@ public class RoomWindow implements IMessageSource {
 	}
 
 	private void removeMacAddressFromWhiteList(String macAddress) {
-		switch (roomSessionState) {
+		switch (sessionState) {
 		case MY_ROOM_MASTER: {
 			myRoomEngine.removeMacAddressFromWhiteList(macAddress);
 			break;
@@ -2447,7 +2617,7 @@ public class RoomWindow implements IMessageSource {
 	}
 
 	private void addMacAddressToBlackList(String macAddress) {
-		switch (roomSessionState) {
+		switch (sessionState) {
 		case MY_ROOM_MASTER: {
 			myRoomEngine.addMacAddressToBlackList(macAddress);
 			break;
@@ -2465,7 +2635,7 @@ public class RoomWindow implements IMessageSource {
 	}
 
 	private void removeMacAddressFromBlackList(String macAddress) {
-		switch (roomSessionState) {
+		switch (sessionState) {
 		case MY_ROOM_MASTER: {
 			myRoomEngine.removeMacAddressFromBlackList(macAddress);
 			break;
@@ -2520,7 +2690,7 @@ public class RoomWindow implements IMessageSource {
 	}
 
 	private int confirmRoomDelete(boolean onExit) {
-		if (roomSessionState == RoomSessionState.ROOM_MASTER) {
+		if (sessionState == SessionState.ROOM_MASTER) {
 			if (roomPlayerMap.size() < 2) {
 				if (onExit) {
 					return -1;
@@ -2573,7 +2743,7 @@ public class RoomWindow implements IMessageSource {
 		}
 		widgets.formEditSubmitButton.setEnabled(false);
 
-		switch (roomSessionState) {
+		switch (sessionState) {
 		case MY_ROOM_MASTER:
 			myRoomEngine.setTitle(title);
 			myRoomEngine.setMaxPlayers(widgets.formMaxPlayersSpiner.getSelection());
@@ -2604,7 +2774,7 @@ public class RoomWindow implements IMessageSource {
 
 	private boolean sendChat(String message) {
 		if (!Utility.isEmpty(message)) {
-			switch (roomSessionState) {
+			switch (sessionState) {
 			case MY_ROOM_MASTER:
 				myRoomEngine.sendChat(message);
 				return true;
@@ -2677,7 +2847,7 @@ public class RoomWindow implements IMessageSource {
 		widgets.ssidCurrentSsidText.setText(latestSSID);
 		updateRoomPlayerSSID(roomLoginName, latestSSID);
 
-		switch (roomSessionState) {
+		switch (sessionState) {
 		case MY_ROOM_MASTER:
 			myRoomEngine.informSSID(latestSSID);
 			break;
@@ -2711,7 +2881,7 @@ public class RoomWindow implements IMessageSource {
 				return;
 			}
 
-			switch (roomSessionState) {
+			switch (sessionState) {
 			case OFFLINE:
 				widgets.statusRoomServerAddressLabel.setText("部屋にログインしていません");
 				break;
@@ -2748,10 +2918,21 @@ public class RoomWindow implements IMessageSource {
 
 			if (tunnelIsLinked) {
 				widgets.statusTunnelConnectionLabel.setForeground(widgets.colorOK);
-				widgets.statusTunnelConnectionLabel.setText("UDPトンネル接続中");
+
+				StringBuilder sb = new StringBuilder();
+				switch (application.getSettings().getTunnelTransportLayer()) {
+				case TCP:
+					sb.append("TCP");
+					break;
+				case UDP:
+					sb.append("UDP");
+					break;
+				}
+				sb.append("トンネル接続中");
+				widgets.statusTunnelConnectionLabel.setText(sb.toString());
 			} else {
 				widgets.statusTunnelConnectionLabel.setForeground(widgets.colorNG);
-				widgets.statusTunnelConnectionLabel.setText("UDPトンネル未接続");
+				widgets.statusTunnelConnectionLabel.setText("トンネル未接続");
 			}
 			widgets.statusBarContainer.layout();
 		} catch (SWTException e) {
@@ -2873,7 +3054,7 @@ public class RoomWindow implements IMessageSource {
 	}
 
 	private void removeKickedRoomPlayer(String name) {
-		switch (roomSessionState) {
+		switch (sessionState) {
 		case MY_ROOM_MASTER:
 		case ROOM_MASTER: {
 			RoomLog log = new RoomLog(name + " を部屋から追い出しました");
@@ -2994,11 +3175,11 @@ public class RoomWindow implements IMessageSource {
 				updateServerAddress();
 
 				if (masterName.equals(roomLoginName)) {
-					changeStateTo(RoomSessionState.ROOM_MASTER);
-				} else if (roomSessionState == RoomSessionState.ROOM_MASTER) {
+					changeStateTo(SessionState.ROOM_MASTER);
+				} else if (sessionState == SessionState.ROOM_MASTER) {
 					widgets.formManualModeRoomAddressCombo.setEnabled(false);
 					widgets.formManualModeRoomAddressCombo.setText(roomServerAddressPort + ":" + masterName);
-					changeStateTo(RoomSessionState.ROOM_PARTICIPANT);
+					changeStateTo(SessionState.ROOM_PARTICIPANT);
 				} else {
 					widgets.formManualModeRoomAddressCombo.setText(roomServerAddressPort + ":" + masterName);
 				}
@@ -3014,7 +3195,7 @@ public class RoomWindow implements IMessageSource {
 			window.changeLobbyStateTo(userState);
 	}
 
-	private void changeStateTo(final RoomSessionState state) {
+	private void changeStateTo(final SessionState state) {
 		try {
 			if (SwtUtils.isNotUIThread()) {
 				SwtUtils.DISPLAY.asyncExec(new Runnable() {
@@ -3026,7 +3207,7 @@ public class RoomWindow implements IMessageSource {
 				return;
 			}
 
-			roomSessionState = state;
+			sessionState = state;
 
 			switch (state) {
 			case OFFLINE:
@@ -3458,7 +3639,7 @@ public class RoomWindow implements IMessageSource {
 					return;
 				}
 
-				changeStateTo(RoomSessionState.MY_ROOM_MASTER);
+				changeStateTo(SessionState.MY_ROOM_MASTER);
 				updateServerAddress();
 				changeLobbyStateTo(LobbyUserState.PLAYING);
 
@@ -3489,7 +3670,7 @@ public class RoomWindow implements IMessageSource {
 				}
 				if (myRoomEntryConnection.isConnected())
 					myRoomEntryConnection.send(ProtocolConstants.MyRoom.COMMAND_LOGOUT);
-				changeStateTo(RoomSessionState.OFFLINE);
+				changeStateTo(SessionState.OFFLINE);
 
 				RoomLog log = new RoomLog("マイルームを停止しました");
 				widgets.logViewer.appendMessage(log);
@@ -3532,7 +3713,7 @@ public class RoomWindow implements IMessageSource {
 				widgets.formAutoModeServerAddress.setText(roomServerAddressPort);
 
 				StringBuilder sb = new StringBuilder();
-				switch (roomSessionState) {
+				switch (sessionState) {
 				case CONNECTING_ROOM_MASTER: {
 					ServerLog log = new ServerLog("サーバーに接続しました");
 					widgets.logViewer.appendMessage(log);
@@ -3545,7 +3726,7 @@ public class RoomWindow implements IMessageSource {
 					roomConnection.send(sb.toString());
 
 					widgets.formManualModeRoomServerCombo.setText(roomServerAddressPort);
-					roomSessionState = RoomSessionState.NEGOTIATING;
+					sessionState = SessionState.NEGOTIATING;
 					break;
 				}
 				case CONNECTING_ROOM_PARTICIPANT: {
@@ -3566,7 +3747,7 @@ public class RoomWindow implements IMessageSource {
 					roomConnection.send(sb.toString());
 
 					widgets.formManualModeRoomAddressCombo.setText(roomServerAddressPort + ":" + roomMasterName);
-					roomSessionState = RoomSessionState.NEGOTIATING;
+					sessionState = SessionState.NEGOTIATING;
 					break;
 				}
 				}
@@ -3583,7 +3764,7 @@ public class RoomWindow implements IMessageSource {
 
 		@Override
 		public void connectionDisconnected() {
-			switch (roomSessionState) {
+			switch (sessionState) {
 			case CONNECTING_ROOM_PARTICIPANT:
 			case CONNECTING_ROOM_MASTER: {
 				ErrorLog log = new ErrorLog("サーバーに接続できません");
@@ -3598,7 +3779,7 @@ public class RoomWindow implements IMessageSource {
 			}
 
 			roomConnection = ISocketConnection.NULL;
-			changeStateTo(RoomSessionState.OFFLINE);
+			changeStateTo(SessionState.OFFLINE);
 		}
 
 		@Override
@@ -3616,7 +3797,14 @@ public class RoomWindow implements IMessageSource {
 
 	private void connectRoomTunnel() {
 		try {
-			application.connectUdp(roomConnection.getRemoteAddress(), tunnelProtocol);
+			switch (application.getSettings().getTunnelTransportLayer()) {
+			case TCP:
+				application.connectTcp(roomConnection.getRemoteAddress(), tunnelProtocol);
+				break;
+			case UDP:
+				application.connectUdp(roomConnection.getRemoteAddress(), tunnelProtocol);
+				break;
+			}
 		} catch (IOException e) {
 			ErrorLog log = new ErrorLog(e.getMessage());
 			widgets.logViewer.appendMessage(log);
@@ -3684,7 +3872,7 @@ public class RoomWindow implements IMessageSource {
 					long created = Long.parseLong(argument);
 					widgets.formTimestampText.setText(PlayRoomUtils.DATE_FORMAT.format(new Date(created)));
 
-					changeStateTo(RoomSessionState.ROOM_MASTER);
+					changeStateTo(SessionState.ROOM_MASTER);
 
 					RoomLog log = new RoomLog("ルームサーバーで部屋を作成しました");
 					widgets.logViewer.appendMessage(log);
@@ -3718,7 +3906,7 @@ public class RoomWindow implements IMessageSource {
 						return true;
 					}
 
-					changeStateTo(RoomSessionState.ROOM_PARTICIPANT);
+					changeStateTo(SessionState.ROOM_PARTICIPANT);
 
 					updateRoom(args.split(TextProtocolDriver.ARGUMENT_SEPARATOR, -1), true);
 					updateServerAddress();
@@ -3763,7 +3951,7 @@ public class RoomWindow implements IMessageSource {
 			@Override
 			public boolean process(IProtocolDriver client, String args) {
 				try {
-					switch (roomSessionState) {
+					switch (sessionState) {
 					case MY_ROOM_MASTER:
 					case ROOM_PARTICIPANT:
 					case ROOM_MASTER:
@@ -3855,7 +4043,7 @@ public class RoomWindow implements IMessageSource {
 			@Override
 			public boolean process(IProtocolDriver client, String kickedPlayer) {
 				if (roomLoginName.equals(kickedPlayer)) {
-					changeStateTo(RoomSessionState.OFFLINE);
+					changeStateTo(SessionState.OFFLINE);
 
 					RoomLog log = new RoomLog("部屋から追い出されました");
 					widgets.logViewer.appendMessage(log);
@@ -4230,7 +4418,7 @@ public class RoomWindow implements IMessageSource {
 		// packetLength);
 		// System.out.println(packet.toHexdump());
 
-		switch (roomSessionState) {
+		switch (sessionState) {
 		case MY_ROOM_MASTER:
 			myRoomEngine.sendTunnelPacketToParticipants(bufferForCapturing, srcMac, destMac);
 			break;

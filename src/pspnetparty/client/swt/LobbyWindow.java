@@ -219,7 +219,7 @@ public class LobbyWindow implements IMessageSource {
 				if (lobbyConnection.isConnected()) {
 					lobbyConnection.send(ProtocolConstants.Lobby.COMMAND_LOGOUT);
 				} else {
-					showLobbyServers();
+					selectLobbyServer();
 				}
 			}
 		});
@@ -434,7 +434,7 @@ public class LobbyWindow implements IMessageSource {
 		}
 	}
 
-	private void showLobbyServers() {
+	private void selectLobbyServer() {
 		loginUserName = application.getSettings().getUserName();
 
 		PortalQuery query = new PortalQuery() {
@@ -450,7 +450,7 @@ public class LobbyWindow implements IMessageSource {
 
 			@Override
 			public void successCallback(String message) {
-				final ArrayList<LobbyServerInfo> list = new ArrayList<LobbyServerInfo>();
+				ArrayList<LobbyServerInfo> list = new ArrayList<LobbyServerInfo>();
 				for (String info : message.split("\n")) {
 					try {
 						String[] values = info.split("\t");
@@ -695,12 +695,12 @@ public class LobbyWindow implements IMessageSource {
 				userListTableViewer.add(user);
 				userListTableViewer.refresh(user);
 
-				if (!name.equals(userNameLabel.getText())) {
+				IniSettings settings = application.getSettings();
+				if (!name.equals(userNameLabel.getText()) && settings.isLogLobbyEnterExit()) {
 					InfoLog log = new InfoLog(name + " がログインしました");
 					chatLogViewer.appendMessage(log);
 
-					IniSettings settings = application.getSettings();
-					if (settings.isBallonNotifyLobby() && settings.isLogLobbyEnterExit())
+					if (settings.isBallonNotifyLobby())
 						application.balloonNotify(shell, log.getMessage());
 				}
 			} else {
@@ -730,12 +730,14 @@ public class LobbyWindow implements IMessageSource {
 			userListTableViewer.remove(user);
 			userListTableViewer.refresh();
 
-			InfoLog log = new InfoLog(name + " がログアウトしました");
-			chatLogViewer.appendMessage(log);
-
 			IniSettings settings = application.getSettings();
-			if (settings.isBallonNotifyLobby() && settings.isLogLobbyEnterExit())
-				application.balloonNotify(shell, log.getMessage());
+			if (settings.isLogLobbyEnterExit()) {
+				InfoLog log = new InfoLog(name + " がログアウトしました");
+				chatLogViewer.appendMessage(log);
+
+				if (settings.isBallonNotifyLobby() && settings.isLogLobbyEnterExit())
+					application.balloonNotify(shell, log.getMessage());
+			}
 		} catch (SWTException e) {
 		}
 	}

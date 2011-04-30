@@ -42,7 +42,9 @@ public class ProtocolConstants {
 		}
 
 		public static final String COMMAND_FIND_ROOM_SERVER = "R";
+		public static final String COMMAND_LIST_ROOM_SERVERS = "r";
 		public static final String COMMAND_FIND_SEARCH_SERVER = "S";
+		public static final String COMMAND_LIST_SEARCH_SERVERS = "s";
 		public static final String COMMAND_LIST_LOBBY_SERVERS = "L";
 	}
 

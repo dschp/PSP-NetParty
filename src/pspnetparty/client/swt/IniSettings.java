@@ -3,6 +3,13 @@ package pspnetparty.client.swt;
 import pspnetparty.lib.IniSection;
 
 public class IniSettings {
+	enum TransportLayer {
+		TCP, UDP
+	}
+
+	private static final String TCP = "TCP";
+	private static final String UDP = "UDP";
+
 	public static final String SECTION = "Settings";
 
 	private static final String USER_NAME = "UserName";
@@ -11,6 +18,8 @@ public class IniSettings {
 	private static final String LOG_LOBBY_ENTER_EXIT = "LogLobbyEnterExit";
 	private static final String BALLOON_NOTIFY_LOBBY = "BalloonNotifyLobby";
 	private static final String BALLOON_NOTIFY_ROOM = "BalloonNotifyRoom";
+
+	private static final String TUNNEL_TRANSPORT_LAYER = "TunnelTransportLayer";
 
 	private static final String MY_ROOM_HOST_NAME = "MyRoomHostName";
 	private static final String MY_ROOM_PORT = "MyRoomPort";
@@ -32,6 +41,9 @@ public class IniSettings {
 		logLobbyEnterExit = section.get(LOG_LOBBY_ENTER_EXIT, true);
 		ballonNotifyLobby = section.get(BALLOON_NOTIFY_LOBBY, true);
 		ballonNotifyRoom = section.get(BALLOON_NOTIFY_ROOM, true);
+
+		tunnelTransportLayer = UDP.equals(section.get(TUNNEL_TRANSPORT_LAYER, TCP)) ? TransportLayer.UDP : TransportLayer.TCP;
+
 		myRoomHostName = section.get(MY_ROOM_HOST_NAME, "");
 		myRoomPort = section.get(MY_ROOM_PORT, 30000);
 		myRoomAllowNoMasterName = section.get(MY_ROOM_ALLOW_NO_MASTER_NAME, true);
@@ -48,6 +60,7 @@ public class IniSettings {
 	private boolean logLobbyEnterExit;
 	private boolean ballonNotifyLobby;
 	private boolean ballonNotifyRoom;
+	private TransportLayer tunnelTransportLayer;
 	private String myRoomHostName;
 	private int myRoomPort;
 	private boolean myRoomAllowNoMasterName;
@@ -144,6 +157,22 @@ public class IniSettings {
 	public void setMyRoomAllowNoMasterName(boolean myRoomAllowNoMasterName) {
 		this.myRoomAllowNoMasterName = myRoomAllowNoMasterName;
 		section.set(MY_ROOM_ALLOW_NO_MASTER_NAME, myRoomAllowNoMasterName);
+	}
+
+	public TransportLayer getTunnelTransportLayer() {
+		return tunnelTransportLayer;
+	}
+
+	public void setTunnelTransportLayer(TransportLayer tunnelTransportLayer) {
+		this.tunnelTransportLayer = tunnelTransportLayer;
+		switch (tunnelTransportLayer) {
+		case TCP:
+			section.set(TUNNEL_TRANSPORT_LAYER, TCP);
+			break;
+		case UDP:
+			section.set(TUNNEL_TRANSPORT_LAYER, UDP);
+			break;
+		}
 	}
 
 	public int getMaxLogCount() {

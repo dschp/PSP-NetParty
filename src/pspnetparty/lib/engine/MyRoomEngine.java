@@ -114,9 +114,12 @@ public class MyRoomEngine {
 		roomServer.addServerListener(listener);
 		roomServer.addProtocol(new RoomProtocol());
 
+		TunnelProtocol tunnelProtocol = new TunnelProtocol();
+		roomServer.addProtocol(tunnelProtocol);
+
 		tunnelServer = new AsyncUdpServer();
 		tunnelServer.addServerListener(listener);
-		tunnelServer.addProtocol(new TunnelProtocol());
+		tunnelServer.addProtocol(tunnelProtocol);
 	}
 
 	public boolean isStarted() {

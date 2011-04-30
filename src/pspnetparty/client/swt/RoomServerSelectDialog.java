@@ -20,21 +20,23 @@ import org.eclipse.swt.widgets.Shell;
 import org.eclipse.swt.widgets.Table;
 import org.eclipse.swt.widgets.TableColumn;
 
-public class LobbyServerSelectDialog extends Dialog {
+public class RoomServerSelectDialog extends Dialog {
 
-	private List<LobbyServerInfo> serverList;
-	private LobbyServerInfo selectedServer;
+	private List<RoomServerInfo> serverList;
+	private RoomServerInfo selectedServer;
+	private String okLabel;
 
-	protected LobbyServerSelectDialog(Shell parentShell, List<LobbyServerInfo> serverList) {
+	protected RoomServerSelectDialog(Shell parentShell, List<RoomServerInfo> list, String okLabel) {
 		super(parentShell);
-		this.serverList = serverList;
-		selectedServer = serverList.get(0);
+		serverList = list;
+		selectedServer = list.get(0);
+		this.okLabel = okLabel;
 	}
 
 	@Override
 	protected void configureShell(Shell newShell) {
 		super.configureShell(newShell);
-		newShell.setText("ロビーサーバー選択");
+		newShell.setText("ルームサーバー選択");
 	}
 
 	@Override
@@ -48,17 +50,14 @@ public class LobbyServerSelectDialog extends Dialog {
 		table.setHeaderVisible(true);
 		table.setLayoutData(new GridData(SWT.FILL, SWT.FILL, true, true));
 
-		TableColumn titleColumn = new TableColumn(table, SWT.LEFT);
-		titleColumn.setText("ロビー名");
-
-		TableColumn userCountColumn = new TableColumn(table, SWT.RIGHT);
-		userCountColumn.setText("ユーザー数");
-
 		TableColumn addressColumn = new TableColumn(table, SWT.LEFT);
-		addressColumn.setText("サーバー");
+		addressColumn.setText("アドレス");
+
+		TableColumn useRateColumn = new TableColumn(table, SWT.RIGHT);
+		useRateColumn.setText("利用率");
 
 		viewer.setContentProvider(new ArrayContentProvider());
-		viewer.setLabelProvider(LobbyServerInfo.LABEL_PROVIDER);
+		viewer.setLabelProvider(RoomServerInfo.LABEL_PROVIDER);
 
 		viewer.setInput(serverList);
 
@@ -66,7 +65,7 @@ public class LobbyServerSelectDialog extends Dialog {
 			@Override
 			public void selectionChanged(SelectionChangedEvent e) {
 				IStructuredSelection selection = (IStructuredSelection) e.getSelection();
-				selectedServer = (LobbyServerInfo) selection.getFirstElement();
+				selectedServer = (RoomServerInfo) selection.getFirstElement();
 				getButton(OK).setEnabled(selectedServer != null);
 			}
 		});
@@ -74,15 +73,14 @@ public class LobbyServerSelectDialog extends Dialog {
 			@Override
 			public void doubleClick(DoubleClickEvent e) {
 				IStructuredSelection selection = (IStructuredSelection) e.getSelection();
-				selectedServer = (LobbyServerInfo) selection.getFirstElement();
+				selectedServer = (RoomServerInfo) selection.getFirstElement();
 				setReturnCode(OK);
 				close();
 			}
 		});
 
 		addressColumn.pack();
-		userCountColumn.pack();
-		titleColumn.pack();
+		useRateColumn.pack();
 
 		table.select(0);
 
@@ -93,13 +91,20 @@ public class LobbyServerSelectDialog extends Dialog {
 	protected Control createButtonBar(Composite parent) {
 		Control control = super.createButtonBar(parent);
 
+		GridLayout layout = (GridLayout) ((Composite) control).getLayout();
+		layout.makeColumnsEqualWidth = false;
+
 		Button ok = getButton(OK);
-		ok.setText("ログイン");
+		ok.setText(okLabel);
+		ok.pack();
+
+		GridData data = (GridData) ok.getLayoutData();
+		data.widthHint = SWT.DEFAULT;
 
 		return control;
 	}
 
-	public LobbyServerInfo getSelectedServer() {
+	public RoomServerInfo getSelectedServer() {
 		return selectedServer;
 	}
 }

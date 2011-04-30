@@ -251,6 +251,27 @@ public class PortalEngine {
 				return false;
 			}
 		});
+		portalHandlers.put(ProtocolConstants.Portal.COMMAND_LIST_SEARCH_SERVERS, new IProtocolMessageHandler() {
+			@Override
+			public boolean process(IProtocolDriver driver, String argument) {
+				StringBuilder sb = new StringBuilder();
+
+				for (SearchServerStatusProtocolDriver d : searchServers) {
+					if (d.currentUsers >= d.maxUsers)
+						break;
+
+					sb.append(d.address);
+					sb.append('\t');
+					sb.append(d.currentUsers);
+					sb.append('\t');
+					sb.append(d.maxUsers);
+					sb.append('\n');
+				}
+
+				driver.getConnection().send(sb.toString());
+				return false;
+			}
+		});
 		portalHandlers.put(ProtocolConstants.Portal.COMMAND_FIND_ROOM_SERVER, new IProtocolMessageHandler() {
 			@Override
 			public boolean process(IProtocolDriver driver, String argument) {
@@ -260,6 +281,27 @@ public class PortalEngine {
 					driver.getConnection().send(status.address);
 				} catch (NoSuchElementException e) {
 				}
+				return false;
+			}
+		});
+		portalHandlers.put(ProtocolConstants.Portal.COMMAND_LIST_ROOM_SERVERS, new IProtocolMessageHandler() {
+			@Override
+			public boolean process(IProtocolDriver driver, String argument) {
+				StringBuilder sb = new StringBuilder();
+
+				for (RoomServerStatusProtocolDriver d : roomServers) {
+					if (d.currentRooms >= d.maxRooms)
+						break;
+
+					sb.append(d.address);
+					sb.append('\t');
+					sb.append(d.currentRooms);
+					sb.append('\t');
+					sb.append(d.maxRooms);
+					sb.append('\n');
+				}
+
+				driver.getConnection().send(sb.toString());
 				return false;
 			}
 		});

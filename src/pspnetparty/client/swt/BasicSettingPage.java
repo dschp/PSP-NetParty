@@ -31,6 +31,9 @@ public class BasicSettingPage extends PreferencePage {
 	private Text privatePortalServerAddress;
 	private Button myRoomAllowEmptyMasterNameCheck;
 
+	private Button tunnelTransportTcp;
+	private Button tunnelTransportUdp;
+
 	public BasicSettingPage(IniSettings settings) {
 		super("基本設定");
 		this.settings = settings;
@@ -84,6 +87,25 @@ public class BasicSettingPage extends PreferencePage {
 		balloonNotifyRoomCheck = new Button(configTaskTrayBalloonGroup, SWT.CHECK | SWT.FLAT);
 		balloonNotifyRoomCheck.setText("プレイルームのログメッセージ");
 
+		Group configTunnelGroup = new Group(configContainer, SWT.SHADOW_IN);
+		configTunnelGroup.setText("トンネル通信");
+		configTunnelGroup.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, false, false));
+		gridLayout = new GridLayout(3, false);
+		gridLayout.horizontalSpacing = 5;
+		gridLayout.verticalSpacing = 3;
+		gridLayout.marginWidth = 4;
+		gridLayout.marginHeight = 5;
+		configTunnelGroup.setLayout(gridLayout);
+
+		Label tunnelTransportLayer = new Label(configTunnelGroup, SWT.NONE);
+		tunnelTransportLayer.setText("トランスポート層: ");
+
+		tunnelTransportTcp = new Button(configTunnelGroup, SWT.RADIO | SWT.FLAT);
+		tunnelTransportTcp.setText("TCP");
+
+		tunnelTransportUdp = new Button(configTunnelGroup, SWT.RADIO | SWT.FLAT);
+		tunnelTransportUdp.setText("UDP");
+
 		Group configPortalServerGroup = new Group(configContainer, SWT.SHADOW_IN);
 		configPortalServerGroup.setText("ポータルサーバー");
 		configPortalServerGroup.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, false, false));
@@ -133,6 +155,15 @@ public class BasicSettingPage extends PreferencePage {
 
 		myRoomAllowEmptyMasterNameCheck.setSelection(settings.isMyRoomAllowNoMasterName());
 
+		switch (settings.getTunnelTransportLayer()) {
+		case TCP:
+			tunnelTransportTcp.setSelection(true);
+			break;
+		case UDP:
+			tunnelTransportUdp.setSelection(true);
+			break;
+		}
+
 		userNameText.addModifyListener(new ModifyListener() {
 			@Override
 			public void modifyText(ModifyEvent e) {
@@ -171,6 +202,12 @@ public class BasicSettingPage extends PreferencePage {
 		settings.setBallonNotifyRoom(balloonNotifyRoomCheck.getSelection());
 		settings.setPrivatePortalServerUse(privatePortalServerUseCheck.getSelection());
 		settings.setPrivatePortalServerAddress(privatePortalServerAddress.getText());
+
+		if (tunnelTransportTcp.getSelection()) {
+			settings.setTunnelTransportLayer(IniSettings.TransportLayer.TCP);
+		} else {
+			settings.setTunnelTransportLayer(IniSettings.TransportLayer.UDP);
+		}
 	}
 
 	@Override

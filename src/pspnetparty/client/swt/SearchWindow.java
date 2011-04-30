@@ -23,7 +23,9 @@ import java.net.InetSocketAddress;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.List;
 
+import org.eclipse.jface.dialogs.IDialogConstants;
 import org.eclipse.jface.viewers.ArrayContentProvider;
 import org.eclipse.jface.viewers.DoubleClickEvent;
 import org.eclipse.jface.viewers.IDoubleClickListener;
@@ -35,6 +37,8 @@ import org.eclipse.swt.events.DisposeEvent;
 import org.eclipse.swt.events.DisposeListener;
 import org.eclipse.swt.events.ModifyEvent;
 import org.eclipse.swt.events.ModifyListener;
+import org.eclipse.swt.events.MouseEvent;
+import org.eclipse.swt.events.MouseListener;
 import org.eclipse.swt.events.SelectionEvent;
 import org.eclipse.swt.events.SelectionListener;
 import org.eclipse.swt.events.ShellEvent;
@@ -273,6 +277,30 @@ public class SearchWindow {
 				}
 			}
 		});
+		searchServerLoginButton.addMouseListener(new MouseListener() {
+			@Override
+			public void mouseUp(MouseEvent e) {
+				if (sessionState != SessionState.OFFLINE)
+					return;
+				if (e.button != 3)
+					return;
+				if (e.x < 0 || e.y < 0)
+					return;
+				Point size = searchServerLoginButton.getSize();
+				if (e.x > size.x || e.y > size.y)
+					return;
+
+				selectSearchServer();
+			}
+
+			@Override
+			public void mouseDown(MouseEvent e) {
+			}
+
+			@Override
+			public void mouseDoubleClick(MouseEvent e) {
+			}
+		});
 
 		searchFormAutoQuery.addListener(SWT.Selection, new Listener() {
 			@Override
@@ -289,7 +317,7 @@ public class SearchWindow {
 				if (room == null)
 					return;
 
-				SearchWindow.this.application.getRoomWindow().enterRoom(room);
+				SearchWindow.this.application.getRoomWindow().autoConnectAsParticipant(room);
 			}
 		});
 
@@ -444,52 +472,138 @@ public class SearchWindow {
 			}
 
 			@Override
-			public void successCallback(final String address) {
+			public void successCallback(String address) {
+				connectToSearchServer(address);
+			}
+		};
+
+		application.queryPortalServer(queryer);
+	}
+
+	private void connectToSearchServer(final String address) {
+		try {
+			if (SwtUtils.isNotUIThread()) {
+				if (address == null) {
+					updateServerLoginButton(false);
+					application.getLogWindow().appendLogTo("アドレスを取得できませんでした", true, true);
+					return;
+				}
+				SwtUtils.DISPLAY.asyncExec(new Runnable() {
+					@Override
+					public void run() {
+						connectToSearchServer(address);
+					}
+				});
+				return;
+			}
+
+			sessionState = SessionState.CONNECTING;
+
+			statusServerLabel.setText("検索サーバー: " + address);
+
+			searchResultRooms.clear();
+			searchResultTableViewer.refresh();
+			searchResultTableViewer.setSorter(null);
+			searchResultTableViewer.getTable().setSortDirection(SWT.NONE);
+
+			Runnable task = new Runnable() {
+				@Override
+				public void run() {
+					try {
+						InetSocketAddress socketAddress = Utility.parseSocketAddress(address);
+						application.connectTcp(socketAddress, searchProtocol);
+					} catch (IOException e) {
+						sessionState = SessionState.OFFLINE;
+						updateServerLoginButton(false);
+						application.getLogWindow().appendLogTo(e.getMessage(), true, true);
+					}
+				}
+			};
+			application.execute(task);
+		} catch (SWTException e) {
+		}
+	}
+
+	private void selectSearchServer() {
+		searchServerLoginButton.setEnabled(false);
+
+		PortalQuery query = new PortalQuery() {
+			@Override
+			public String getCommand() {
+				return ProtocolConstants.Portal.COMMAND_LIST_SEARCH_SERVERS;
+			}
+
+			@Override
+			public void failCallback(final ErrorLog errorLog) {
 				try {
 					if (SwtUtils.isNotUIThread()) {
-						if (address == null) {
-							updateServerLoginButton(false);
-							application.getLogWindow().appendLogTo("アドレスを取得できませんでした", true, true);
-							return;
-						}
 						SwtUtils.DISPLAY.asyncExec(new Runnable() {
-							@Override
 							public void run() {
-								successCallback(address);
+								failCallback(errorLog);
 							}
 						});
 						return;
 					}
 
-					sessionState = SessionState.CONNECTING;
-
-					statusServerLabel.setText("検索サーバー: " + address);
-
-					searchResultRooms.clear();
-					searchResultTableViewer.refresh();
-					searchResultTableViewer.setSorter(null);
-					searchResultTableViewer.getTable().setSortDirection(SWT.NONE);
-
-					Runnable task = new Runnable() {
-						@Override
-						public void run() {
-							try {
-								InetSocketAddress socketAddress = Utility.parseSocketAddress(address);
-								application.connectTcp(socketAddress, searchProtocol);
-							} catch (IOException e) {
-								sessionState = SessionState.OFFLINE;
-								updateServerLoginButton(false);
-								application.getLogWindow().appendLogTo(e.getMessage(), true, true);
-							}
-						}
-					};
-					application.execute(task);
+					application.getLogWindow().appendLogTo(errorLog.getMessage(), true, true);
+					searchServerLoginButton.setEnabled(true);
 				} catch (SWTException e) {
 				}
 			}
-		};
 
-		application.queryPortalServer(queryer);
+			@Override
+			public void successCallback(String message) {
+				ArrayList<SearchServerInfo> list = new ArrayList<SearchServerInfo>();
+				for (String info : message.split("\n")) {
+					try {
+						String[] values = info.split("\t");
+						String address = values[0];
+						int currentUsers = Integer.parseInt(values[1]);
+						int maxUsers = Integer.parseInt(values[2]);
+
+						SearchServerInfo server = new SearchServerInfo(address, currentUsers, maxUsers);
+						list.add(server);
+					} catch (NumberFormatException e) {
+					}
+				}
+
+				showSearchServerSelectDialog(list);
+			}
+		};
+		application.queryPortalServer(query);
+	}
+
+	private void showSearchServerSelectDialog(final List<SearchServerInfo> list) {
+		try {
+			if (SwtUtils.isNotUIThread()) {
+				SwtUtils.DISPLAY.asyncExec(new Runnable() {
+					@Override
+					public void run() {
+						showSearchServerSelectDialog(list);
+					}
+				});
+				return;
+			}
+
+			if (list.isEmpty()) {
+				ErrorLog log = new ErrorLog("検索サーバーが見つかりません");
+				application.getLogWindow().appendLogTo(log.getMessage(), true, true);
+
+				searchServerLoginButton.setEnabled(true);
+			} else {
+				SearchServerSelectDialog dialog = new SearchServerSelectDialog(shell, list);
+				switch (dialog.open()) {
+				case IDialogConstants.OK_ID:
+					SearchServerInfo selected = dialog.getSelectedServer();
+					connectToSearchServer(selected.getAddress());
+					break;
+				case IDialogConstants.CANCEL_ID:
+					searchServerLoginButton.setEnabled(true);
+					break;
+				}
+			}
+		} catch (SWTException e) {
+		}
 	}
 
 	public void cronJob() {
