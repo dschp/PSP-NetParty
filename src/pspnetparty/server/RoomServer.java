@@ -22,6 +22,7 @@ import java.net.InetSocketAddress;
 import java.util.HashMap;
 
 import pspnetparty.lib.ICommandHandler;
+import pspnetparty.lib.ILogger;
 import pspnetparty.lib.IniFile;
 import pspnetparty.lib.IniSection;
 import pspnetparty.lib.Utility;
@@ -69,10 +70,11 @@ public class RoomServer {
 
 		ini.saveToIni();
 
-		AsyncTcpServer tcpServer = new AsyncTcpServer(40000);
-		AsyncUdpServer udpServer = new AsyncUdpServer();
+		ILogger logger = ServerUtils.createLogger();
+		AsyncTcpServer tcpServer = new AsyncTcpServer(logger, 40000);
+		AsyncUdpServer udpServer = new AsyncUdpServer(logger);
 
-		final RoomEngine engine = new RoomEngine(tcpServer, udpServer, ServerUtils.createLogger(), new IniPublicServer());
+		final RoomEngine engine = new RoomEngine(tcpServer, udpServer, logger, new IniPublicServer());
 		engine.setMaxRooms(maxRooms);
 		engine.setLoginMessageFile(loginMessageFile);
 

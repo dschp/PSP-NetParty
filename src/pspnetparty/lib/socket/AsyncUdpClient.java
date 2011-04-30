@@ -31,6 +31,7 @@ import java.util.Iterator;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
+import pspnetparty.lib.ILogger;
 import pspnetparty.lib.Utility;
 import pspnetparty.lib.constants.AppConstants;
 
@@ -38,12 +39,15 @@ public class AsyncUdpClient implements IClient {
 
 	private static final int BUFFER_SIZE = 20000;
 
+	private ILogger logger;
+
 	private Selector selector;
 	private ConcurrentLinkedQueue<Connection> newConnectionQueue = new ConcurrentLinkedQueue<Connection>();
 	private ConcurrentHashMap<Connection, Object> establishedConnections;
 	private final Object valueObject = new Object();
 
-	public AsyncUdpClient() {
+	public AsyncUdpClient(ILogger logger) {
+		this.logger = logger;
 		establishedConnections = new ConcurrentHashMap<AsyncUdpClient.Connection, Object>(16, 0.75f, 2);
 		try {
 			selector = Selector.open();
@@ -119,6 +123,7 @@ public class AsyncUdpClient implements IClient {
 
 				for (Connection conn : establishedConnections.keySet()) {
 					if (conn.lastPingTime < deadline) {
+						logger.log(Utility.makePingLog(deadline, conn.lastPingTime));
 						conn.disconnect();
 					} else {
 						pingBuffer.clear();
@@ -298,7 +303,11 @@ public class AsyncUdpClient implements IClient {
 	}
 
 	public static void main(String[] args) throws IOException {
-		final AsyncUdpClient client = new AsyncUdpClient();
+		final AsyncUdpClient client = new AsyncUdpClient(new ILogger() {
+			@Override
+			public void log(String message) {
+			}
+		});
 		InetSocketAddress address = new InetSocketAddress("localhost", 30000);
 
 		client.connect(address, 5000, new IProtocol() {

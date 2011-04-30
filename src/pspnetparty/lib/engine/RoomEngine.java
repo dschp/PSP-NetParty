@@ -80,8 +80,8 @@ public class RoomEngine {
 		notYetLinkedTunnels = new ConcurrentHashMap<InetSocketAddress, TunnelProtocolDriver>(30, 0.75f, 2);
 		portalConnections = new ConcurrentHashMap<RoomStatusProtocolDriver, Object>(20, 0.75f, 2);
 
-		tcpClient = new AsyncTcpClient(4000, 3000);
-		udpClient = new AsyncUdpClient();
+		tcpClient = new AsyncTcpClient(logger, 4000, 3000);
+		udpClient = new AsyncUdpClient(logger);
 
 		serverNetwork = net;
 

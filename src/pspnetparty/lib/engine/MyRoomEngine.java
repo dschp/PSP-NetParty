@@ -28,6 +28,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentSkipListMap;
 
 import pspnetparty.lib.CountDownSynchronizer;
+import pspnetparty.lib.ILogger;
 import pspnetparty.lib.Utility;
 import pspnetparty.lib.constants.ProtocolConstants;
 import pspnetparty.lib.socket.AsyncTcpServer;
@@ -110,14 +111,21 @@ public class MyRoomEngine {
 			}
 		};
 
-		roomServer = new AsyncTcpServer(40000);
+		ILogger logger = new ILogger() {
+			@Override
+			public void log(String message) {
+				myRoomMasterHandler.log(message);
+			}
+		};
+
+		roomServer = new AsyncTcpServer(logger, 40000);
 		roomServer.addServerListener(listener);
 		roomServer.addProtocol(new RoomProtocol());
 
 		TunnelProtocol tunnelProtocol = new TunnelProtocol();
 		roomServer.addProtocol(tunnelProtocol);
 
-		tunnelServer = new AsyncUdpServer();
+		tunnelServer = new AsyncUdpServer(logger);
 		tunnelServer.addServerListener(listener);
 		tunnelServer.addProtocol(tunnelProtocol);
 	}
@@ -382,8 +390,11 @@ public class MyRoomEngine {
 
 		@Override
 		public void connectionDisconnected() {
-			if (tunnel != null)
-				notYetLinkedTunnels.remove(tunnel.getConnection().getRemoteAddress());
+			if (tunnel != null) {
+				InetSocketAddress address = tunnel.getConnection().getRemoteAddress();
+				if (address != null)
+					notYetLinkedTunnels.remove(address);
+			}
 
 			if (!Utility.isEmpty(name)) {
 				playersByName.remove(name);

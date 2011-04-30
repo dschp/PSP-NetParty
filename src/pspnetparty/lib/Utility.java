@@ -27,6 +27,7 @@ import java.io.StringWriter;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
+import java.util.Date;
 
 import org.jnetpcap.protocol.lan.Ethernet;
 
@@ -167,6 +168,24 @@ public class Utility {
 			e.printStackTrace();
 		}
 		return "";
+	}
+
+	public static String makePingLog(long deadline, long lastPingTime) {
+		Date date = new Date();
+
+		StringBuilder sb = new StringBuilder();
+		sb.append("PING切断| ");
+
+		date.setTime(deadline);
+		sb.append("Deadline[");
+		sb.append(ILogger.DATE_FORMAT.format(date));
+
+		date.setTime(lastPingTime);
+		sb.append("] LastPingTime[");
+		sb.append(ILogger.DATE_FORMAT.format(date));
+		sb.append("]");
+
+		return sb.toString();
 	}
 
 	public static void main(String[] args) {

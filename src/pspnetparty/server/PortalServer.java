@@ -24,6 +24,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 
 import pspnetparty.lib.ICommandHandler;
+import pspnetparty.lib.ILogger;
 import pspnetparty.lib.IniFile;
 import pspnetparty.lib.IniSection;
 import pspnetparty.lib.constants.AppConstants;
@@ -59,9 +60,10 @@ public class PortalServer {
 
 		ini.saveToIni();
 
-		AsyncTcpServer tcpServer = new AsyncTcpServer(40000);
+		ILogger logger = ServerUtils.createLogger();
+		AsyncTcpServer tcpServer = new AsyncTcpServer(logger, 40000);
 
-		final PortalEngine engine = new PortalEngine(tcpServer, ServerUtils.createLogger());
+		final PortalEngine engine = new PortalEngine(tcpServer, logger);
 
 		connect(engine);
 

@@ -22,6 +22,7 @@ import java.net.InetSocketAddress;
 import java.util.HashMap;
 
 import pspnetparty.lib.ICommandHandler;
+import pspnetparty.lib.ILogger;
 import pspnetparty.lib.IniFile;
 import pspnetparty.lib.IniSection;
 import pspnetparty.lib.Utility;
@@ -64,9 +65,10 @@ public class LobbyServer {
 
 		ini.saveToIni();
 
-		AsyncTcpServer tcpServer = new AsyncTcpServer(40000);
+		ILogger logger = ServerUtils.createLogger();
+		AsyncTcpServer tcpServer = new AsyncTcpServer(logger, 40000);
 
-		final LobbyEngine engine = new LobbyEngine(tcpServer, ServerUtils.createLogger(), new IniPublicServer());
+		final LobbyEngine engine = new LobbyEngine(tcpServer, logger, new IniPublicServer());
 		engine.setTitle(title);
 		engine.setLoginMessageFile(loginMessageFile);
 

@@ -96,7 +96,7 @@ public class PortalEngine {
 		lobbyServerConnections = new ConcurrentSkipListMap<String, ISocketConnection>();
 		lobbyServerRetryAddresses = new ConcurrentSkipListMap<String, PortalEngine.RetryInfo>();
 
-		tcpClient = new AsyncTcpClient(1000000, 2000);
+		tcpClient = new AsyncTcpClient(logger, 1000000, 2000);
 
 		server.addServerListener(new IServerListener() {
 			@Override

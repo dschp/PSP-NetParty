@@ -32,6 +32,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.concurrent.ConcurrentHashMap;
 
+import pspnetparty.lib.ILogger;
 import pspnetparty.lib.Utility;
 import pspnetparty.lib.constants.AppConstants;
 
@@ -39,6 +40,7 @@ public class AsyncTcpServer implements IServer {
 
 	private static final int INITIAL_READ_BUFFER_SIZE = 2000;
 
+	private ILogger logger;
 	private int maxPacketSize;
 
 	private Selector selector;
@@ -53,7 +55,8 @@ public class AsyncTcpServer implements IServer {
 	private ByteBuffer bufferProtocolOK = AppConstants.CHARSET.encode(IProtocol.PROTOCOL_OK);
 	private ByteBuffer bufferProtocolNG = AppConstants.CHARSET.encode(IProtocol.PROTOCOL_NG);
 
-	public AsyncTcpServer(int maxPacketSize) {
+	public AsyncTcpServer(ILogger logger, int maxPacketSize) {
+		this.logger = logger;
 		this.maxPacketSize = maxPacketSize;
 		serverListeners = new ConcurrentHashMap<IServerListener, Object>();
 		establishedConnections = new ConcurrentHashMap<Connection, Object>(30, 0.75f, 3);
@@ -168,6 +171,7 @@ public class AsyncTcpServer implements IServer {
 
 				for (Connection conn : establishedConnections.keySet()) {
 					if (conn.lastPingTime < deadline) {
+						logger.log(Utility.makePingLog(deadline, conn.lastPingTime));
 						conn.disconnect();
 					} else {
 						pingBuffer.flip();
@@ -374,7 +378,11 @@ public class AsyncTcpServer implements IServer {
 
 	public static void main(String[] args) throws IOException {
 		InetSocketAddress address = new InetSocketAddress(30000);
-		AsyncTcpServer server = new AsyncTcpServer(40000);
+		AsyncTcpServer server = new AsyncTcpServer(new ILogger() {
+			@Override
+			public void log(String message) {
+			}
+		}, 40000);
 		server.addServerListener(new IServerListener() {
 			@Override
 			public void log(String message) {

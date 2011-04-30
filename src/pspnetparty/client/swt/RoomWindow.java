@@ -1282,7 +1282,7 @@ public class RoomWindow implements IMessageSource {
 									return;
 								}
 
-								formAutoModeRoomButton.setEnabled(true);
+								formMyRoomModeEntryButton.setEnabled(true);
 							} catch (SWTException e) {
 							}
 						}
@@ -2495,7 +2495,7 @@ public class RoomWindow implements IMessageSource {
 
 			@Override
 			public void failCallback(ErrorLog log) {
-				updateMyRoomEntryForm(false);
+				updateMyRoomEntryForm(true);
 
 				widgets.logViewer.appendMessage(log);
 			}

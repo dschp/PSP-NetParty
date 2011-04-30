@@ -30,6 +30,7 @@ import java.util.Iterator;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
+import pspnetparty.lib.ILogger;
 import pspnetparty.lib.Utility;
 import pspnetparty.lib.constants.AppConstants;
 
@@ -37,13 +38,15 @@ public class AsyncTcpClient implements IClient {
 
 	private final int initialReadBufferSize;
 	private final int maxPacketSize;
+	private ILogger logger;
 
 	private Selector selector;
 	private ConcurrentLinkedQueue<Connection> newConnectionQueue = new ConcurrentLinkedQueue<Connection>();
 	private ConcurrentHashMap<Connection, Object> establishedConnections;
 	private final Object valueObject = new Object();
 
-	public AsyncTcpClient(int maxPacketSize, final int selectTimeout) {
+	public AsyncTcpClient(ILogger logger, int maxPacketSize, final int selectTimeout) {
+		this.logger = logger;
 		this.maxPacketSize = maxPacketSize;
 		this.initialReadBufferSize = Math.min(maxPacketSize, 2000);
 
@@ -121,6 +124,7 @@ public class AsyncTcpClient implements IClient {
 
 				for (Connection conn : establishedConnections.keySet()) {
 					if (conn.lastPingTime < deadline) {
+						logger.log(Utility.makePingLog(deadline, conn.lastPingTime));
 						conn.disconnect();
 					} else {
 						pingBuffer.flip();
@@ -337,7 +341,11 @@ public class AsyncTcpClient implements IClient {
 	}
 
 	public static void main(String[] args) throws Exception {
-		final AsyncTcpClient client = new AsyncTcpClient(100000, 0);
+		final AsyncTcpClient client = new AsyncTcpClient(new ILogger() {
+			@Override
+			public void log(String message) {
+			}
+		}, 100000, 0);
 		InetSocketAddress address = new InetSocketAddress("localhost", 30000);
 
 		client.connect(address, 1000, new IProtocol() {

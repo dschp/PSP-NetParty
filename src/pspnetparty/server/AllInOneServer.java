@@ -57,8 +57,8 @@ public class AllInOneServer {
 
 		ILogger logger = ServerUtils.createLogger();
 
-		AsyncTcpServer tcpServer = new AsyncTcpServer(100000);
-		AsyncUdpServer udpServer = new AsyncUdpServer();
+		AsyncTcpServer tcpServer = new AsyncTcpServer(logger, 100000);
+		AsyncUdpServer udpServer = new AsyncUdpServer(logger);
 
 		IServerNetwork network = new IServerNetwork() {
 			@Override

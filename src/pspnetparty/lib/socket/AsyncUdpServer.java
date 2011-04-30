@@ -31,6 +31,7 @@ import java.util.Iterator;
 import java.util.Map.Entry;
 import java.util.concurrent.ConcurrentHashMap;
 
+import pspnetparty.lib.ILogger;
 import pspnetparty.lib.Utility;
 import pspnetparty.lib.constants.AppConstants;
 
@@ -38,6 +39,7 @@ public class AsyncUdpServer implements IServer {
 
 	private static final int READ_BUFFER_SIZE = 20000;
 
+	private ILogger logger;
 	private Selector selector;
 	private ConcurrentHashMap<IServerListener, Object> serverListeners;
 
@@ -54,7 +56,8 @@ public class AsyncUdpServer implements IServer {
 	private Thread selectorThread;
 	private Thread sessionCleanupThread;
 
-	public AsyncUdpServer() {
+	public AsyncUdpServer(ILogger logger) {
+		this.logger = logger;
 		serverListeners = new ConcurrentHashMap<IServerListener, Object>();
 		establishedConnections = new ConcurrentHashMap<InetSocketAddress, Connection>(30, 0.75f, 3);
 	}
@@ -199,6 +202,7 @@ public class AsyncUdpServer implements IServer {
 				for (Entry<InetSocketAddress, Connection> entry : establishedConnections.entrySet()) {
 					Connection conn = entry.getValue();
 					if (conn.lastPingTime < deadline) {
+						logger.log(Utility.makePingLog(deadline, conn.lastPingTime));
 						conn.disconnect();
 					} else {
 						pingBuffer.clear();
@@ -323,7 +327,11 @@ public class AsyncUdpServer implements IServer {
 
 	public static void main(String[] args) throws IOException {
 		InetSocketAddress address = new InetSocketAddress(30000);
-		AsyncUdpServer server = new AsyncUdpServer();
+		AsyncUdpServer server = new AsyncUdpServer(new ILogger() {
+			@Override
+			public void log(String message) {
+			}
+		});
 		server.addServerListener(new IServerListener() {
 			@Override
 			public void log(String message) {

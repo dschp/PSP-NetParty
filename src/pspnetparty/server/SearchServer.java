@@ -22,6 +22,7 @@ import java.net.InetSocketAddress;
 import java.util.HashMap;
 
 import pspnetparty.lib.ICommandHandler;
+import pspnetparty.lib.ILogger;
 import pspnetparty.lib.IniFile;
 import pspnetparty.lib.IniSection;
 import pspnetparty.lib.Utility;
@@ -82,9 +83,10 @@ public class SearchServer {
 
 		ini.saveToIni();
 
-		AsyncTcpServer tcpServer = new AsyncTcpServer(1000000);
+		ILogger logger = ServerUtils.createLogger();
+		AsyncTcpServer tcpServer = new AsyncTcpServer(logger, 1000000);
 
-		final SearchEngine engine = new SearchEngine(tcpServer, ServerUtils.createLogger(), new IniPublicServer());
+		final SearchEngine engine = new SearchEngine(tcpServer, logger, new IniPublicServer());
 		engine.setMaxUsers(maxUsers);
 		engine.setDescriptionMaxLength(descriptionMaxLength);
 		engine.setMaxSearchResults(maxSearchResults);

@@ -59,6 +59,7 @@ import pspnetparty.client.swt.message.ErrorLog;
 import pspnetparty.client.swt.plugin.BouyomiChanPlugin;
 import pspnetparty.client.swt.plugin.IPlugin;
 import pspnetparty.client.swt.plugin.IPluginConfigPageProvider;
+import pspnetparty.lib.ILogger;
 import pspnetparty.lib.IniFile;
 import pspnetparty.lib.IniSection;
 import pspnetparty.lib.Utility;
@@ -108,8 +109,8 @@ public class PlayClient implements IApplication {
 	private ArrayList<StyledText> logControls = new ArrayList<StyledText>();
 	private ArrayList<Text> chatControls = new ArrayList<Text>();
 
-	private AsyncTcpClient tcpClient = new AsyncTcpClient(1000000, 0);
-	private AsyncUdpClient udpClient = new AsyncUdpClient();
+	private AsyncTcpClient tcpClient;
+	private AsyncUdpClient udpClient;
 
 	private ExecutorService executorService = Executors.newCachedThreadPool();
 
@@ -126,6 +127,15 @@ public class PlayClient implements IApplication {
 	public PlayClient() throws IOException {
 		iniSettingFile = new IniFile(INI_SETTING_FILE_NAME);
 		iniAppDataFile = new IniFile(INI_APPDATA_FILE_NAME);
+
+		ILogger logger = new ILogger() {
+			@Override
+			public void log(String message) {
+				getLogWindow().appendLogTo(message, true, true);
+			}
+		};
+		tcpClient = new AsyncTcpClient(logger, 1000000, 0);
+		udpClient = new AsyncUdpClient(logger);
 
 		Display display = SwtUtils.DISPLAY;
 		imageRegistry = new ImageRegistry(display);
