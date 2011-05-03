@@ -20,9 +20,7 @@ public class ServerUtils {
 			@Override
 			public void log(String message) {
 				now.setTime(System.currentTimeMillis());
-				System.out.print(DATE_FORMAT.format(now));
-				System.out.print(" - ");
-				System.out.println(message);
+				System.out.println(DATE_FORMAT.format(now) + " - " + message);
 			}
 		};
 	}

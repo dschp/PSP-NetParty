@@ -416,232 +416,221 @@ public class MyRoomEngine {
 	private HashMap<String, IProtocolMessageHandler> loginHandlers = new HashMap<String, IProtocolMessageHandler>();
 	private HashMap<String, IProtocolMessageHandler> sessionHandlers = new HashMap<String, IProtocolMessageHandler>();
 	{
-		loginHandlers.put(ProtocolConstants.Room.COMMAND_LOGIN, new LoginHandler());
-		loginHandlers.put(ProtocolConstants.Room.COMMAND_LOGOUT, new LogoutHandler());
-		loginHandlers.put(ProtocolConstants.Room.COMMAND_CONFIRM_AUTH_CODE, new ConfirmAuthCodeHandler());
+		loginHandlers.put(ProtocolConstants.Room.COMMAND_LOGIN, new IProtocolMessageHandler() {
+			@Override
+			public boolean process(IProtocolDriver driver, String argument) {
+				RoomProtocolDriver player = (RoomProtocolDriver) driver;
 
-		sessionHandlers.put(ProtocolConstants.Room.COMMAND_LOGOUT, new LogoutHandler());
-		sessionHandlers.put(ProtocolConstants.Room.COMMAND_CHAT, new ChatHandler());
-		sessionHandlers.put(ProtocolConstants.Room.COMMAND_PING, new PingHandler());
-		sessionHandlers.put(ProtocolConstants.Room.COMMAND_INFORM_PING, new InformPingHandler());
-		sessionHandlers.put(ProtocolConstants.Room.COMMAND_INFORM_TUNNEL_UDP_PORT, new InformTunnelPortHandler());
-		sessionHandlers.put(ProtocolConstants.Room.COMMAND_MAC_ADDRESS_PLAYER, new MacAddressPlayerHandler());
-		sessionHandlers.put(ProtocolConstants.Room.COMMAND_INFORM_SSID, new InformSSIDHandler());
-	}
+				// LI loginName "masterName" password
+				String[] tokens = argument.split(TextProtocolDriver.ARGUMENT_SEPARATOR, -1);
 
-	private class ConfirmAuthCodeHandler implements IProtocolMessageHandler {
-		@Override
-		public boolean process(IProtocolDriver driver, String argument) {
-			// CAC masterName authCode
-			String[] tokens = argument.split(TextProtocolDriver.ARGUMENT_SEPARATOR, -1);
-			if (tokens.length != 2)
-				return false;
-
-			String masterName = tokens[0];
-			String authCode = tokens[1];
-			if (masterName.equals(MyRoomEngine.this.masterName) && authCode.equals(roomMasterAuthCode)) {
-				driver.getConnection().send(ProtocolConstants.Room.COMMAND_CONFIRM_AUTH_CODE);
-			} else {
-				driver.getConnection().send(ProtocolConstants.Room.ERROR_CONFIRM_INVALID_AUTH_CODE);
-			}
-			return false;
-		}
-	}
-
-	private class LoginHandler implements IProtocolMessageHandler {
-		@Override
-		public boolean process(IProtocolDriver driver, String argument) {
-			RoomProtocolDriver player = (RoomProtocolDriver) driver;
-
-			// LI loginName "masterName" password
-			String[] tokens = argument.split(TextProtocolDriver.ARGUMENT_SEPARATOR, -1);
-
-			String loginName = tokens[0];
-			if (loginName.length() == 0) {
-				return false;
-			}
-
-			String loginRoomMasterName = tokens[1];
-			if (loginRoomMasterName.length() == 0) {
-				if (!allowEmptyMasterNameLogin) {
+				String loginName = tokens[0];
+				if (loginName.length() == 0) {
 					return false;
 				}
-			} else if (!loginRoomMasterName.equals(masterName)) {
-				return false;
-			}
 
-			String sentPassword = tokens.length == 2 ? null : tokens[2];
-			if (!Utility.isEmpty(MyRoomEngine.this.password)) {
-				if (sentPassword == null) {
-					player.getConnection().send(ProtocolConstants.Room.NOTIFY_ROOM_PASSWORD_REQUIRED);
-					return true;
+				String loginRoomMasterName = tokens[1];
+				if (loginRoomMasterName.length() == 0) {
+					if (!allowEmptyMasterNameLogin) {
+						return false;
+					}
+				} else if (!loginRoomMasterName.equals(masterName)) {
+					return false;
 				}
-				if (!MyRoomEngine.this.password.equals(sentPassword)) {
-					player.getConnection().send(ProtocolConstants.Room.ERROR_LOGIN_PASSWORD_FAIL);
-					return true;
+
+				String sentPassword = tokens.length == 2 ? null : tokens[2];
+				if (!Utility.isEmpty(MyRoomEngine.this.password)) {
+					if (sentPassword == null) {
+						player.getConnection().send(ProtocolConstants.Room.NOTIFY_ROOM_PASSWORD_REQUIRED);
+						return true;
+					}
+					if (!MyRoomEngine.this.password.equals(sentPassword)) {
+						player.getConnection().send(ProtocolConstants.Room.ERROR_LOGIN_PASSWORD_FAIL);
+						return true;
+					}
 				}
-			}
 
-			if (masterName.equals(loginName)) {
-				player.getConnection().send(ProtocolConstants.Room.ERROR_LOGIN_DUPLICATED_NAME);
+				if (masterName.equals(loginName)) {
+					player.getConnection().send(ProtocolConstants.Room.ERROR_LOGIN_DUPLICATED_NAME);
+					return false;
+				}
+
+				if (playersByName.size() >= maxPlayers - 1) {
+					// 最大人数を超えたので接続を拒否します
+					player.getConnection().send(ProtocolConstants.Room.ERROR_LOGIN_BEYOND_CAPACITY);
+					return false;
+				}
+
+				if (playersByName.putIfAbsent(loginName, player) != null) {
+					// 同名のユーザーが存在するので接続を拒否します
+					player.getConnection().send(ProtocolConstants.Room.ERROR_LOGIN_DUPLICATED_NAME);
+					return false;
+				}
+				player.setMessageHandlers(sessionHandlers);
+				player.name = loginName;
+
+				final String notify = ProtocolConstants.Room.NOTIFY_USER_ENTERED + TextProtocolDriver.ARGUMENT_SEPARATOR + loginName;
+				for (Entry<String, RoomProtocolDriver> entry : playersByName.entrySet()) {
+					RoomProtocolDriver p = entry.getValue();
+					if (p != player)
+						p.getConnection().send(notify);
+				}
+				myRoomMasterHandler.playerEntered(loginName);
+
+				StringBuilder sb = new StringBuilder();
+
+				sb.append(ProtocolConstants.Room.COMMAND_LOGIN);
+				appendRoomInfo(sb);
+
+				sb.append(TextProtocolDriver.MESSAGE_SEPARATOR);
+				appendNotifyUserList(sb);
+
+				player.getConnection().send(sb.toString());
+
+				return true;
+			}
+		});
+		loginHandlers.put(ProtocolConstants.Room.COMMAND_LOGOUT, new IProtocolMessageHandler() {
+			@Override
+			public boolean process(IProtocolDriver driver, String argument) {
 				return false;
 			}
+		});
+		loginHandlers.put(ProtocolConstants.Room.COMMAND_CONFIRM_AUTH_CODE, new IProtocolMessageHandler() {
+			@Override
+			public boolean process(IProtocolDriver driver, String argument) {
+				// CAC masterName authCode
+				String[] tokens = argument.split(TextProtocolDriver.ARGUMENT_SEPARATOR, -1);
+				if (tokens.length != 2)
+					return false;
 
-			if (playersByName.size() >= maxPlayers - 1) {
-				// 最大人数を超えたので接続を拒否します
-				player.getConnection().send(ProtocolConstants.Room.ERROR_LOGIN_BEYOND_CAPACITY);
+				String masterName = tokens[0];
+				String authCode = tokens[1];
+				if (masterName.equals(MyRoomEngine.this.masterName) && authCode.equals(roomMasterAuthCode)) {
+					driver.getConnection().send(ProtocolConstants.Room.COMMAND_CONFIRM_AUTH_CODE);
+				} else {
+					driver.getConnection().send(ProtocolConstants.Room.ERROR_CONFIRM_INVALID_AUTH_CODE);
+				}
 				return false;
 			}
+		});
 
-			if (playersByName.putIfAbsent(loginName, player) != null) {
-				// 同名のユーザーが存在するので接続を拒否します
-				player.getConnection().send(ProtocolConstants.Room.ERROR_LOGIN_DUPLICATED_NAME);
+		sessionHandlers.put(ProtocolConstants.Room.COMMAND_LOGOUT, new IProtocolMessageHandler() {
+			@Override
+			public boolean process(IProtocolDriver driver, String argument) {
 				return false;
 			}
-			player.setMessageHandlers(sessionHandlers);
-			player.name = loginName;
+		});
+		sessionHandlers.put(ProtocolConstants.Room.COMMAND_CHAT, new IProtocolMessageHandler() {
+			@Override
+			public boolean process(IProtocolDriver driver, String argument) {
+				RoomProtocolDriver player = (RoomProtocolDriver) driver;
 
-			final String notify = ProtocolConstants.Room.NOTIFY_USER_ENTERED + TextProtocolDriver.ARGUMENT_SEPARATOR + loginName;
-			for (Entry<String, RoomProtocolDriver> entry : playersByName.entrySet()) {
-				RoomProtocolDriver p = entry.getValue();
-				if (p != player)
-					p.getConnection().send(notify);
+				processChat(player.name, argument);
+				return true;
 			}
-			myRoomMasterHandler.playerEntered(loginName);
+		});
+		sessionHandlers.put(ProtocolConstants.Room.COMMAND_PING, new IProtocolMessageHandler() {
+			@Override
+			public boolean process(IProtocolDriver driver, String argument) {
+				driver.getConnection().send(ProtocolConstants.Room.COMMAND_PINGBACK + TextProtocolDriver.ARGUMENT_SEPARATOR + argument);
+				return true;
+			}
+		});
+		sessionHandlers.put(ProtocolConstants.Room.COMMAND_INFORM_PING, new IProtocolMessageHandler() {
+			@Override
+			public boolean process(IProtocolDriver driver, String argument) {
+				RoomProtocolDriver state = (RoomProtocolDriver) driver;
 
-			StringBuilder sb = new StringBuilder();
+				try {
+					int ping = Integer.parseInt(argument);
+					final String message = ProtocolConstants.Room.COMMAND_INFORM_PING + TextProtocolDriver.ARGUMENT_SEPARATOR + state.name
+							+ TextProtocolDriver.ARGUMENT_SEPARATOR + argument;
+					for (Entry<String, RoomProtocolDriver> entry : playersByName.entrySet()) {
+						RoomProtocolDriver p = entry.getValue();
+						if (p != state)
+							p.getConnection().send(message);
+					}
+					myRoomMasterHandler.pingInformed(state.name, ping);
+				} catch (NumberFormatException e) {
+				}
+				return true;
+			}
+		});
+		sessionHandlers.put(ProtocolConstants.Room.COMMAND_INFORM_TUNNEL_PORT, new IProtocolMessageHandler() {
+			@Override
+			public boolean process(IProtocolDriver driver, String argument) {
+				RoomProtocolDriver player = (RoomProtocolDriver) driver;
 
-			sb.append(ProtocolConstants.Room.COMMAND_LOGIN);
-			appendRoomInfo(sb);
+				try {
+					int port = Integer.parseInt(argument);
+					InetSocketAddress remoteEP = new InetSocketAddress(player.getConnection().getRemoteAddress().getAddress(), port);
 
-			sb.append(TextProtocolDriver.MESSAGE_SEPARATOR);
-			appendNotifyUserList(sb);
+					TunnelProtocolDriver tunnel = notYetLinkedTunnels.remove(remoteEP);
+					player.tunnel = tunnel;
+					if (tunnel != null) {
+						player.getConnection().send(ProtocolConstants.Room.COMMAND_INFORM_TUNNEL_PORT);
+						tunnel.player = player;
+					}
+				} catch (NumberFormatException e) {
+				}
+				return true;
+			}
+		});
+		sessionHandlers.put(ProtocolConstants.Room.COMMAND_MAC_ADDRESS_PLAYER, new IProtocolMessageHandler() {
+			@Override
+			public boolean process(IProtocolDriver driver, String macAddress) {
+				String playerName;
+				if (masterMacAddresses.containsKey(macAddress)) {
+					playerName = masterName;
+				} else {
+					TunnelProtocolDriver tunnel = tunnelsByMacAddress.get(macAddress);
+					if (tunnel == null)
+						return true;
+					RoomProtocolDriver player = tunnel.player;
+					if (player == null)
+						return true;
 
-			player.getConnection().send(sb.toString());
+					playerName = player.name;
+				}
 
-			return true;
-		}
-	}
+				StringBuilder sb = new StringBuilder();
+				sb.append(ProtocolConstants.Room.COMMAND_MAC_ADDRESS_PLAYER);
+				sb.append(TextProtocolDriver.ARGUMENT_SEPARATOR);
+				sb.append(macAddress);
+				sb.append(TextProtocolDriver.ARGUMENT_SEPARATOR);
+				sb.append(playerName);
 
-	private class LogoutHandler implements IProtocolMessageHandler {
-		@Override
-		public boolean process(IProtocolDriver driver, String argument) {
-			return false;
-		}
-	}
+				driver.getConnection().send(sb.toString());
+				return true;
+			}
+		});
+		sessionHandlers.put(ProtocolConstants.Room.COMMAND_INFORM_SSID, new IProtocolMessageHandler() {
+			@Override
+			public boolean process(IProtocolDriver driver, String argument) {
+				RoomProtocolDriver state = (RoomProtocolDriver) driver;
 
-	private class ChatHandler implements IProtocolMessageHandler {
-		@Override
-		public boolean process(IProtocolDriver driver, String argument) {
-			RoomProtocolDriver player = (RoomProtocolDriver) driver;
+				state.ssid = argument;
 
-			processChat(player.name, argument);
-			return true;
-		}
-	}
+				myRoomMasterHandler.ssidInformed(state.name, state.ssid);
 
-	private class PingHandler implements IProtocolMessageHandler {
-		@Override
-		public boolean process(IProtocolDriver driver, String argument) {
-			driver.getConnection().send(ProtocolConstants.Room.COMMAND_PINGBACK + TextProtocolDriver.ARGUMENT_SEPARATOR + argument);
-			return true;
-		}
-	}
+				StringBuilder sb = new StringBuilder();
+				sb.append(ProtocolConstants.Room.NOTIFY_SSID_CHANGED);
+				sb.append(TextProtocolDriver.ARGUMENT_SEPARATOR);
+				sb.append(state.name);
+				sb.append(TextProtocolDriver.ARGUMENT_SEPARATOR);
+				sb.append(state.ssid);
 
-	private class InformPingHandler implements IProtocolMessageHandler {
-		@Override
-		public boolean process(IProtocolDriver driver, String argument) {
-			RoomProtocolDriver state = (RoomProtocolDriver) driver;
-
-			try {
-				int ping = Integer.parseInt(argument);
-				final String message = ProtocolConstants.Room.COMMAND_INFORM_PING + TextProtocolDriver.ARGUMENT_SEPARATOR + state.name
-						+ TextProtocolDriver.ARGUMENT_SEPARATOR + argument;
+				final String notify = sb.toString();
 				for (Entry<String, RoomProtocolDriver> entry : playersByName.entrySet()) {
 					RoomProtocolDriver p = entry.getValue();
 					if (p != state)
-						p.getConnection().send(message);
+						p.getConnection().send(notify);
 				}
-				myRoomMasterHandler.pingInformed(state.name, ping);
-			} catch (NumberFormatException e) {
+
+				return true;
 			}
-			return true;
-		}
-	}
-
-	private class InformTunnelPortHandler implements IProtocolMessageHandler {
-		@Override
-		public boolean process(IProtocolDriver driver, String argument) {
-			RoomProtocolDriver player = (RoomProtocolDriver) driver;
-
-			try {
-				int port = Integer.parseInt(argument);
-				InetSocketAddress remoteEP = new InetSocketAddress(player.getConnection().getRemoteAddress().getAddress(), port);
-				player.tunnel = notYetLinkedTunnels.remove(remoteEP);
-
-				if (player.tunnel != null) {
-					player.getConnection().send(ProtocolConstants.Room.COMMAND_INFORM_TUNNEL_UDP_PORT);
-					player.tunnel.playerName = player.name;
-				}
-			} catch (NumberFormatException e) {
-			}
-			return true;
-		}
-	}
-
-	private class MacAddressPlayerHandler implements IProtocolMessageHandler {
-		@Override
-		public boolean process(IProtocolDriver driver, String macAddress) {
-			String playerName;
-			if (masterMacAddresses.containsKey(macAddress)) {
-				playerName = masterName;
-			} else {
-				TunnelProtocolDriver tunnel = tunnelsByMacAddress.get(macAddress);
-				if (tunnel == null)
-					return true;
-				if (Utility.isEmpty(tunnel.playerName))
-					return true;
-
-				playerName = tunnel.playerName;
-			}
-
-			StringBuilder sb = new StringBuilder();
-			sb.append(ProtocolConstants.Room.COMMAND_MAC_ADDRESS_PLAYER);
-			sb.append(TextProtocolDriver.ARGUMENT_SEPARATOR);
-			sb.append(macAddress);
-			sb.append(TextProtocolDriver.ARGUMENT_SEPARATOR);
-			sb.append(playerName);
-
-			driver.getConnection().send(sb.toString());
-			return true;
-		}
-	}
-
-	private class InformSSIDHandler implements IProtocolMessageHandler {
-		@Override
-		public boolean process(IProtocolDriver driver, String argument) {
-			RoomProtocolDriver state = (RoomProtocolDriver) driver;
-
-			state.ssid = argument;
-
-			myRoomMasterHandler.ssidInformed(state.name, state.ssid);
-
-			StringBuilder sb = new StringBuilder();
-			sb.append(ProtocolConstants.Room.NOTIFY_SSID_CHANGED);
-			sb.append(TextProtocolDriver.ARGUMENT_SEPARATOR);
-			sb.append(state.name);
-			sb.append(TextProtocolDriver.ARGUMENT_SEPARATOR);
-			sb.append(state.ssid);
-
-			final String notify = sb.toString();
-			for (Entry<String, RoomProtocolDriver> entry : playersByName.entrySet()) {
-				RoomProtocolDriver p = entry.getValue();
-				if (p != state)
-					p.getConnection().send(notify);
-			}
-
-			return true;
-		}
+		});
 	}
 
 	private class TunnelProtocol implements IProtocol {
@@ -683,7 +672,7 @@ public class MyRoomEngine {
 
 	private class TunnelProtocolDriver implements IProtocolDriver {
 		private ISocketConnection connection;
-		private String playerName;
+		private RoomProtocolDriver player;
 
 		@Override
 		public ISocketConnection getConnection() {
@@ -702,10 +691,10 @@ public class MyRoomEngine {
 				return true;
 			}
 
-			RoomProtocolDriver playerSendFrom = playersByName.get(playerName);
-			if (playerSendFrom == null)
+			RoomProtocolDriver srcPlayer = player;
+			if (srcPlayer == null)
 				return true;
-			boolean playerSendFromSsidIsNotEmpty = !Utility.isEmpty(playerSendFrom.ssid);
+			boolean srcPlayerSsidIsNotEmpty = !Utility.isEmpty(srcPlayer.ssid);
 
 			String destMac = Utility.macAddressToString(packet, 0, false);
 			String srcMac = Utility.macAddressToString(packet, 6, false);
@@ -716,45 +705,44 @@ public class MyRoomEngine {
 				if (testWhiteListBlackList(srcMac))
 					return true;
 
-				myRoomMasterHandler.tunnelPacketReceived(packet, playerName);
+				String srcPlayerName = srcPlayer.name;
+				if (!Utility.isEmpty(srcPlayerName))
+					srcPlayerName = "";
+				myRoomMasterHandler.tunnelPacketReceived(packet, srcPlayerName);
 
 				for (Entry<String, RoomProtocolDriver> entry : playersByName.entrySet()) {
-					RoomProtocolDriver playerSendTo = entry.getValue();
-					if (playerSendTo.tunnel == null || playerSendTo.tunnel == this)
+					RoomProtocolDriver destPlayer = entry.getValue();
+					TunnelProtocolDriver destTunnel = destPlayer.tunnel;
+					if (destTunnel == null || destTunnel == this)
 						continue;
+					if (srcPlayerSsidIsNotEmpty && !Utility.isEmpty(destPlayer.ssid))
+						if (!srcPlayer.ssid.equals(destPlayer.ssid))
+							continue;
 
-					try {
-						if (playerSendFromSsidIsNotEmpty && !Utility.isEmpty(playerSendTo.ssid))
-							if (!playerSendFrom.ssid.equals(playerSendTo.ssid))
-								continue;
-
-						packet.position(0);
-						playerSendTo.tunnel.getConnection().send(packet);
-					} catch (NullPointerException e) {
-					}
+					packet.position(0);
+					destTunnel.connection.send(packet);
 				}
 			} else if (masterMacAddresses.containsKey(destMac)) {
 				if (testWhiteListBlackList(srcMac))
 					return true;
 
 				masterMacAddresses.put(destMac, placeHolderValueObject);
-				myRoomMasterHandler.tunnelPacketReceived(packet, playerName);
+				myRoomMasterHandler.tunnelPacketReceived(packet, player.name);
 			} else if (tunnelsByMacAddress.containsKey(destMac)) {
 				if (testWhiteListBlackList(srcMac, destMac))
 					return true;
 
-				TunnelProtocolDriver tunnelSendTo = tunnelsByMacAddress.get(destMac);
-				if (tunnelSendTo == null)
+				TunnelProtocolDriver destTunnel = tunnelsByMacAddress.get(destMac);
+				if (destTunnel == null)
 					return true;
-				try {
-					RoomProtocolDriver playerSendTo = playersByName.get(tunnelSendTo.playerName);
-					if (playerSendFromSsidIsNotEmpty && !Utility.isEmpty(playerSendTo.ssid))
-						if (!playerSendFrom.ssid.equals(playerSendTo.ssid))
-							return true;
+				RoomProtocolDriver destPlayer = destTunnel.player;
+				if (destPlayer == null)
+					return true;
+				if (srcPlayerSsidIsNotEmpty && !Utility.isEmpty(destPlayer.ssid))
+					if (!srcPlayer.ssid.equals(destPlayer.ssid))
+						return true;
 
-					tunnelSendTo.getConnection().send(packet);
-				} catch (NullPointerException e) {
-				}
+				destTunnel.connection.send(packet);
 			}
 
 			return true;
@@ -762,7 +750,15 @@ public class MyRoomEngine {
 
 		@Override
 		public void connectionDisconnected() {
-			notYetLinkedTunnels.remove(connection.getRemoteAddress());
+			try {
+				player.tunnel = null;
+			} catch (NullPointerException e) {
+			}
+			player = null;
+
+			InetSocketAddress address = connection.getRemoteAddress();
+			if (address != null)
+				notYetLinkedTunnels.remove(address);
 		}
 
 		@Override

@@ -6,6 +6,6 @@ build.properties
 
 *.ini
 Test*
-/lib_db
-/PlayClient.appdata
-/PublicServerList
+lib_db
+PlayClient.appdata
+PublicServerList

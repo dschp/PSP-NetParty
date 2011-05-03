@@ -131,7 +131,10 @@ public class PlayClient implements IApplication {
 		ILogger logger = new ILogger() {
 			@Override
 			public void log(String message) {
-				getLogWindow().appendLogTo(message, true, true);
+				if (logWindow != null)
+					logWindow.appendLogTo(message, true, true);
+				else
+					System.out.println(message);
 			}
 		};
 		tcpClient = new AsyncTcpClient(logger, 1000000, 0);
@@ -689,7 +692,7 @@ public class PlayClient implements IApplication {
 		udpClient.dispose();
 
 		try {
-			executorService.shutdown();
+			executorService.shutdownNow();
 		} catch (RuntimeException ex) {
 		}
 

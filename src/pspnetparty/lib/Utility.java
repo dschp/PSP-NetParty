@@ -110,15 +110,27 @@ public class Utility {
 	}
 
 	public static String socketAddressToStringByHostName(InetSocketAddress address) {
+		if (address == null)
+			return "";
 		return address.getHostName() + ":" + address.getPort();
 	}
 
 	public static String socketAddressToStringByIP(InetSocketAddress address) {
+		if (address == null)
+			return "";
 		return address.getAddress().getHostAddress() + ":" + address.getPort();
 	}
 
-	public static void appendSocketHostNameAddress(StringBuilder sb, InetSocketAddress address) {
+	public static void appendSocketAddressByHostName(StringBuilder sb, InetSocketAddress address) {
+		if (address == null)
+			return;
 		sb.append(address.getHostName()).append(':').append(address.getPort());
+	}
+
+	public static void appendSocketAddressByIP(StringBuilder sb, InetSocketAddress address) {
+		if (address == null)
+			return;
+		sb.append(address.getAddress().getHostAddress()).append(':').append(address.getPort());
 	}
 
 	public static String macAddressToString(ByteBuffer packet, int offset, boolean needHyphen) {
@@ -170,11 +182,28 @@ public class Utility {
 		return "";
 	}
 
-	public static String makePingLog(long deadline, long lastPingTime) {
+	public static String makePingLog(String transport, InetSocketAddress local, InetSocketAddress remote, long time) {
+		StringBuilder sb = new StringBuilder();
+
+		sb.append(transport);
+		sb.append(" Ping受信: ");
+
+		sb.append(socketAddressToStringByIP(remote));
+		sb.append(" -> ");
+		sb.append(socketAddressToStringByIP(local));
+		sb.append(" [");
+		sb.append(ILogger.DATE_FORMAT.format(new Date(time)));
+		sb.append("]");
+
+		return sb.toString();
+	}
+
+	public static String makePingDisconnectLog(String transport, InetSocketAddress address, long deadline, long lastPingTime) {
 		Date date = new Date();
 
 		StringBuilder sb = new StringBuilder();
-		sb.append("PING切断| ");
+		sb.append(transport);
+		sb.append(" PING切断: ");
 
 		date.setTime(deadline);
 		sb.append("Deadline[");
@@ -183,7 +212,9 @@ public class Utility {
 		date.setTime(lastPingTime);
 		sb.append("] LastPingTime[");
 		sb.append(ILogger.DATE_FORMAT.format(date));
-		sb.append("]");
+		sb.append("] @ ");
+
+		appendSocketAddressByIP(sb, address);
 
 		return sb.toString();
 	}

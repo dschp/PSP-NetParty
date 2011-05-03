@@ -23,6 +23,7 @@ public class LogWindow {
 	public LogWindow(IApplication application, Shell parentShell) {
 		this.application = application;
 
+		// shell = new Shell((Shell) null, SWT.SHELL_TRIM | SWT.TOOL);
 		shell = new Shell(parentShell, SWT.SHELL_TRIM | SWT.TOOL);
 
 		shell.setText("ログ");
@@ -75,10 +76,7 @@ public class LogWindow {
 	}
 
 	public void setVisible(boolean visible) {
-		if (visible)
-			shell.open();
-		else
-			shell.setVisible(false);
+		shell.setVisible(visible);
 	}
 
 	public void appendLogTo(final String message, final boolean timestamp, final boolean showWindow) {
@@ -109,7 +107,7 @@ public class LogWindow {
 			logText.setTopIndex(logText.getLineCount());
 
 			if (showWindow)
-				shell.open();
+				shell.setVisible(true);
 		} catch (SWTException e) {
 		}
 	}

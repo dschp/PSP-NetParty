@@ -197,7 +197,7 @@ public class BouyomiChanPlugin implements IPlugin, IPluginConfigPageProvider {
 			container.setLayout(gridLayout);
 
 			useCheckButton = new Button(container, SWT.CHECK | SWT.FLAT);
-			useCheckButton.setText("棒読みちゃんを使用する");
+			useCheckButton.setText("棒読みちゃんを使用する ※棒読みちゃん（フリーソフト）が別途必要になります");
 			useCheckButton.setLayoutData(new GridData(SWT.LEFT, SWT.CENTER, false, false, 2, 1));
 			useCheckButton.setSelection(use);
 
@@ -209,6 +209,7 @@ public class BouyomiChanPlugin implements IPlugin, IPluginConfigPageProvider {
 			addressText.setTextLimit(100);
 			addressText.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
 			addressText.setText(address);
+			addressText.setEnabled(use);
 
 			readMyChatCheck = new Button(container, SWT.CHECK | SWT.FLAT);
 			readMyChatCheck.setText("自分のチャットを読み上げる");

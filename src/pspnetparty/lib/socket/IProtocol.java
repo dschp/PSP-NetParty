@@ -7,7 +7,7 @@ public interface IProtocol extends ILogger {
 
 	static final int HEADER_BYTE_SIZE = Integer.SIZE / 8;
 	static final long PING_INTERVAL = 30000L;
-	static final long PING_DEADLINE = 10000000L;
+	static final long PING_DEADLINE = 1000000L;
 
 	static final String PROTOCOL_OK = "OK";
 	static final String PROTOCOL_NG = "NG";

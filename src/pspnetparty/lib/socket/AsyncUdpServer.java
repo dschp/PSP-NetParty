@@ -54,7 +54,7 @@ public class AsyncUdpServer implements IServer {
 	private ByteBuffer bufferProtocolNG = AppConstants.CHARSET.encode(IProtocol.PROTOCOL_NG);
 
 	private Thread selectorThread;
-	private Thread sessionCleanupThread;
+	private Thread pingThread;
 
 	public AsyncUdpServer(ILogger logger) {
 		this.logger = logger;
@@ -104,22 +104,26 @@ public class AsyncUdpServer implements IServer {
 					listener.log("UDP: Now shuting down...");
 					listener.serverShutdownFinished();
 				}
-				sessionCleanupThread.interrupt();
+				pingThread.interrupt();
 			}
 		});
 		selectorThread.setName(getClass().getName() + " Selector");
 		selectorThread.setDaemon(true);
 		selectorThread.start();
 
-		sessionCleanupThread = new Thread(new Runnable() {
+		pingThread = new Thread(new Runnable() {
 			@Override
 			public void run() {
-				sessionCleanupLoop();
+				try {
+					pingLoop();
+				} catch (InterruptedException e) {
+					logger.log(Utility.stackTraceToString(e));
+				}
 			}
 		});
-		sessionCleanupThread.setName(getClass().getName() + " Cleanup");
-		sessionCleanupThread.setDaemon(true);
-		sessionCleanupThread.start();
+		pingThread.setName(getClass().getName() + " Ping");
+		pingThread.setDaemon(true);
+		pingThread.start();
 	}
 
 	private void selectorLoop() {
@@ -193,26 +197,34 @@ public class AsyncUdpServer implements IServer {
 		}
 	}
 
-	private void sessionCleanupLoop() {
-		try {
-			ByteBuffer pingBuffer = ByteBuffer.wrap(new byte[] { 1 });
-			while (isListening()) {
-				long deadline = System.currentTimeMillis() - IProtocol.PING_DEADLINE;
+	private void pingLoop() throws InterruptedException {
+		ByteBuffer pingBuffer = ByteBuffer.wrap(new byte[] { 1 });
+		while (isListening()) {
+			long deadline = System.currentTimeMillis() - IProtocol.PING_DEADLINE;
+			// int pingCount = 0, disconnectCount = 0;
 
-				for (Entry<InetSocketAddress, Connection> entry : establishedConnections.entrySet()) {
+			for (Entry<InetSocketAddress, Connection> entry : establishedConnections.entrySet()) {
+				try {
 					Connection conn = entry.getValue();
 					if (conn.lastPingTime < deadline) {
-						logger.log(Utility.makePingLog(deadline, conn.lastPingTime));
+						logger.log(Utility.makePingDisconnectLog("UDP", conn.remoteAddress, deadline, conn.lastPingTime));
 						conn.disconnect();
+						// disconnectCount++;
 					} else {
 						pingBuffer.clear();
 						conn.send(pingBuffer);
+						// pingCount++;
 					}
+				} catch (RuntimeException e) {
+					logger.log(Utility.stackTraceToString(e));
+				} catch (Exception e) {
+					logger.log(Utility.stackTraceToString(e));
 				}
-				// AsyncUdpServer.this.handler.log(establishedConnections.toString());
-				Thread.sleep(IProtocol.PING_INTERVAL);
 			}
-		} catch (InterruptedException e) {
+
+			// logger.log("UDP Server Ping送信: p=" + pingCount + " d=" +
+			// disconnectCount);
+			Thread.sleep(IProtocol.PING_INTERVAL);
 		}
 	}
 
@@ -225,7 +237,7 @@ public class AsyncUdpServer implements IServer {
 			selector.close();
 		} catch (IOException e) {
 		}
-		selector = null;
+		// selector = null;
 
 		if (serverChannel != null && serverChannel.isOpen()) {
 			try {
@@ -309,6 +321,8 @@ public class AsyncUdpServer implements IServer {
 					return;
 				case 1:
 					lastPingTime = System.currentTimeMillis();
+					// logger.log(Utility.makePingLog("UDP Server",
+					// getLocalAddress(), remoteAddress, lastPingTime));
 					return;
 				}
 			}

@@ -67,7 +67,11 @@ public class AsyncUdpClient implements IClient {
 		Thread pingThread = new Thread(new Runnable() {
 			@Override
 			public void run() {
-				pingLoop();
+				try {
+					pingLoop();
+				} catch (InterruptedException e) {
+					AsyncUdpClient.this.logger.log(Utility.stackTraceToString(e));
+				}
 			}
 		}, getClass().getName() + " Ping");
 		pingThread.setDaemon(true);
@@ -95,7 +99,6 @@ public class AsyncUdpClient implements IClient {
 						try {
 							success = connection.doRead();
 						} catch (IOException e) {
-							connection.protocol.log(Utility.stackTraceToString(e));
 						} catch (RuntimeException e) {
 						}
 
@@ -115,26 +118,33 @@ public class AsyncUdpClient implements IClient {
 		}
 	}
 
-	private void pingLoop() {
-		try {
-			ByteBuffer pingBuffer = ByteBuffer.wrap(new byte[] { 1 });
-			while (selector.isOpen()) {
-				long deadline = System.currentTimeMillis() - IProtocol.PING_DEADLINE;
+	private void pingLoop() throws InterruptedException {
+		ByteBuffer pingBuffer = ByteBuffer.wrap(new byte[] { 1 });
+		while (selector.isOpen()) {
+			long deadline = System.currentTimeMillis() - IProtocol.PING_DEADLINE;
+			// int pingCount = 0, disconnectCount = 0;
 
-				for (Connection conn : establishedConnections.keySet()) {
+			for (Connection conn : establishedConnections.keySet()) {
+				try {
 					if (conn.lastPingTime < deadline) {
-						logger.log(Utility.makePingLog(deadline, conn.lastPingTime));
+						logger.log(Utility.makePingDisconnectLog("UDP", conn.remoteAddress, deadline, conn.lastPingTime));
 						conn.disconnect();
+						// disconnectCount++;
 					} else {
 						pingBuffer.clear();
 						conn.send(pingBuffer);
+						// pingCount++;
 					}
+				} catch (RuntimeException e) {
+					logger.log(Utility.stackTraceToString(e));
+				} catch (Exception e) {
+					logger.log(Utility.stackTraceToString(e));
 				}
-
-				Thread.sleep(IProtocol.PING_INTERVAL);
 			}
-		} catch (RuntimeException e) {
-		} catch (Exception e) {
+
+			// logger.log("UDP Client Ping送信: p=" + pingCount + " d=" +
+			// disconnectCount);
+			Thread.sleep(IProtocol.PING_INTERVAL);
 		}
 	}
 
@@ -235,6 +245,8 @@ public class AsyncUdpClient implements IClient {
 					return false;
 				case 1:
 					lastPingTime = System.currentTimeMillis();
+					// logger.log(Utility.makePingLog("UDP Client",
+					// getLocalAddress(), remoteAddress, lastPingTime));
 					return true;
 				}
 			}

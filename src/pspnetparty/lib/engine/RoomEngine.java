@@ -194,7 +194,7 @@ public class RoomEngine {
 	}
 
 	public void setMaxRooms(int maxRooms) {
-		if (maxRooms < 1)
+		if (maxRooms < 0)
 			return;
 
 		this.maxRooms = maxRooms;
@@ -310,7 +310,7 @@ public class RoomEngine {
 		room.maxPlayers++;
 	}
 
-	private class Room {
+	private static class Room {
 		private ConcurrentSkipListMap<String, RoomProtocolDriver> playersByName;
 		private HashMap<String, TunnelProtocolDriver> tunnelsByMacAddress;
 
@@ -816,7 +816,7 @@ public class RoomEngine {
 				return true;
 			}
 		});
-		sessionHandlers.put(ProtocolConstants.Room.COMMAND_INFORM_TUNNEL_UDP_PORT, new IProtocolMessageHandler() {
+		sessionHandlers.put(ProtocolConstants.Room.COMMAND_INFORM_TUNNEL_PORT, new IProtocolMessageHandler() {
 			@Override
 			public boolean process(IProtocolDriver driver, String argument) {
 				RoomProtocolDriver player = (RoomProtocolDriver) driver;
@@ -828,13 +828,14 @@ public class RoomEngine {
 				try {
 					int port = Integer.parseInt(argument);
 					InetSocketAddress remoteEP = new InetSocketAddress(player.getConnection().getRemoteAddress().getAddress(), port);
-					player.tunnel = notYetLinkedTunnels.remove(remoteEP);
 
-					if (player.tunnel != null) {
-						player.getConnection().send(ProtocolConstants.Room.COMMAND_INFORM_TUNNEL_UDP_PORT);
-						player.tunnel.room = room;
-						player.tunnel.player = player;
-						player.tunnel.lastTunnelTime = System.currentTimeMillis();
+					TunnelProtocolDriver tunnel = notYetLinkedTunnels.remove(remoteEP);
+					player.tunnel = tunnel;
+					if (tunnel != null) {
+						player.getConnection().send(ProtocolConstants.Room.COMMAND_INFORM_TUNNEL_PORT);
+						tunnel.room = room;
+						tunnel.player = player;
+						tunnel.lastTunnelTime = System.currentTimeMillis();
 					}
 				} catch (NumberFormatException e) {
 				}
@@ -1201,10 +1202,10 @@ public class RoomEngine {
 			if (room == null)
 				return true;
 
-			RoomProtocolDriver playerSendFrom = player;
-			if (playerSendFrom == null)
+			RoomProtocolDriver srcPlayer = player;
+			if (srcPlayer == null)
 				return true;
-			boolean playerSendFromSsidIsNotEmpty = !Utility.isEmpty(playerSendFrom.ssid);
+			boolean srcPlayerSsidIsNotEmpty = !Utility.isEmpty(srcPlayer.ssid);
 			updateTunnelTime();
 
 			String destMac = Utility.macAddressToString(packet, 0, false);
@@ -1219,35 +1220,32 @@ public class RoomEngine {
 					return true;
 
 				for (Entry<String, RoomProtocolDriver> entry : room.playersByName.entrySet()) {
-					RoomProtocolDriver playerSendTo = entry.getValue();
-					if (playerSendTo.tunnel == null || playerSendTo.tunnel == this)
+					RoomProtocolDriver destPlayer = entry.getValue();
+					TunnelProtocolDriver destTunnel = destPlayer.tunnel;
+					if (destTunnel == null || destTunnel == this)
 						continue;
-					try {
-						if (playerSendFromSsidIsNotEmpty && !Utility.isEmpty(playerSendTo.ssid))
-							if (!playerSendFrom.ssid.equals(playerSendTo.ssid))
-								continue;
+					if (srcPlayerSsidIsNotEmpty && !Utility.isEmpty(destPlayer.ssid))
+						if (!srcPlayer.ssid.equals(destPlayer.ssid))
+							continue;
 
-						packet.position(0);
-						playerSendTo.tunnel.getConnection().send(packet);
-					} catch (NullPointerException e) {
-					}
+					packet.position(0);
+					destTunnel.connection.send(packet);
 				}
 			} else {
 				if (room.testWhiteListBlackList(srcMac, destMac))
 					return true;
 
-				TunnelProtocolDriver tunnelSendTo = room.tunnelsByMacAddress.get(destMac);
-				if (tunnelSendTo == null)
+				TunnelProtocolDriver destTunnel = room.tunnelsByMacAddress.get(destMac);
+				if (destTunnel == null)
 					return true;
-				try {
-					RoomProtocolDriver playerSendTo = room.playersByName.get(tunnelSendTo.player.name);
-					if (playerSendFromSsidIsNotEmpty && !Utility.isEmpty(playerSendTo.ssid))
-						if (!playerSendFrom.ssid.equals(playerSendTo.ssid))
-							return true;
+				RoomProtocolDriver destPlayer = destTunnel.player;
+				if (destPlayer == null)
+					return true;
+				if (srcPlayerSsidIsNotEmpty && !Utility.isEmpty(destPlayer.ssid))
+					if (!srcPlayer.ssid.equals(destPlayer.ssid))
+						return true;
 
-					tunnelSendTo.getConnection().send(packet);
-				} catch (NullPointerException e) {
-				}
+				destTunnel.connection.send(packet);
 			}
 
 			return true;
@@ -1255,9 +1253,16 @@ public class RoomEngine {
 
 		@Override
 		public void connectionDisconnected() {
+			try {
+				player.tunnel = null;
+			} catch (NullPointerException e) {
+			}
 			room = null;
 			player = null;
-			notYetLinkedTunnels.remove(connection.getRemoteAddress());
+
+			InetSocketAddress address = connection.getRemoteAddress();
+			if (address != null)
+				notYetLinkedTunnels.remove(address);
 		}
 
 		@Override

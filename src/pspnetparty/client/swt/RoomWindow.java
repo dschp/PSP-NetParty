@@ -64,6 +64,7 @@ import org.eclipse.swt.widgets.ToolBar;
 import org.eclipse.swt.widgets.ToolItem;
 
 import pspnetparty.client.swt.IApplication.PortalQuery;
+import pspnetparty.client.swt.IniSettings.TransportLayer;
 import pspnetparty.client.swt.message.AdminNotify;
 import pspnetparty.client.swt.message.Chat;
 import pspnetparty.client.swt.message.ErrorLog;
@@ -293,12 +294,13 @@ public class RoomWindow implements IMessageSource {
 		private ToolItem lobbyWindowItem;
 		private ToolItem logWindowItem;
 		private ToolItem configWindowItem;
+		private ToolItem wikiItem;
 
 		private MenuItem macFilteringWhiteListMenuRemove;
-
 		private MenuItem macFilteringBlackListMenuRemove;
 
-		private ToolItem wikiItem;
+		private Menu statusTunnelConnectionMenu;
+		private MenuItem statusTunnelConnectionMenuChangeTransport;
 
 		private void initWidgets() {
 			Display display = SwtUtils.DISPLAY;
@@ -1082,7 +1084,6 @@ public class RoomWindow implements IMessageSource {
 						break;
 					case ROOM_PARTICIPANT:
 						roomConnection.send(ProtocolConstants.Room.COMMAND_LOGOUT);
-						tunnelConnection.disconnect();
 						break;
 					}
 				}
@@ -1193,7 +1194,6 @@ public class RoomWindow implements IMessageSource {
 						manualConnectAsParticipant();
 					} else {
 						roomConnection.send(ProtocolConstants.Room.COMMAND_LOGOUT);
-						tunnelConnection.disconnect();
 					}
 				}
 			});
@@ -1731,6 +1731,47 @@ public class RoomWindow implements IMessageSource {
 				}
 			});
 
+			statusTunnelConnectionMenu = new Menu(shell, SWT.POP_UP);
+
+			statusTunnelConnectionMenuChangeTransport = new MenuItem(statusTunnelConnectionMenu, SWT.PUSH);
+			statusTunnelConnectionMenuChangeTransport.addListener(SWT.Selection, new Listener() {
+				@Override
+				public void handleEvent(Event event) {
+					switch (application.getSettings().getTunnelTransportLayer()) {
+					case TCP:
+						application.getSettings().setTunnelTransportLayer(TransportLayer.UDP);
+						break;
+					case UDP:
+						application.getSettings().setTunnelTransportLayer(TransportLayer.TCP);
+						break;
+					}
+					tunnelConnection.disconnect();
+				}
+			});
+
+			statusTunnelConnectionLabel.addMenuDetectListener(new MenuDetectListener() {
+				@Override
+				public void menuDetected(MenuDetectEvent e) {
+					switch (sessionState) {
+					case ROOM_MASTER:
+					case ROOM_PARTICIPANT:
+						statusTunnelConnectionLabel.setMenu(statusTunnelConnectionMenu);
+
+						switch (application.getSettings().getTunnelTransportLayer()) {
+						case TCP:
+							statusTunnelConnectionMenuChangeTransport.setText("UDPで接続し直す");
+							break;
+						case UDP:
+							statusTunnelConnectionMenuChangeTransport.setText("TCPで接続し直す");
+							break;
+						}
+						break;
+					default:
+						statusTunnelConnectionLabel.setMenu(null);
+					}
+				}
+			});
+
 			Menu packetMonitorMenu = new Menu(shell, SWT.POP_UP);
 
 			packetMonitorMenuCopy = new MenuItem(packetMonitorMenu, SWT.PUSH);
@@ -2133,6 +2174,9 @@ public class RoomWindow implements IMessageSource {
 		switch (sessionState) {
 		case ROOM_MASTER:
 		case ROOM_PARTICIPANT:
+			if (!tunnelConnection.isConnected())
+				connectRoomTunnel();
+
 			long now = System.currentTimeMillis();
 			if (now < nextPingTime)
 				return;
@@ -2696,7 +2740,6 @@ public class RoomWindow implements IMessageSource {
 					return -1;
 				} else {
 					roomConnection.send(ProtocolConstants.Room.COMMAND_LOGOUT);
-					tunnelConnection.disconnect();
 					return 1;
 				}
 			}
@@ -2706,11 +2749,9 @@ public class RoomWindow implements IMessageSource {
 			switch (dialog.getSelection()) {
 			case LOGOUT:
 				roomConnection.send(ProtocolConstants.Room.COMMAND_LOGOUT);
-				tunnelConnection.disconnect();
 				return 1;
 			case DESTROY:
 				roomConnection.send(ProtocolConstants.Room.COMMAND_ROOM_DELETE);
-				tunnelConnection.disconnect();
 				return 1;
 			case CANCEL:
 				return 0;
@@ -2920,14 +2961,16 @@ public class RoomWindow implements IMessageSource {
 				widgets.statusTunnelConnectionLabel.setForeground(widgets.colorOK);
 
 				StringBuilder sb = new StringBuilder();
-				switch (application.getSettings().getTunnelTransportLayer()) {
-				case TCP:
-					sb.append("TCP");
-					break;
-				case UDP:
-					sb.append("UDP");
-					break;
-				}
+
+				if (sessionState != SessionState.MY_ROOM_MASTER)
+					switch (application.getSettings().getTunnelTransportLayer()) {
+					case TCP:
+						sb.append("TCP");
+						break;
+					case UDP:
+						sb.append("UDP");
+						break;
+					}
 				sb.append("トンネル接続中");
 				widgets.statusTunnelConnectionLabel.setText(sb.toString());
 			} else {
@@ -3779,6 +3822,7 @@ public class RoomWindow implements IMessageSource {
 			}
 
 			roomConnection = ISocketConnection.NULL;
+			tunnelConnection.disconnect();
 			changeStateTo(SessionState.OFFLINE);
 		}
 
@@ -3792,24 +3836,6 @@ public class RoomWindow implements IMessageSource {
 			String message = String.format("サーバーとのプロトコルナンバーが一致しないので接続できません サーバー:%s クライアント:%s", number, IProtocol.NUMBER);
 			ErrorLog log = new ErrorLog(message);
 			widgets.logViewer.appendMessage(log);
-		}
-	}
-
-	private void connectRoomTunnel() {
-		try {
-			switch (application.getSettings().getTunnelTransportLayer()) {
-			case TCP:
-				application.connectTcp(roomConnection.getRemoteAddress(), tunnelProtocol);
-				break;
-			case UDP:
-				application.connectUdp(roomConnection.getRemoteAddress(), tunnelProtocol);
-				break;
-			}
-		} catch (IOException e) {
-			ErrorLog log = new ErrorLog(e.getMessage());
-			widgets.logViewer.appendMessage(log);
-		} catch (RuntimeException e) {
-			application.getLogWindow().appendLogTo(Utility.stackTraceToString(e), true, true);
 		}
 	}
 
@@ -3966,7 +3992,7 @@ public class RoomWindow implements IMessageSource {
 				return true;
 			}
 		});
-		roomHandlers.put(ProtocolConstants.Room.COMMAND_INFORM_TUNNEL_UDP_PORT, new IProtocolMessageHandler() {
+		roomHandlers.put(ProtocolConstants.Room.COMMAND_INFORM_TUNNEL_PORT, new IProtocolMessageHandler() {
 			@Override
 			public boolean process(IProtocolDriver client, String argument) {
 				updateTunnelStatus(true);
@@ -4170,6 +4196,24 @@ public class RoomWindow implements IMessageSource {
 		});
 	}
 
+	private void connectRoomTunnel() {
+		try {
+			switch (application.getSettings().getTunnelTransportLayer()) {
+			case TCP:
+				application.connectTcp(roomConnection.getRemoteAddress(), tunnelProtocol);
+				break;
+			case UDP:
+				application.connectUdp(roomConnection.getRemoteAddress(), tunnelProtocol);
+				break;
+			}
+		} catch (IOException e) {
+			ErrorLog log = new ErrorLog(e.getMessage());
+			widgets.logViewer.appendMessage(log);
+		} catch (RuntimeException e) {
+			application.getLogWindow().appendLogTo(Utility.stackTraceToString(e), true, true);
+		}
+	}
+
 	private class TunnelProtocol implements IProtocol {
 		@Override
 		public void log(String message) {
@@ -4226,7 +4270,7 @@ public class RoomWindow implements IMessageSource {
 				try {
 					String port = data.getMessage();
 					localPort = Integer.parseInt(port);
-					roomConnection.send(ProtocolConstants.Room.COMMAND_INFORM_TUNNEL_UDP_PORT + TextProtocolDriver.ARGUMENT_SEPARATOR
+					roomConnection.send(ProtocolConstants.Room.COMMAND_INFORM_TUNNEL_PORT + TextProtocolDriver.ARGUMENT_SEPARATOR
 							+ localPort);
 				} catch (NumberFormatException e) {
 				}
@@ -4239,6 +4283,13 @@ public class RoomWindow implements IMessageSource {
 			updateTunnelStatus(false);
 			tunnelConnection = ISocketConnection.NULL;
 			application.getLogWindow().appendLogTo("トンネル通信の接続が終了しました", true, false);
+
+			if (roomConnection.isConnected())
+				switch (sessionState) {
+				case ROOM_MASTER:
+				case ROOM_PARTICIPANT:
+					connectRoomTunnel();
+				}
 		}
 
 		@Override

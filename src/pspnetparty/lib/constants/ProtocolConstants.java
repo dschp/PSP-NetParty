@@ -63,7 +63,7 @@ public class ProtocolConstants {
 		public static final String COMMAND_ROOM_MASTER_TRANSFER = "RT";
 		public static final String COMMAND_ROOM_DELETE = "RD";
 
-		public static final String COMMAND_INFORM_TUNNEL_UDP_PORT = "IU";
+		public static final String COMMAND_INFORM_TUNNEL_PORT = "IU";
 		public static final String COMMAND_MAC_ADDRESS_PLAYER = "MAC";
 
 		public static final String COMMAND_PING = "PG";

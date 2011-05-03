@@ -113,7 +113,11 @@ public class AsyncTcpServer implements IServer {
 		Thread pingThread = new Thread(new Runnable() {
 			@Override
 			public void run() {
-				pingLoop();
+				try {
+					pingLoop();
+				} catch (InterruptedException e) {
+					logger.log(Utility.stackTraceToString(e));
+				}
 			}
 		}, getClass().getName() + " Ping");
 		pingThread.setDaemon(true);
@@ -162,27 +166,34 @@ public class AsyncTcpServer implements IServer {
 		}
 	}
 
-	private void pingLoop() {
-		try {
-			ByteBuffer pingBuffer = ByteBuffer.allocate(IProtocol.HEADER_BYTE_SIZE);
-			pingBuffer.putInt(0);
-			while (serverChannel.isOpen()) {
-				long deadline = System.currentTimeMillis() - IProtocol.PING_DEADLINE;
+	private void pingLoop() throws InterruptedException {
+		ByteBuffer pingBuffer = ByteBuffer.allocate(IProtocol.HEADER_BYTE_SIZE);
+		pingBuffer.putInt(0);
+		while (serverChannel.isOpen()) {
+			long deadline = System.currentTimeMillis() - IProtocol.PING_DEADLINE;
+			// int pingCount = 0, disconnectCount = 0;
 
-				for (Connection conn : establishedConnections.keySet()) {
+			for (Connection conn : establishedConnections.keySet()) {
+				try {
 					if (conn.lastPingTime < deadline) {
-						logger.log(Utility.makePingLog(deadline, conn.lastPingTime));
+						logger.log(Utility.makePingDisconnectLog("TCP", conn.getRemoteAddress(), deadline, conn.lastPingTime));
 						conn.disconnect();
+						// disconnectCount++;
 					} else {
-						pingBuffer.flip();
+						pingBuffer.clear();
 						conn.channel.write(pingBuffer);
+						// pingCount++;
 					}
+				} catch (RuntimeException e) {
+					logger.log(Utility.stackTraceToString(e));
+				} catch (Exception e) {
+					logger.log(Utility.stackTraceToString(e));
 				}
-
-				Thread.sleep(IProtocol.PING_INTERVAL);
 			}
-		} catch (RuntimeException e) {
-		} catch (Exception e) {
+
+			// logger.log("TCP Server Ping送信: p=" + pingCount + " d=" +
+			// disconnectCount);
+			Thread.sleep(IProtocol.PING_INTERVAL);
 		}
 	}
 
@@ -195,7 +206,7 @@ public class AsyncTcpServer implements IServer {
 			selector.close();
 		} catch (IOException e) {
 		}
-		selector = null;
+		// selector = null;
 
 		if (serverChannel != null && serverChannel.isOpen()) {
 			try {
@@ -305,6 +316,8 @@ public class AsyncTcpServer implements IServer {
 				if (dataSize == 0) {
 					lastPingTime = System.currentTimeMillis();
 					headerReadBuffer.position(0);
+					// logger.log(Utility.makePingLog("TCP Server",
+					// getLocalAddress(), getRemoteAddress(), lastPingTime));
 					return true;
 				}
 				// System.out.println("Data size=" + dataSize);

@@ -125,7 +125,7 @@ public class RoomServer {
 				if (IniConstants.MAX_ROOMS.equalsIgnoreCase(key)) {
 					try {
 						int max = Integer.parseInt(value);
-						if (max < 1)
+						if (max < 0)
 							return;
 						engine.setMaxRooms(max);
 						System.out.println("最大部屋数を " + max + " に設定しました");
