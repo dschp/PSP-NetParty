@@ -117,7 +117,6 @@ public class AsyncUdpServer implements IServer {
 				try {
 					pingLoop();
 				} catch (InterruptedException e) {
-					logger.log(Utility.stackTraceToString(e));
 				}
 			}
 		});

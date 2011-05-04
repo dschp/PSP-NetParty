@@ -71,8 +71,8 @@ public class MyRoomEngine {
 	private String roomMasterAuthCode;
 	private boolean allowEmptyMasterNameLogin = true;
 
-	private AsyncTcpServer roomServer;
-	private AsyncUdpServer tunnelServer;
+	private AsyncTcpServer tcpServer;
+	private AsyncUdpServer udpServer;
 
 	private boolean isStarted = false;
 	private CountDownSynchronizer countDownSynchronizer;
@@ -118,16 +118,16 @@ public class MyRoomEngine {
 			}
 		};
 
-		roomServer = new AsyncTcpServer(logger, 40000);
-		roomServer.addServerListener(listener);
-		roomServer.addProtocol(new RoomProtocol());
+		tcpServer = new AsyncTcpServer(logger, 40000);
+		tcpServer.addServerListener(listener);
+		tcpServer.addProtocol(new RoomProtocol());
 
 		TunnelProtocol tunnelProtocol = new TunnelProtocol();
-		roomServer.addProtocol(tunnelProtocol);
+		tcpServer.addProtocol(tunnelProtocol);
 
-		tunnelServer = new AsyncUdpServer(logger);
-		tunnelServer.addServerListener(listener);
-		tunnelServer.addProtocol(tunnelProtocol);
+		udpServer = new AsyncUdpServer(logger);
+		udpServer.addServerListener(listener);
+		udpServer.addProtocol(tunnelProtocol);
 	}
 
 	public boolean isStarted() {
@@ -152,8 +152,8 @@ public class MyRoomEngine {
 		countDownSynchronizer = new CountDownSynchronizer(2);
 
 		InetSocketAddress bindAddress = new InetSocketAddress(port);
-		roomServer.startListening(bindAddress);
-		tunnelServer.startListening(bindAddress);
+		tcpServer.startListening(bindAddress);
+		udpServer.startListening(bindAddress);
 	}
 
 	public void closeRoom() {
@@ -162,8 +162,8 @@ public class MyRoomEngine {
 
 		countDownSynchronizer = new CountDownSynchronizer(2);
 
-		roomServer.stopListening();
-		tunnelServer.stopListening();
+		tcpServer.stopListening();
+		udpServer.stopListening();
 	}
 
 	public void enableMacAddressWhiteList(boolean enable) {
@@ -670,6 +670,8 @@ public class MyRoomEngine {
 		return false;
 	}
 
+	private ByteBuffer tunnelDirectBuffer = ByteBuffer.allocateDirect(20000);
+
 	private class TunnelProtocolDriver implements IProtocolDriver {
 		private ISocketConnection connection;
 		private RoomProtocolDriver player;
@@ -681,12 +683,20 @@ public class MyRoomEngine {
 
 		@Override
 		public boolean process(PacketData data) {
-			InetSocketAddress remoteEP = connection.getRemoteAddress();
+			InetSocketAddress remoteAddress = connection.getRemoteAddress();
 
 			ByteBuffer packet = data.getBuffer();
+			if (!packet.isDirect()) {
+				tunnelDirectBuffer.clear();
+				tunnelDirectBuffer.put(packet);
+				tunnelDirectBuffer.flip();
+
+				packet = tunnelDirectBuffer;
+			}
+
 			if (!Utility.isPspPacket(packet)) {
-				if (notYetLinkedTunnels.containsKey(remoteEP)) {
-					connection.send(Integer.toString(remoteEP.getPort()));
+				if (notYetLinkedTunnels.containsKey(remoteAddress)) {
+					connection.send(Integer.toString(remoteAddress.getPort()));
 				}
 				return true;
 			}
@@ -706,9 +716,14 @@ public class MyRoomEngine {
 					return true;
 
 				String srcPlayerName = srcPlayer.name;
-				if (!Utility.isEmpty(srcPlayerName))
-					srcPlayerName = "";
-				myRoomMasterHandler.tunnelPacketReceived(packet, srcPlayerName);
+				if (Utility.isEmpty(srcPlayerName))
+					return true;
+				// System.out.print("[" + srcPlayerName + "] ");
+				// System.out.print("src: " + srcMac + " dest: " + destMac);
+				// System.out.println();
+
+				if (Utility.isEmpty(masterSsid) || masterSsid.equals(srcPlayer.ssid))
+					myRoomMasterHandler.tunnelPacketReceived(packet, srcPlayerName);
 
 				for (Entry<String, RoomProtocolDriver> entry : playersByName.entrySet()) {
 					RoomProtocolDriver destPlayer = entry.getValue();
@@ -727,7 +742,8 @@ public class MyRoomEngine {
 					return true;
 
 				masterMacAddresses.put(destMac, placeHolderValueObject);
-				myRoomMasterHandler.tunnelPacketReceived(packet, player.name);
+				if (Utility.isEmpty(masterSsid) || masterSsid.equals(srcPlayer.ssid))
+					myRoomMasterHandler.tunnelPacketReceived(packet, player.name);
 			} else if (tunnelsByMacAddress.containsKey(destMac)) {
 				if (testWhiteListBlackList(srcMac, destMac))
 					return true;
@@ -768,18 +784,30 @@ public class MyRoomEngine {
 
 	public void sendTunnelPacketToParticipants(ByteBuffer packet, String srcMac, String destMac) {
 		masterMacAddresses.put(srcMac, placeHolderValueObject);
+		// System.out.print("src: " + srcMac + " dest: " + destMac);
+		// System.out.println();
 
 		if (Utility.isMacBroadCastAddress(destMac)) {
 			for (Entry<String, RoomProtocolDriver> entry : playersByName.entrySet()) {
-				RoomProtocolDriver sendTo = entry.getValue();
-				if (sendTo.tunnel != null) {
-					packet.position(0);
-					sendTo.tunnel.getConnection().send(packet);
-				}
+				RoomProtocolDriver destPlayer = entry.getValue();
+				if (!Utility.isEmpty(masterSsid) && !masterSsid.equals(destPlayer.ssid))
+					continue;
+
+				TunnelProtocolDriver destTunnel = destPlayer.tunnel;
+				if (destTunnel == null)
+					continue;
+
+				packet.position(0);
+				destTunnel.getConnection().send(packet);
 			}
 		} else if (tunnelsByMacAddress.containsKey(destMac)) {
-			TunnelProtocolDriver sendTo = tunnelsByMacAddress.get(destMac);
-			sendTo.getConnection().send(packet);
+			TunnelProtocolDriver destTunnel = tunnelsByMacAddress.get(destMac);
+			RoomProtocolDriver destPlayer = destTunnel.player;
+			if (destPlayer == null)
+				return;
+
+			if (Utility.isEmpty(masterSsid) || masterSsid.equals(destPlayer.ssid))
+				destTunnel.getConnection().send(packet);
 		}
 	}
 }

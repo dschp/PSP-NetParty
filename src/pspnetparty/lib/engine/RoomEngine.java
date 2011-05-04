@@ -73,7 +73,7 @@ public class RoomEngine {
 	private CountDownSynchronizer countDownSynchronizer;
 	private ExecutorService executorService = Executors.newCachedThreadPool();
 
-	public RoomEngine(IServer roomServer, IServer tunnelServer, ILogger logger, IServerNetwork net) throws IOException {
+	public RoomEngine(IServer tcpServer, IServer udpServer, ILogger logger, IServerNetwork net) throws IOException {
 		this.logger = logger;
 
 		masterNameRoomMap = new ConcurrentHashMap<String, Room>(20, 0.75f, 1);
@@ -109,16 +109,16 @@ public class RoomEngine {
 			}
 		};
 
-		roomServer.addServerListener(listener);
-		roomServer.addProtocol(new RoomProtocol());
-		roomServer.addProtocol(new RoomStatusProtocol());
-		roomServer.addProtocol(new MyRoomProtocol());
+		tcpServer.addServerListener(listener);
+		tcpServer.addProtocol(new RoomProtocol());
+		tcpServer.addProtocol(new RoomStatusProtocol());
+		tcpServer.addProtocol(new MyRoomProtocol());
 
 		TunnelProtocol tunnelProtocol = new TunnelProtocol();
-		roomServer.addProtocol(tunnelProtocol);
+		tcpServer.addProtocol(tunnelProtocol);
 
-		tunnelServer.addServerListener(listener);
-		tunnelServer.addProtocol(tunnelProtocol);
+		udpServer.addServerListener(listener);
+		udpServer.addProtocol(tunnelProtocol);
 	}
 
 	private void initBackgroudThread() {

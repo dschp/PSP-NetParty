@@ -785,7 +785,7 @@ public class SearchWindow {
 					int maxPlayers = Integer.parseInt(tokens[4]);
 					boolean hasPassword = "Y".equals(tokens[5]);
 					long created = Long.parseLong(tokens[6]);
-					String description = tokens[7].replace("\n", " ");
+					String description = tokens[7].replace("\r", "").replace("\n", " ");
 
 					PlayRoom room = new PlayRoom(address, masterName, title, hasPassword, currentPlayers, maxPlayers, created);
 					room.setDescription(description);

@@ -120,6 +120,7 @@ public class SearchServer {
 				System.out.println("最大検索件数: " + engine.getMaxSearchResults());
 				System.out.println("部屋の紹介・備考の最大文字数: " + engine.getDescriptionMaxLength());
 				System.out.println("ログインメッセージファイル : " + loginMessageFile);
+				System.out.println("ポータル登録: " + (engine.isAcceptingPortal() ? "受付中" : "停止中"));
 			}
 		});
 		handlers.put("set", new ICommandHandler() {
@@ -134,7 +135,7 @@ public class SearchServer {
 				if (IniConstants.MAX_USERS.equalsIgnoreCase(key)) {
 					try {
 						int max = Integer.parseInt(value);
-						if (max < 1)
+						if (max < 0)
 							return;
 						engine.setMaxUsers(max);
 						System.out.println("最大ユーザー数を " + max + " に設定しました");

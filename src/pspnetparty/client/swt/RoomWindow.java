@@ -1,3 +1,21 @@
+/*
+Copyright (C) 2011 monte
+
+This file is part of PSP NetParty.
+
+PSP NetParty is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 package pspnetparty.client.swt;
 
 import java.io.File;
@@ -3406,12 +3424,15 @@ public class RoomWindow implements IMessageSource {
 		switch (widgets.formModeSelectionCombo.getSelectionIndex()) {
 		case 0:
 			widgets.roomModeStackLayout.topControl = widgets.formAutoModeContainer;
+			widgets.formMaxPlayersSpiner.setMaximum(ProtocolConstants.Room.MAX_ROOM_PLAYERS);
 			break;
 		case 1:
 			widgets.roomModeStackLayout.topControl = widgets.formManualModeContainer;
+			widgets.formMaxPlayersSpiner.setMaximum(ProtocolConstants.Room.MAX_ROOM_PLAYERS);
 			break;
 		case 2:
 			widgets.roomModeStackLayout.topControl = widgets.formMyRoomModeContainer;
+			widgets.formMaxPlayersSpiner.setMaximum(Integer.MAX_VALUE);
 			break;
 		}
 		widgets.formModeSwitchContainer.layout();
@@ -4008,6 +4029,9 @@ public class RoomWindow implements IMessageSource {
 					return true;
 
 				TraficStatistics stats = traficStatsMap.get(tokens[0]);
+				if (stats == null)
+					return true;
+
 				stats.playerName = tokens[1];
 				return true;
 			}
@@ -4369,7 +4393,9 @@ public class RoomWindow implements IMessageSource {
 		String destMac = Utility.macAddressToString(packet, 0, false);
 		String srcMac = Utility.macAddressToString(packet, 6, false);
 
-		// System.out.println("src: " + srcMac + " dest: " + destMac);
+		// System.out.print("[" + playerName + "] ");
+		// System.out.print("src: " + srcMac + " dest: " + destMac);
+		// System.out.println();
 
 		TraficStatistics destStats, srcStats;
 		synchronized (traficStatsMap) {

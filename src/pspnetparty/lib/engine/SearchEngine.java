@@ -123,7 +123,7 @@ public class SearchEngine {
 	}
 
 	public void setMaxUsers(int maxUsers) {
-		if (maxUsers < 1)
+		if (maxUsers < 0)
 			return;
 		this.maxUsers = maxUsers;
 		notifyServerStatus();

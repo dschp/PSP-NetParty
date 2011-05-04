@@ -50,7 +50,7 @@ public class LobbyEngine {
 
 	private IServerNetwork serverNetWork;
 	private ConcurrentHashMap<LobbyStatusProtocolDriver, Object> portalConnections;
-	private boolean isAcceptingPortal;
+	private boolean isAcceptingPortal = true;
 
 	public LobbyEngine(IServer server, ILogger logger, IServerNetwork net) throws IOException {
 		this.logger = logger;
@@ -441,6 +441,8 @@ public class LobbyEngine {
 
 		@Override
 		public IProtocolDriver createDriver(ISocketConnection connection) {
+			if (!isAcceptingPortal)
+				return null;
 			serverNetWork.reload();
 			if (!serverNetWork.isValidPortalServer(connection.getRemoteAddress().getAddress()))
 				return null;

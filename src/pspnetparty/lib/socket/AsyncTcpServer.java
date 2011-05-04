@@ -55,6 +55,9 @@ public class AsyncTcpServer implements IServer {
 	private ByteBuffer bufferProtocolOK = AppConstants.CHARSET.encode(IProtocol.PROTOCOL_OK);
 	private ByteBuffer bufferProtocolNG = AppConstants.CHARSET.encode(IProtocol.PROTOCOL_NG);
 
+	private Thread selectorThread;
+	private Thread pingThread;
+
 	public AsyncTcpServer(ILogger logger, int maxPacketSize) {
 		this.logger = logger;
 		this.maxPacketSize = maxPacketSize;
@@ -93,7 +96,7 @@ public class AsyncTcpServer implements IServer {
 		for (IServerListener listener : serverListeners.keySet())
 			listener.log("TCP: Listening on " + socket.getLocalSocketAddress());
 
-		Thread selectorThread = new Thread(new Runnable() {
+		selectorThread = new Thread(new Runnable() {
 			@Override
 			public void run() {
 				for (IServerListener listener : serverListeners.keySet())
@@ -105,18 +108,18 @@ public class AsyncTcpServer implements IServer {
 					listener.log("TCP: Now shuting down...");
 					listener.serverShutdownFinished();
 				}
+				pingThread.interrupt();
 			}
 		}, getClass().getName() + " Selector");
 		selectorThread.setDaemon(true);
 		selectorThread.start();
 
-		Thread pingThread = new Thread(new Runnable() {
+		pingThread = new Thread(new Runnable() {
 			@Override
 			public void run() {
 				try {
 					pingLoop();
 				} catch (InterruptedException e) {
-					logger.log(Utility.stackTraceToString(e));
 				}
 			}
 		}, getClass().getName() + " Ping");
@@ -146,7 +149,9 @@ public class AsyncTcpServer implements IServer {
 								try {
 									success = conn.doRead();
 								} catch (IOException e) {
+									// e.fillInStackTrace();
 								} catch (RuntimeException e) {
+									// e.fillInStackTrace();
 								}
 
 								if (!success) {
