@@ -73,11 +73,13 @@ public class PortalEngine {
 
 	private static class RetryInfo {
 		private long timestamp;
-		private InetSocketAddress address;
+		private String hostname;
+		private int port;
 
 		private RetryInfo(InetSocketAddress address) {
-			this.address = address;
-			this.timestamp = System.currentTimeMillis() + RETRY_INTERVAL;
+			hostname = address.getHostName();
+			port = address.getPort();
+			timestamp = System.currentTimeMillis() + RETRY_INTERVAL;
 		}
 	}
 
@@ -333,8 +335,9 @@ public class PortalEngine {
 		if (checkTimestamp && info.timestamp > System.currentTimeMillis())
 			return;
 
-		InetSocketAddress socketAddress = info.address;
+		InetSocketAddress socketAddress = null;
 		try {
+			socketAddress = new InetSocketAddress(info.hostname, info.port);
 			tcpClient.connect(socketAddress, ProtocolConstants.TIMEOUT, protocol);
 		} catch (IOException ex) {
 			info.timestamp = System.currentTimeMillis() + RETRY_INTERVAL;

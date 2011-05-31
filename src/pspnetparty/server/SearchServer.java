@@ -84,7 +84,7 @@ public class SearchServer {
 		ini.saveToIni();
 
 		ILogger logger = ServerUtils.createLogger();
-		AsyncTcpServer tcpServer = new AsyncTcpServer(logger, 1000000);
+		AsyncTcpServer tcpServer = new AsyncTcpServer(1000000);
 
 		final SearchEngine engine = new SearchEngine(tcpServer, logger, new IniPublicServer());
 		engine.setMaxUsers(maxUsers);

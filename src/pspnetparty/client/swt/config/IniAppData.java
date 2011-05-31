@@ -16,12 +16,13 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-package pspnetparty.client.swt;
+package pspnetparty.client.swt.config;
 
 import org.eclipse.swt.graphics.Rectangle;
 import org.eclipse.swt.widgets.Shell;
 import org.eclipse.swt.widgets.Table;
 
+import pspnetparty.client.swt.SwtUtils;
 import pspnetparty.lib.IniSection;
 
 public class IniAppData {

@@ -16,15 +16,12 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-package pspnetparty.client.swt;
+package pspnetparty.client.swt.config;
 
 import pspnetparty.lib.IniSection;
+import pspnetparty.lib.socket.TransportLayer;
 
 public class IniSettings {
-	enum TransportLayer {
-		TCP, UDP
-	}
-
 	private static final String TCP = "TCP";
 	private static final String UDP = "UDP";
 
@@ -37,6 +34,7 @@ public class IniSettings {
 	private static final String BALLOON_NOTIFY_LOBBY = "BalloonNotifyLobby";
 	private static final String BALLOON_NOTIFY_ROOM = "BalloonNotifyRoom";
 
+	private static final String SSID_AUTO_SCAN = "SSIDAutoScan";
 	private static final String TUNNEL_TRANSPORT_LAYER = "TunnelTransportLayer";
 
 	private static final String MY_ROOM_HOST_NAME = "MyRoomHostName";
@@ -49,6 +47,10 @@ public class IniSettings {
 	private static final String ROOM_SERVER_LIST = "RoomServerList";
 	private static final String ROOM_ADDRESS_LIST = "RoomAddressList";
 
+	private static final String SHOW_CHAT_PRESET_BUTTONS = "ShowChatPresetButtons";
+	private static final String CHAT_PRESET_BOTTON_MAX_LENGTH = "ChatPresetButtonMaxLength";
+	private static final String CHAT_PRESET_ENABLE_KEY_INPUT = "ChatPresetEnableKeyInput";
+
 	private IniSection section;
 
 	public IniSettings(IniSection section) {
@@ -60,6 +62,7 @@ public class IniSettings {
 		ballonNotifyLobby = section.get(BALLOON_NOTIFY_LOBBY, true);
 		ballonNotifyRoom = section.get(BALLOON_NOTIFY_ROOM, true);
 
+		ssidAutoScan = section.get(SSID_AUTO_SCAN, false);
 		tunnelTransportLayer = UDP.equals(section.get(TUNNEL_TRANSPORT_LAYER, TCP)) ? TransportLayer.UDP : TransportLayer.TCP;
 
 		myRoomHostName = section.get(MY_ROOM_HOST_NAME, "");
@@ -71,6 +74,10 @@ public class IniSettings {
 
 		roomServerList = section.get(ROOM_SERVER_LIST, "").split(",");
 		roomAddressList = section.get(ROOM_ADDRESS_LIST, "").split(",");
+
+		showChatPresetButtons = section.get(SHOW_CHAT_PRESET_BUTTONS, false);
+		chatPresetButtonMaxLength = section.get(CHAT_PRESET_BOTTON_MAX_LENGTH, 5);
+		chatPresetEnableKeyInput = section.get(CHAT_PRESET_ENABLE_KEY_INPUT, false);
 	}
 
 	private String userName;
@@ -78,6 +85,7 @@ public class IniSettings {
 	private boolean logLobbyEnterExit;
 	private boolean ballonNotifyLobby;
 	private boolean ballonNotifyRoom;
+	private boolean ssidAutoScan;
 	private TransportLayer tunnelTransportLayer;
 	private String myRoomHostName;
 	private int myRoomPort;
@@ -86,6 +94,9 @@ public class IniSettings {
 	private String privatePortalServerAddress;
 	private String[] roomServerList;
 	private String[] roomAddressList;
+	private boolean showChatPresetButtons;
+	private int chatPresetButtonMaxLength;
+	private boolean chatPresetEnableKeyInput;
 
 	public String getUserName() {
 		return userName;
@@ -177,6 +188,15 @@ public class IniSettings {
 		section.set(MY_ROOM_ALLOW_NO_MASTER_NAME, myRoomAllowNoMasterName);
 	}
 
+	public boolean isSsidAutoScan() {
+		return ssidAutoScan;
+	}
+
+	public void setSsidAutoScan(boolean ssidAutoScan) {
+		this.ssidAutoScan = ssidAutoScan;
+		section.set(SSID_AUTO_SCAN, ssidAutoScan);
+	}
+
 	public TransportLayer getTunnelTransportLayer() {
 		return tunnelTransportLayer;
 	}
@@ -191,6 +211,35 @@ public class IniSettings {
 			section.set(TUNNEL_TRANSPORT_LAYER, UDP);
 			break;
 		}
+	}
+
+	public boolean isShowChatPresetButtons() {
+		return showChatPresetButtons;
+	}
+
+	public void setShowChatPresetButtons(boolean showChatPresetButtons) {
+		this.showChatPresetButtons = showChatPresetButtons;
+		section.set(SHOW_CHAT_PRESET_BUTTONS, showChatPresetButtons);
+	}
+
+	public int getChatPresetButtonMaxLength() {
+		return chatPresetButtonMaxLength;
+	}
+
+	public void setChatPresetButtonMaxLength(int chatPresetButtonMaxLength) {
+		if (chatPresetButtonMaxLength < 1)
+			return;
+		this.chatPresetButtonMaxLength = chatPresetButtonMaxLength;
+		section.set(CHAT_PRESET_BOTTON_MAX_LENGTH, chatPresetButtonMaxLength);
+	}
+
+	public boolean isChatPresetEnableKeyInput() {
+		return chatPresetEnableKeyInput;
+	}
+
+	public void setChatPresetEnableKeyInput(boolean chatPresetEnableKeyInput) {
+		this.chatPresetEnableKeyInput = chatPresetEnableKeyInput;
+		section.set(CHAT_PRESET_ENABLE_KEY_INPUT, chatPresetEnableKeyInput);
 	}
 
 	public int getMaxLogCount() {

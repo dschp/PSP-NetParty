@@ -4,7 +4,7 @@ import java.util.List;
 
 import org.eclipse.swt.custom.StyleRange;
 
-import pspnetparty.client.swt.IniAppearance;
+import pspnetparty.client.swt.config.IniAppearance;
 
 public interface IMessage {
 

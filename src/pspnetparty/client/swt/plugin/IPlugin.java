@@ -1,10 +1,10 @@
 package pspnetparty.client.swt.plugin;
 
-import pspnetparty.client.swt.IApplication;
+import pspnetparty.client.swt.IPlayClient;
 
 public interface IPlugin {
 
-	public void initPlugin(IApplication application);
+	public void initPlugin(IPlayClient application);
 
 	public void disposePlugin();
 }

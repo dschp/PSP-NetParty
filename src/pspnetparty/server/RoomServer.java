@@ -71,8 +71,8 @@ public class RoomServer {
 		ini.saveToIni();
 
 		ILogger logger = ServerUtils.createLogger();
-		AsyncTcpServer tcpServer = new AsyncTcpServer(logger, 40000);
-		AsyncUdpServer udpServer = new AsyncUdpServer(logger);
+		AsyncTcpServer tcpServer = new AsyncTcpServer(40000);
+		AsyncUdpServer udpServer = new AsyncUdpServer();
 
 		final RoomEngine engine = new RoomEngine(tcpServer, udpServer, logger, new IniPublicServer());
 		engine.setMaxRooms(maxRooms);

@@ -16,7 +16,7 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-package pspnetparty.client.swt;
+package pspnetparty.client.swt.config;
 
 import org.eclipse.jface.preference.PreferencePage;
 import org.eclipse.swt.SWT;
@@ -35,6 +35,7 @@ import org.eclipse.swt.widgets.Text;
 
 import pspnetparty.lib.Utility;
 import pspnetparty.lib.constants.AppConstants;
+import pspnetparty.lib.socket.TransportLayer;
 
 public class BasicSettingPage extends PreferencePage {
 
@@ -49,6 +50,7 @@ public class BasicSettingPage extends PreferencePage {
 	private Text privatePortalServerAddress;
 	private Button myRoomAllowEmptyMasterNameCheck;
 
+	private Button ssidAutoScan;
 	private Button tunnelTransportTcp;
 	private Button tunnelTransportUdp;
 
@@ -104,6 +106,9 @@ public class BasicSettingPage extends PreferencePage {
 
 		balloonNotifyRoomCheck = new Button(configTaskTrayBalloonGroup, SWT.CHECK | SWT.FLAT);
 		balloonNotifyRoomCheck.setText("プレイルームのログメッセージ");
+
+		ssidAutoScan = new Button(configContainer, SWT.CHECK | SWT.FLAT);
+		ssidAutoScan.setText("SSIDスキャンを自動的に開始する");
 
 		Group configTunnelGroup = new Group(configContainer, SWT.SHADOW_IN);
 		configTunnelGroup.setText("トンネル通信");
@@ -173,6 +178,7 @@ public class BasicSettingPage extends PreferencePage {
 
 		myRoomAllowEmptyMasterNameCheck.setSelection(settings.isMyRoomAllowNoMasterName());
 
+		ssidAutoScan.setSelection(settings.isSsidAutoScan());
 		switch (settings.getTunnelTransportLayer()) {
 		case TCP:
 			tunnelTransportTcp.setSelection(true);
@@ -221,10 +227,11 @@ public class BasicSettingPage extends PreferencePage {
 		settings.setPrivatePortalServerUse(privatePortalServerUseCheck.getSelection());
 		settings.setPrivatePortalServerAddress(privatePortalServerAddress.getText());
 
+		settings.setSsidAutoScan(ssidAutoScan.getSelection());
 		if (tunnelTransportTcp.getSelection()) {
-			settings.setTunnelTransportLayer(IniSettings.TransportLayer.TCP);
+			settings.setTunnelTransportLayer(TransportLayer.TCP);
 		} else {
-			settings.setTunnelTransportLayer(IniSettings.TransportLayer.UDP);
+			settings.setTunnelTransportLayer(TransportLayer.UDP);
 		}
 	}
 

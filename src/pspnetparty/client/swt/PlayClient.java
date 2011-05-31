@@ -55,10 +55,15 @@ import org.eclipse.swt.widgets.ToolTip;
 import org.eclipse.swt.widgets.Tray;
 import org.eclipse.swt.widgets.TrayItem;
 
+import pspnetparty.client.swt.config.AppearancePage;
+import pspnetparty.client.swt.config.BasicSettingPage;
+import pspnetparty.client.swt.config.IPreferenceNodeProvider;
+import pspnetparty.client.swt.config.IniAppData;
+import pspnetparty.client.swt.config.IniAppearance;
+import pspnetparty.client.swt.config.IniSettings;
 import pspnetparty.client.swt.message.ErrorLog;
 import pspnetparty.client.swt.plugin.BouyomiChanPlugin;
 import pspnetparty.client.swt.plugin.IPlugin;
-import pspnetparty.client.swt.plugin.IPluginConfigPageProvider;
 import pspnetparty.lib.ILogger;
 import pspnetparty.lib.IniFile;
 import pspnetparty.lib.IniSection;
@@ -72,9 +77,11 @@ import pspnetparty.lib.socket.IProtocol;
 import pspnetparty.lib.socket.IProtocolDriver;
 import pspnetparty.lib.socket.ISocketConnection;
 import pspnetparty.lib.socket.PacketData;
-import pspnetparty.wlan.Wlan;
+import pspnetparty.wlan.JnetPcapWlanDevice;
+import pspnetparty.wlan.NativeWlanDevice;
+import pspnetparty.wlan.WlanLibrary;
 
-public class PlayClient implements IApplication {
+public class PlayClient implements IPlayClient {
 	public static final String ICON_APP16 = "app.icon16";
 	public static final String ICON_APP32 = "app.icon32";
 	public static final String ICON_APP48 = "app.icon48";
@@ -122,7 +129,7 @@ public class PlayClient implements IApplication {
 	private LogWindow logWindow;
 
 	private ArrayList<IPlugin> pluginList = new ArrayList<IPlugin>();
-	private ArrayList<IPluginConfigPageProvider> configPageProviders = new ArrayList<IPluginConfigPageProvider>();
+	private ArrayList<IPreferenceNodeProvider> preferenceNodeProviders = new ArrayList<IPreferenceNodeProvider>();
 
 	public PlayClient() throws IOException {
 		iniSettingFile = new IniFile(INI_SETTING_FILE_NAME);
@@ -132,7 +139,7 @@ public class PlayClient implements IApplication {
 			@Override
 			public void log(String message) {
 				if (logWindow != null)
-					logWindow.appendLogTo(message, true, true);
+					logWindow.appendLog(message, true, true);
 				else
 					System.out.println(message);
 			}
@@ -179,8 +186,8 @@ public class PlayClient implements IApplication {
 		} catch (SWTException e) {
 		}
 
-		roomWindow = new RoomWindow(this);
-		logWindow = new LogWindow(this, roomWindow.getShell());
+		Shell mainShell = new Shell(SwtUtils.DISPLAY);
+		logWindow = new LogWindow(this, mainShell);
 
 		try {
 			Tray systemTray = display.getSystemTray();
@@ -194,7 +201,7 @@ public class PlayClient implements IApplication {
 					}
 				});
 
-				toolTip = new ToolTip(roomWindow.getShell(), SWT.BALLOON | SWT.ICON_INFORMATION);
+				toolTip = new ToolTip(mainShell, SWT.BALLOON | SWT.ICON_INFORMATION);
 				trayItem.setToolTip(toolTip);
 			}
 		} catch (SWTException e) {
@@ -232,13 +239,31 @@ public class PlayClient implements IApplication {
 				}
 			};
 		} catch (IOException e) {
-			logWindow.appendLogTo(Utility.stackTraceToString(e), true, false);
+			logWindow.appendLog(Utility.stackTraceToString(e), true, false);
 		}
 
 		String software = String.format("%s プレイクライアント バージョン: %s", AppConstants.APP_NAME, AppConstants.VERSION);
-		logWindow.appendLogTo(software, false, false);
-		logWindow.appendLogTo("プロトコル: " + IProtocol.NUMBER, false, false);
-		logWindow.appendLogTo("SSID機能: " + (Wlan.isLibraryAvailable ? "On" : "Off"), false, false);
+		logWindow.appendLog(software, false, false);
+		logWindow.appendLog("プロトコル: " + IProtocol.NUMBER, false, false);
+
+		WlanLibrary wlanLibrary = null;
+		try {
+			wlanLibrary = NativeWlanDevice.LIBRARY;
+			logWindow.appendLog("pnpwlanライブラリを読み込みました", false, false);
+		} catch (Throwable e1) {
+			logWindow.appendLog("pnpwlanライブラリが見つかりません", false, false);
+
+			try {
+				wlanLibrary = JnetPcapWlanDevice.LIBRARY;
+				logWindow.appendLog("jnetpcapライブラリを読み込みました", false, false);
+			} catch (Throwable e2) {
+				logWindow.appendLog("jnetpcapライブラリが見つかりません", false, false);
+
+				wlanLibrary = new WlanProxyLibrary(this);
+			}
+		}
+
+		roomWindow = new RoomWindow(this, mainShell, wlanLibrary);
 
 		Thread cronThread = new Thread(new Runnable() {
 			@Override
@@ -266,9 +291,6 @@ public class PlayClient implements IApplication {
 			IPlugin plugin = (IPlugin) Class.forName(BouyomiChanPlugin.class.getName()).newInstance();
 			plugin.initPlugin(this);
 			pluginList.add(plugin);
-
-			if (plugin instanceof IPluginConfigPageProvider)
-				configPageProviders.add((IPluginConfigPageProvider) plugin);
 		} catch (InstantiationException e) {
 		} catch (IllegalAccessException e) {
 		} catch (ClassNotFoundException e) {
@@ -331,6 +353,11 @@ public class PlayClient implements IApplication {
 	}
 
 	@Override
+	public void addConfigPageProvider(IPreferenceNodeProvider provider) {
+		preferenceNodeProviders.add(provider);
+	}
+
+	@Override
 	public void openConfigDialog() {
 		PreferenceManager manager = new PreferenceManager();
 
@@ -339,8 +366,8 @@ public class PlayClient implements IApplication {
 		PreferenceNode appearance = new PreferenceNode("appearance", new AppearancePage(this));
 		manager.addToRoot(appearance);
 
-		for (IPluginConfigPageProvider p : configPageProviders)
-			manager.addToRoot(p.createConfigNode());
+		for (IPreferenceNodeProvider p : preferenceNodeProviders)
+			manager.addToRoot(p.createPreferenceNode());
 
 		PreferenceDialog dialog = new PreferenceDialog(roomWindow.getShell(), manager) {
 			@Override
@@ -363,7 +390,7 @@ public class PlayClient implements IApplication {
 			try {
 				iniSettingFile.saveToIni();
 			} catch (IOException e) {
-				logWindow.appendLogTo(Utility.stackTraceToString(e), true, true);
+				logWindow.appendLog(Utility.stackTraceToString(e), true, true);
 				e.printStackTrace();
 			}
 		}
@@ -594,11 +621,15 @@ public class PlayClient implements IApplication {
 
 	@Override
 	public void connectTcp(InetSocketAddress address, IProtocol protocol) throws IOException {
+		if (address == null)
+			return;
 		tcpClient.connect(address, ProtocolConstants.TIMEOUT, protocol);
 	}
 
 	@Override
 	public void connectUdp(InetSocketAddress address, IProtocol protocol) throws IOException {
+		if (address == null)
+			return;
 		udpClient.connect(address, ProtocolConstants.TIMEOUT, protocol);
 	}
 
@@ -624,7 +655,7 @@ public class PlayClient implements IApplication {
 					tcpClient.connect(address, ProtocolConstants.TIMEOUT, new IProtocol() {
 						@Override
 						public void log(String message) {
-							logWindow.appendLogTo(message, true, true);
+							logWindow.appendLog(message, true, true);
 						}
 
 						@Override
@@ -643,7 +674,7 @@ public class PlayClient implements IApplication {
 								public void errorProtocolNumber(String number) {
 									String error = String.format("サーバーとのプロトコルナンバーが一致しないので接続できません サーバー:%s クライアント:%s", number,
 											IProtocol.NUMBER);
-									logWindow.appendLogTo(error, true, true);
+									logWindow.appendLog(error, true, true);
 								}
 
 								@Override
@@ -676,15 +707,14 @@ public class PlayClient implements IApplication {
 	}
 
 	private void startEventLoop() {
-		Display display = SwtUtils.DISPLAY;
 		Shell shell = roomWindow.getShell();
 		while (!shell.isDisposed()) {
-			if (!display.readAndDispatch()) {
-				display.sleep();
+			if (!SwtUtils.DISPLAY.readAndDispatch()) {
+				SwtUtils.DISPLAY.sleep();
 			}
 		}
 		try {
-			display.dispose();
+			SwtUtils.DISPLAY.dispose();
 		} catch (RuntimeException e) {
 		}
 

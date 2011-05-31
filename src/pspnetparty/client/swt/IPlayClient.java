@@ -2,7 +2,6 @@ package pspnetparty.client.swt;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
-import java.text.SimpleDateFormat;
 
 import org.eclipse.jface.resource.ImageRegistry;
 import org.eclipse.swt.custom.StyledText;
@@ -15,11 +14,15 @@ import org.eclipse.swt.widgets.Label;
 import org.eclipse.swt.widgets.Shell;
 import org.eclipse.swt.widgets.Text;
 
+import pspnetparty.client.swt.config.IPreferenceNodeProvider;
+import pspnetparty.client.swt.config.IniAppData;
+import pspnetparty.client.swt.config.IniAppearance;
+import pspnetparty.client.swt.config.IniSettings;
 import pspnetparty.client.swt.message.ErrorLog;
 import pspnetparty.lib.IniSection;
 import pspnetparty.lib.socket.IProtocol;
 
-public interface IApplication {
+public interface IPlayClient {
 	enum FontType {
 		GLOBAL, LOG, CHAT,
 	}
@@ -27,8 +30,6 @@ public interface IApplication {
 	enum ColorType {
 		BACKGROUND, FOREGROUND, LOG_BACKGROUND,
 	}
-
-	public final SimpleDateFormat LOG_DATE_FORMAT = new SimpleDateFormat("HH:mm:ss");
 
 	interface PortalQuery {
 		public String getCommand();
@@ -57,6 +58,8 @@ public interface IApplication {
 	public LobbyWindow getLobbyWindow(boolean create);
 
 	public LogWindow getLogWindow();
+
+	public void addConfigPageProvider(IPreferenceNodeProvider provider);
 
 	public void openConfigDialog();
 

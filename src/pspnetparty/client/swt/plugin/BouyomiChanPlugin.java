@@ -37,7 +37,8 @@ import org.eclipse.swt.widgets.Label;
 import org.eclipse.swt.widgets.Listener;
 import org.eclipse.swt.widgets.Text;
 
-import pspnetparty.client.swt.IApplication;
+import pspnetparty.client.swt.IPlayClient;
+import pspnetparty.client.swt.config.IPreferenceNodeProvider;
 import pspnetparty.client.swt.message.Chat;
 import pspnetparty.client.swt.message.IMessage;
 import pspnetparty.client.swt.message.IMessageListener;
@@ -46,7 +47,7 @@ import pspnetparty.lib.IniSection;
 import pspnetparty.lib.Utility;
 import pspnetparty.lib.constants.AppConstants;
 
-public class BouyomiChanPlugin implements IPlugin, IPluginConfigPageProvider {
+public class BouyomiChanPlugin implements IPlugin, IPreferenceNodeProvider {
 	private static final String SECTION_NAME = "BouyomiChan";
 	private static final String INI_USE = "Use";
 	private static final String INI_ADDRESS = "Address";
@@ -55,7 +56,7 @@ public class BouyomiChanPlugin implements IPlugin, IPluginConfigPageProvider {
 	private static final String INI_READ_LOBBY_CHAT = "ReadLobbyChat";
 	private static final String INI_READ_PRIVATE_CHAT = "ReadPrivateChat";
 
-	private IApplication application;
+	private IPlayClient application;
 	private IniSection iniSection;
 
 	private ByteBuffer headerBuffer;
@@ -104,7 +105,7 @@ public class BouyomiChanPlugin implements IPlugin, IPluginConfigPageProvider {
 			if (errorCount < 5) {
 				errorCount++;
 
-				application.getLogWindow().appendLogTo(Utility.stackTraceToString(e), true, true);
+				application.getLogWindow().appendLog(Utility.stackTraceToString(e), true, true);
 				e.printStackTrace();
 			} else {
 				socketAddress = null;
@@ -112,15 +113,16 @@ public class BouyomiChanPlugin implements IPlugin, IPluginConfigPageProvider {
 				iniSection.set(INI_USE, false);
 
 				errorCount = 0;
-				application.getLogWindow().appendLogTo("棒読みちゃんに接続できませんでした。設定を見直してください。", true, true);
+				application.getLogWindow().appendLog("棒読みちゃんに接続できませんでした。設定を見直してください。", true, true);
 			}
 		}
 	}
 
 	@Override
-	public void initPlugin(IApplication application) {
+	public void initPlugin(IPlayClient application) {
 		this.application = application;
 		iniSection = application.getIniSection(SECTION_NAME);
+		application.addConfigPageProvider(this);
 
 		use = iniSection.get(INI_USE, false);
 		address = iniSection.get(INI_ADDRESS, ":50001");
@@ -184,7 +186,7 @@ public class BouyomiChanPlugin implements IPlugin, IPluginConfigPageProvider {
 	}
 
 	@Override
-	public PreferenceNode createConfigNode() {
+	public PreferenceNode createPreferenceNode() {
 		return new PreferenceNode("bouyomichan", new BouyomiChanPage());
 	}
 

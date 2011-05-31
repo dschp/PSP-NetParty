@@ -33,6 +33,7 @@ import java.util.LinkedHashMap;
 import java.util.Map.Entry;
 
 import org.eclipse.jface.dialogs.IDialogConstants;
+import org.eclipse.jface.preference.PreferenceNode;
 import org.eclipse.jface.resource.ImageRegistry;
 import org.eclipse.jface.viewers.ArrayContentProvider;
 import org.eclipse.jface.viewers.DoubleClickEvent;
@@ -81,8 +82,12 @@ import org.eclipse.swt.widgets.Text;
 import org.eclipse.swt.widgets.ToolBar;
 import org.eclipse.swt.widgets.ToolItem;
 
-import pspnetparty.client.swt.IApplication.PortalQuery;
-import pspnetparty.client.swt.IniSettings.TransportLayer;
+import pspnetparty.client.swt.IPlayClient.PortalQuery;
+import pspnetparty.client.swt.config.ChatTextPresetsPage;
+import pspnetparty.client.swt.config.IPreferenceNodeProvider;
+import pspnetparty.client.swt.config.IniAppData;
+import pspnetparty.client.swt.config.IniChatTextPresets;
+import pspnetparty.client.swt.config.IniSettings;
 import pspnetparty.client.swt.message.AdminNotify;
 import pspnetparty.client.swt.message.Chat;
 import pspnetparty.client.swt.message.ErrorLog;
@@ -107,8 +112,9 @@ import pspnetparty.lib.socket.IProtocolMessageHandler;
 import pspnetparty.lib.socket.ISocketConnection;
 import pspnetparty.lib.socket.PacketData;
 import pspnetparty.lib.socket.TextProtocolDriver;
-import pspnetparty.wlan.Wlan;
+import pspnetparty.lib.socket.TransportLayer;
 import pspnetparty.wlan.WlanDevice;
+import pspnetparty.wlan.WlanLibrary;
 import pspnetparty.wlan.WlanNetwork;
 
 public class RoomWindow implements IMessageSource {
@@ -126,7 +132,8 @@ public class RoomWindow implements IMessageSource {
 		OFFLINE, MY_ROOM_MASTER, CONNECTING_ROOM_PARTICIPANT, ROOM_PARTICIPANT, CONNECTING_ROOM_MASTER, ROOM_MASTER, NEGOTIATING,
 	};
 
-	private IApplication application;
+	private IPlayClient application;
+	private IniChatTextPresets chatTextPresets;
 
 	private Shell shell;
 	private boolean isActive;
@@ -155,10 +162,10 @@ public class RoomWindow implements IMessageSource {
 	private boolean isSSIDScaning = false;
 	private boolean isRoomInfoUpdating = false;
 
-	private ByteBuffer bufferForCapturing = ByteBuffer.allocateDirect(Wlan.CAPTURE_BUFFER_SIZE);
-	private ArrayList<WlanDevice> wlanAdaptorList = new ArrayList<WlanDevice>();
-	private HashMap<WlanDevice, String> wlanAdaptorMacAddressMap = new HashMap<WlanDevice, String>();
-	private WlanDevice currentWlanDevice = Wlan.EMPTY_DEVICE;
+	private ByteBuffer bufferForCapturing = ByteBuffer.allocateDirect(WlanDevice.CAPTURE_BUFFER_SIZE);
+	private ArrayList<WlanDevice> wlanAdapterList = new ArrayList<WlanDevice>();
+	private HashMap<WlanDevice, String> wlanAdapterMacAddressMap = new HashMap<WlanDevice, String>();
+	private WlanDevice currentWlanDevice = WlanDevice.NULL;
 
 	private HashMap<String, Player> roomPlayerMap = new LinkedHashMap<String, Player>();
 	private HashMap<String, TraficStatistics> traficStatsMap = new HashMap<String, TraficStatistics>();
@@ -177,10 +184,14 @@ public class RoomWindow implements IMessageSource {
 
 	private HashSet<IMessageListener> messageListeners = new HashSet<IMessageListener>();
 
-	public RoomWindow(IApplication application) throws IOException {
-		this.application = application;
+	private WlanLibrary wlanLibrary;
 
-		shell = new Shell(SwtUtils.DISPLAY);
+	public RoomWindow(IPlayClient application, Shell shell, WlanLibrary wlanLibrary) throws IOException {
+		this.application = application;
+		this.shell = shell;
+		this.wlanLibrary = wlanLibrary;
+
+		chatTextPresets = new IniChatTextPresets(application.getIniSection(IniChatTextPresets.SECTION_NAME));
 
 		myRoomEngine = new MyRoomEngine(new MyRoomServerHandler());
 
@@ -198,7 +209,9 @@ public class RoomWindow implements IMessageSource {
 
 		changeStateTo(SessionState.OFFLINE);
 
-		refreshLanAdapterList();
+		shell.setMinimumSize(new Point(650, 400));
+		iniAppData.restoreMainWindow(shell);
+		shell.open();
 
 		String[] stringList;
 
@@ -212,12 +225,15 @@ public class RoomWindow implements IMessageSource {
 		stringList = iniAppData.getRoomAddressHistory();
 		roomAddressHistoryManager = new ComboHistoryManager(widgets.formManualModeRoomAddressCombo, stringList, MAX_SERVER_HISTORY, true);
 
-		initBackgroundThreads();
+		application.addConfigPageProvider(new IPreferenceNodeProvider() {
+			@Override
+			public PreferenceNode createPreferenceNode() {
+				return new PreferenceNode("chatpresets",
+						new ChatTextPresetsPage(RoomWindow.this.application.getSettings(), chatTextPresets));
+			}
+		});
 
-		shell.setMinimumSize(new Point(650, 400));
-		iniAppData.restoreMainWindow(shell);
-
-		shell.open();
+		refreshLanAdapterList();
 
 		if (Utility.isEmpty(iniSettings.getUserName())) {
 			shell.setText("PSP NetParty");
@@ -231,6 +247,8 @@ public class RoomWindow implements IMessageSource {
 			}
 		}
 		updateShellTitle();
+
+		initBackgroundThreads();
 	}
 
 	public Shell getShell() {
@@ -319,6 +337,20 @@ public class RoomWindow implements IMessageSource {
 
 		private Menu statusTunnelConnectionMenu;
 		private MenuItem statusTunnelConnectionMenuChangeTransport;
+
+		private Composite chatPresetContainer;
+		private Button chatTextPresetF1;
+		private Button chatTextPresetF2;
+		private Button chatTextPresetF3;
+		private Button chatTextPresetF4;
+		private Button chatTextPresetF5;
+		private Button chatTextPresetF6;
+		private Button chatTextPresetF7;
+		private Button chatTextPresetF8;
+		private Button chatTextPresetF9;
+		private Button chatTextPresetF10;
+		private Button chatTextPresetF11;
+		private Button chatTextPresetF12;
 
 		private void initWidgets() {
 			Display display = SwtUtils.DISPLAY;
@@ -727,6 +759,34 @@ public class RoomWindow implements IMessageSource {
 			logViewer = new LogViewer(chatContainer, application.getSettings().getMaxLogCount(), application);
 			logViewer.getControl().setLayoutData(new GridData(SWT.FILL, SWT.FILL, true, true));
 
+			chatPresetContainer = new Composite(chatContainer, SWT.NONE);
+			gridLayout = new GridLayout(12, false);
+			gridLayout.verticalSpacing = 0;
+			gridLayout.horizontalSpacing = 3;
+			gridLayout.marginHeight = 0;
+			gridLayout.marginWidth = 0;
+			gridLayout.marginTop = 3;
+			gridLayout.marginBottom = 1;
+			gridLayout.marginRight = 1;
+			chatPresetContainer.setLayout(gridLayout);
+			gridData = new GridData(SWT.FILL, SWT.CENTER, true, false);
+			chatPresetContainer.setLayoutData(gridData);
+
+			chatTextPresetF1 = new Button(chatPresetContainer, SWT.PUSH);
+			chatTextPresetF2 = new Button(chatPresetContainer, SWT.PUSH);
+			chatTextPresetF3 = new Button(chatPresetContainer, SWT.PUSH);
+			chatTextPresetF4 = new Button(chatPresetContainer, SWT.PUSH);
+			chatTextPresetF5 = new Button(chatPresetContainer, SWT.PUSH);
+			chatTextPresetF6 = new Button(chatPresetContainer, SWT.PUSH);
+			chatTextPresetF7 = new Button(chatPresetContainer, SWT.PUSH);
+			chatTextPresetF8 = new Button(chatPresetContainer, SWT.PUSH);
+			chatTextPresetF9 = new Button(chatPresetContainer, SWT.PUSH);
+			chatTextPresetF10 = new Button(chatPresetContainer, SWT.PUSH);
+			chatTextPresetF11 = new Button(chatPresetContainer, SWT.PUSH);
+			chatTextPresetF12 = new Button(chatPresetContainer, SWT.PUSH);
+
+			updateChatPresetButtons();
+
 			Composite chatCommandContainer = new Composite(chatContainer, SWT.NONE);
 			gridLayout = new GridLayout(2, false);
 			gridLayout.verticalSpacing = 0;
@@ -916,6 +976,7 @@ public class RoomWindow implements IMessageSource {
 			Composite appVersionContainer = new Composite(statusBarContainer, SWT.NONE);
 			appVersionContainer.setLayoutData(new GridData(SWT.RIGHT, SWT.CENTER, true, false));
 			RowLayout rowLayout = new RowLayout();
+			rowLayout.center = true;
 			rowLayout.marginTop = 0;
 			rowLayout.marginBottom = 0;
 			rowLayout.marginLeft = 0;
@@ -941,12 +1002,22 @@ public class RoomWindow implements IMessageSource {
 			application.initControl(statusApplicationProtocolNumber);
 
 			Label statusApplicationSSIDLabel = new Label(appVersionContainer, SWT.NONE);
-			statusApplicationSSIDLabel.setText("SSID機能:");
 			application.initControl(statusApplicationSSIDLabel);
 
 			Label statusApplicationSSIDFeature = new Label(appVersionContainer, SWT.NONE);
-			statusApplicationSSIDFeature.setText(Wlan.isLibraryAvailable ? "On" : "Off");
-			statusApplicationSSIDFeature.setForeground(Wlan.isLibraryAvailable ? colorAppNumber : colorNG);
+			if (wlanLibrary instanceof WlanProxyLibrary) {
+				statusApplicationSSIDLabel.setText("PSP通信:");
+				statusApplicationSSIDFeature.setText("外部");
+				statusApplicationSSIDFeature.setForeground(colorOK);
+			} else if (wlanLibrary.isSSIDEnabled()) {
+				statusApplicationSSIDLabel.setText("SSID機能:");
+				statusApplicationSSIDFeature.setText("On");
+				statusApplicationSSIDFeature.setForeground(colorAppNumber);
+			} else {
+				statusApplicationSSIDLabel.setText("SSID機能:");
+				statusApplicationSSIDFeature.setText("Off");
+				statusApplicationSSIDFeature.setForeground(colorNG);
+			}
 			application.initControl(statusApplicationSSIDFeature);
 
 			try {
@@ -1042,8 +1113,83 @@ public class RoomWindow implements IMessageSource {
 					if (wlanAdapterListCombo.getItemCount() < 2 || index == -1) {
 						iniAppData.setLastLanAdapter("");
 					} else {
-						WlanDevice device = wlanAdaptorList.get(index);
-						iniAppData.setLastLanAdapter(wlanAdaptorMacAddressMap.get(device));
+						WlanDevice device = wlanAdapterList.get(index);
+						iniAppData.setLastLanAdapter(wlanAdapterMacAddressMap.get(device));
+					}
+				}
+			});
+			SwtUtils.DISPLAY.addFilter(SWT.KeyUp, new Listener() {
+				private int lastKeyCode = 0;
+
+				@Override
+				public void handleEvent(Event event) {
+					if (!application.getSettings().isChatPresetEnableKeyInput())
+						return;
+					if (!isActive)
+						return;
+
+					String msg = null;
+					switch (event.keyCode) {
+					case SWT.F1:
+						msg = chatTextPresets.getPresetF1();
+						break;
+					case SWT.F2:
+						msg = chatTextPresets.getPresetF2();
+						break;
+					case SWT.F3:
+						msg = chatTextPresets.getPresetF3();
+						break;
+					case SWT.F4:
+						msg = chatTextPresets.getPresetF4();
+						break;
+					case SWT.F5:
+						msg = chatTextPresets.getPresetF5();
+						break;
+					case SWT.F6:
+						msg = chatTextPresets.getPresetF6();
+						break;
+					case SWT.F7:
+						msg = chatTextPresets.getPresetF7();
+						break;
+					case SWT.F8:
+						msg = chatTextPresets.getPresetF8();
+						break;
+					case SWT.F9:
+						msg = chatTextPresets.getPresetF9();
+						break;
+					case SWT.F10:
+						msg = chatTextPresets.getPresetF10();
+						break;
+					case SWT.F11:
+						msg = chatTextPresets.getPresetF11();
+						break;
+					case SWT.F12:
+						msg = chatTextPresets.getPresetF12();
+						break;
+					case SWT.ESC:
+						widgets.chatText.setText("");
+						widgets.chatText.setFocus();
+
+						lastKeyCode = event.keyCode;
+						return;
+					default:
+						lastKeyCode = 0;
+						return;
+					}
+
+					if ("".equals(msg))
+						return;
+					if (lastKeyCode == event.keyCode && msg.equals(widgets.chatText.getText())) {
+						if (sendChat(msg)) {
+							chatText.setText("");
+							lastKeyCode = 0;
+						}
+					} else {
+						widgets.chatText.setText(msg);
+						widgets.chatText.setSelection(msg.length());
+						widgets.chatText.setFocus();
+
+						lastKeyCode = event.keyCode;
 					}
 				}
 			});
@@ -1074,6 +1220,7 @@ public class RoomWindow implements IMessageSource {
 				public void handleEvent(Event event) {
 					application.openConfigDialog();
 					updateShellTitle();
+					updateChatPresetButtons();
 				}
 			});
 			wikiItem.addListener(SWT.Selection, new Listener() {
@@ -1227,7 +1374,7 @@ public class RoomWindow implements IMessageSource {
 							startMyRoomServer();
 						}
 					} catch (IOException e) {
-						application.getLogWindow().appendLogTo(Utility.stackTraceToString(e), true, true);
+						application.getLogWindow().appendLog(Utility.stackTraceToString(e), true, true);
 					}
 				}
 			});
@@ -1350,11 +1497,97 @@ public class RoomWindow implements IMessageSource {
 				}
 			});
 
+			chatTextPresetF1.addListener(SWT.Selection, new Listener() {
+				@Override
+				public void handleEvent(Event event) {
+					sendChat(chatTextPresets.getPresetF1());
+					widgets.chatText.setFocus();
+				}
+			});
+			chatTextPresetF2.addListener(SWT.Selection, new Listener() {
+				@Override
+				public void handleEvent(Event event) {
+					sendChat(chatTextPresets.getPresetF2());
+					widgets.chatText.setFocus();
+				}
+			});
+			chatTextPresetF3.addListener(SWT.Selection, new Listener() {
+				@Override
+				public void handleEvent(Event event) {
+					sendChat(chatTextPresets.getPresetF3());
+					widgets.chatText.setFocus();
+				}
+			});
+			chatTextPresetF4.addListener(SWT.Selection, new Listener() {
+				@Override
+				public void handleEvent(Event event) {
+					sendChat(chatTextPresets.getPresetF4());
+					widgets.chatText.setFocus();
+				}
+			});
+			chatTextPresetF5.addListener(SWT.Selection, new Listener() {
+				@Override
+				public void handleEvent(Event event) {
+					sendChat(chatTextPresets.getPresetF5());
+					widgets.chatText.setFocus();
+				}
+			});
+			chatTextPresetF6.addListener(SWT.Selection, new Listener() {
+				@Override
+				public void handleEvent(Event event) {
+					sendChat(chatTextPresets.getPresetF6());
+					widgets.chatText.setFocus();
+				}
+			});
+			chatTextPresetF7.addListener(SWT.Selection, new Listener() {
+				@Override
+				public void handleEvent(Event event) {
+					sendChat(chatTextPresets.getPresetF7());
+					widgets.chatText.setFocus();
+				}
+			});
+			chatTextPresetF8.addListener(SWT.Selection, new Listener() {
+				@Override
+				public void handleEvent(Event event) {
+					sendChat(chatTextPresets.getPresetF8());
+					widgets.chatText.setFocus();
+				}
+			});
+			chatTextPresetF9.addListener(SWT.Selection, new Listener() {
+				@Override
+				public void handleEvent(Event event) {
+					sendChat(chatTextPresets.getPresetF9());
+					widgets.chatText.setFocus();
+				}
+			});
+			chatTextPresetF10.addListener(SWT.Selection, new Listener() {
+				@Override
+				public void handleEvent(Event event) {
+					sendChat(chatTextPresets.getPresetF10());
+					widgets.chatText.setFocus();
+				}
+			});
+			chatTextPresetF11.addListener(SWT.Selection, new Listener() {
+				@Override
+				public void handleEvent(Event event) {
+					sendChat(chatTextPresets.getPresetF11());
+					widgets.chatText.setFocus();
+				}
+			});
+			chatTextPresetF12.addListener(SWT.Selection, new Listener() {
+				@Override
+				public void handleEvent(Event event) {
+					sendChat(chatTextPresets.getPresetF12());
+					widgets.chatText.setFocus();
+				}
+			});
+
 			wlanAdapterListCombo.addListener(SWT.Selection, new Listener() {
 				@Override
 				public void handleEvent(Event event) {
 					int index = widgets.wlanAdapterListCombo.getSelectionIndex();
-					int separatorIndex = wlanAdaptorList.size() + 1;
+
+					int separatorIndex = wlanAdapterList.size() + 1;
 					int refreshIndex = separatorIndex + 1;
 					if (index == 0) {
 						wlanPspCommunicationButton.setEnabled(false);
@@ -1376,7 +1609,7 @@ public class RoomWindow implements IMessageSource {
 							wlanPspCommunicationButton.setText("PSPと通信中");
 							wlanAdapterListCombo.setEnabled(false);
 
-							if (Wlan.isLibraryAvailable) {
+							if (wlanLibrary.isSSIDEnabled()) {
 								ssidStartScan.setEnabled(true);
 							}
 						} else {
@@ -1386,7 +1619,7 @@ public class RoomWindow implements IMessageSource {
 						wlanPspCommunicationButton.setEnabled(false);
 						isPacketCapturing = false;
 
-						if (Wlan.isLibraryAvailable) {
+						if (wlanLibrary.isSSIDEnabled()) {
 							updateSsidStartScan(false);
 							widgets.ssidStartScan.setEnabled(false);
 
@@ -1407,7 +1640,7 @@ public class RoomWindow implements IMessageSource {
 			ssidStartScan.addListener(SWT.Selection, new Listener() {
 				@Override
 				public void handleEvent(Event event) {
-					if (!Wlan.isLibraryAvailable || currentWlanDevice == null) {
+					if (!wlanLibrary.isSSIDEnabled() || currentWlanDevice == null) {
 						updateSsidStartScan(false);
 					} else {
 						updateSsidStartScan(ssidStartScan.getSelection());
@@ -1418,7 +1651,7 @@ public class RoomWindow implements IMessageSource {
 			ssidListTableViewer.addDoubleClickListener(new IDoubleClickListener() {
 				@Override
 				public void doubleClick(DoubleClickEvent e) {
-					if (!Wlan.isLibraryAvailable || currentWlanDevice == null) {
+					if (!wlanLibrary.isSSIDEnabled() || currentWlanDevice == null) {
 						return;
 					}
 					IStructuredSelection sel = (IStructuredSelection) e.getSelection();
@@ -1501,7 +1734,7 @@ public class RoomWindow implements IMessageSource {
 
 						file.saveToIni();
 					} catch (IOException e) {
-						application.getLogWindow().appendLogTo(Utility.stackTraceToString(e), true, true);
+						application.getLogWindow().appendLog(Utility.stackTraceToString(e), true, true);
 					}
 				}
 			});
@@ -1531,7 +1764,7 @@ public class RoomWindow implements IMessageSource {
 						remarks = remarks.replace("\\n", formRemarksText.getLineDelimiter());
 						formRemarksText.setText(remarks);
 					} catch (IOException e) {
-						application.getLogWindow().appendLogTo(Utility.stackTraceToString(e), true, true);
+						application.getLogWindow().appendLog(Utility.stackTraceToString(e), true, true);
 					}
 				}
 			});
@@ -1546,6 +1779,7 @@ public class RoomWindow implements IMessageSource {
 			formTitleText.addVerifyListener(SwtUtils.NOT_ACCEPT_CONTROL_CHAR_LISTENER);
 			formPasswordText.addVerifyListener(SwtUtils.NOT_ACCEPT_CONTROL_CHAR_LISTENER);
 			formDescriptionText.addVerifyListener(SwtUtils.NOT_ACCEPT_CONTROL_CHAR_LISTENER);
+			formRemarksText.addVerifyListener(SwtUtils.NOT_ACCEPT_CONTROL_CHAR_LISTENER);
 
 			formManualModeRoomAddressCombo.addVerifyListener(SwtUtils.NOT_ACCEPT_CONTROL_CHAR_LISTENER);
 			formMyRoomModeHostText.addVerifyListener(SwtUtils.NOT_ACCEPT_CONTROL_CHAR_LISTENER);
@@ -1707,7 +1941,7 @@ public class RoomWindow implements IMessageSource {
 						playerMenuChaseSsid.setEnabled(false);
 						playerMenuChaseSsid.setSelection(false);
 					} else {
-						playerMenuChaseSsid.setEnabled(Wlan.isLibraryAvailable);
+						playerMenuChaseSsid.setEnabled(wlanLibrary.isSSIDEnabled());
 						playerMenuChaseSsid.setSelection(player.isSSIDChased());
 					}
 
@@ -1715,7 +1949,7 @@ public class RoomWindow implements IMessageSource {
 						playerMenuSetSsid.setEnabled(false);
 						playerMenuCopySsid.setEnabled(false);
 					} else {
-						playerMenuSetSsid.setEnabled(Wlan.isLibraryAvailable && !isSelfSelected && isPacketCapturing);
+						playerMenuSetSsid.setEnabled(wlanLibrary.isSSIDEnabled() && !isSelfSelected && isPacketCapturing);
 						playerMenuCopySsid.setEnabled(true);
 					}
 				}
@@ -1934,6 +2168,80 @@ public class RoomWindow implements IMessageSource {
 				}
 			});
 		}
+
+		private void updateChatPresetButtons() {
+			IniSettings settings = application.getSettings();
+			String msg;
+			int maxLength = settings.getChatPresetButtonMaxLength();
+			if (maxLength < 1) {
+				maxLength = 1;
+				settings.setChatPresetButtonMaxLength(maxLength);
+			}
+
+			msg = chatTextPresets.getPresetF1();
+			msg = msg.length() > maxLength ? msg.substring(0, maxLength) : msg;
+			chatTextPresetF1.setText("1:" + msg);
+			chatTextPresetF1.setEnabled(msg.length() > 0);
+
+			msg = chatTextPresets.getPresetF2();
+			msg = msg.length() > maxLength ? msg.substring(0, maxLength) : msg;
+			chatTextPresetF2.setText("2:" + msg);
+			chatTextPresetF2.setEnabled(msg.length() > 0);
+
+			msg = chatTextPresets.getPresetF3();
+			msg = msg.length() > maxLength ? msg.substring(0, maxLength) : msg;
+			chatTextPresetF3.setText("3:" + msg);
+			chatTextPresetF3.setEnabled(msg.length() > 0);
+
+			msg = chatTextPresets.getPresetF4();
+			msg = msg.length() > maxLength ? msg.substring(0, maxLength) : msg;
+			chatTextPresetF4.setText("4:" + msg);
+			chatTextPresetF4.setEnabled(msg.length() > 0);
+
+			msg = chatTextPresets.getPresetF5();
+			msg = msg.length() > maxLength ? msg.substring(0, maxLength) : msg;
+			chatTextPresetF5.setText("5:" + msg);
+			chatTextPresetF5.setEnabled(msg.length() > 0);
+
+			msg = chatTextPresets.getPresetF6();
+			msg = msg.length() > maxLength ? msg.substring(0, maxLength) : msg;
+			chatTextPresetF6.setText("6:" + msg);
+			chatTextPresetF6.setEnabled(msg.length() > 0);
+
+			msg = chatTextPresets.getPresetF7();
+			msg = msg.length() > maxLength ? msg.substring(0, maxLength) : msg;
+			chatTextPresetF7.setText("7:" + msg);
+			chatTextPresetF7.setEnabled(msg.length() > 0);
+
+			msg = chatTextPresets.getPresetF8();
+			msg = msg.length() > maxLength ? msg.substring(0, maxLength) : msg;
+			chatTextPresetF8.setText("8:" + msg);
+			chatTextPresetF8.setEnabled(msg.length() > 0);
+
+			msg = chatTextPresets.getPresetF9();
+			msg = msg.length() > maxLength ? msg.substring(0, maxLength) : msg;
+			chatTextPresetF9.setText("9:" + msg);
+			chatTextPresetF9.setEnabled(msg.length() > 0);
+
+			msg = chatTextPresets.getPresetF10();
+			msg = msg.length() > maxLength ? msg.substring(0, maxLength) : msg;
+			chatTextPresetF10.setText("10:" + msg);
+			chatTextPresetF10.setEnabled(msg.length() > 0);
+
+			msg = chatTextPresets.getPresetF11();
+			msg = msg.length() > maxLength ? msg.substring(0, maxLength) : msg;
+			chatTextPresetF11.setText("11:" + msg);
+			chatTextPresetF11.setEnabled(msg.length() > 0);
+
+			msg = chatTextPresets.getPresetF12();
+			msg = msg.length() > maxLength ? msg.substring(0, maxLength) : msg;
+			chatTextPresetF12.setText("12:" + msg);
+			chatTextPresetF12.setEnabled(msg.length() > 0);
+
+			GridData data = (GridData) chatPresetContainer.getLayoutData();
+			data.exclude = !application.getSettings().isShowChatPresetButtons();
+			chatPresetContainer.getParent().layout(true, true);
+		}
 	}
 
 	private void initBackgroundThreads() {
@@ -1958,7 +2266,7 @@ public class RoomWindow implements IMessageSource {
 							widgets.wlanPspCommunicationButton.setText("PSPと通信開始");
 							widgets.wlanPspCommunicationButton.setEnabled(true);
 
-							if (Wlan.isLibraryAvailable)
+							if (wlanLibrary.isSSIDEnabled())
 								updateSsidStartScan(false);
 						} catch (SWTException e) {
 						}
@@ -1986,18 +2294,18 @@ public class RoomWindow implements IMessageSource {
 								}
 							}
 						} catch (Exception e) {
-							application.getLogWindow().appendLogTo(Utility.stackTraceToString(e), true, true);
+							application.getLogWindow().appendLog(Utility.stackTraceToString(e), true, true);
 							isPacketCapturing = false;
 						}
 
 						currentWlanDevice.close();
-						currentWlanDevice = Wlan.EMPTY_DEVICE;
+						currentWlanDevice = WlanDevice.NULL;
 
 						SwtUtils.DISPLAY.syncExec(captureEndAction);
 					}
 				} catch (SWTException e) {
 				} catch (Exception e) {
-					application.getLogWindow().appendLogTo(Utility.stackTraceToString(e), true, true);
+					application.getLogWindow().appendLog(Utility.stackTraceToString(e), true, true);
 				}
 			}
 		}, "PacketCaptureThread");
@@ -2192,9 +2500,6 @@ public class RoomWindow implements IMessageSource {
 		switch (sessionState) {
 		case ROOM_MASTER:
 		case ROOM_PARTICIPANT:
-			if (!tunnelConnection.isConnected())
-				connectRoomTunnel();
-
 			long now = System.currentTimeMillis();
 			if (now < nextPingTime)
 				return;
@@ -2515,6 +2820,7 @@ public class RoomWindow implements IMessageSource {
 		myRoomEngine.setMaxPlayers(widgets.formMaxPlayersSpiner.getSelection());
 		myRoomEngine.setPassword(widgets.formPasswordText.getText());
 		myRoomEngine.setDescription(widgets.formDescriptionText.getText());
+		myRoomEngine.setRemarks(widgets.formRemarksText.getText());
 
 		try {
 			myRoomEngine.openRoom(port, roomLoginName);
@@ -2530,7 +2836,7 @@ public class RoomWindow implements IMessageSource {
 			ErrorLog log = new ErrorLog("すでに同じポートが使用されています");
 			widgets.logViewer.appendMessage(log);
 		} catch (RuntimeException e) {
-			application.getLogWindow().appendLogTo(Utility.stackTraceToString(e), true, true);
+			application.getLogWindow().appendLog(Utility.stackTraceToString(e), true, true);
 		}
 	}
 
@@ -2890,6 +3196,12 @@ public class RoomWindow implements IMessageSource {
 		if (!latestSSID.equals(currentSSID))
 			setAndSendInformNewSSID(latestSSID);
 
+		if (isPacketCapturing && application.getSettings().isSsidAutoScan())
+			if ("".equals(latestSSID) && !widgets.ssidStartScan.getSelection()) {
+				widgets.ssidStartScan.setSelection(true);
+				updateSsidStartScan(true);
+			}
+
 		nextSsidCheckTime = System.currentTimeMillis() + 3000;
 	}
 
@@ -2919,7 +3231,7 @@ public class RoomWindow implements IMessageSource {
 	}
 
 	private void updateSsidStartScan(boolean startScan) {
-		if (!Wlan.isLibraryAvailable)
+		if (!wlanLibrary.isSSIDEnabled())
 			return;
 		isSSIDScaning = startScan;
 		widgets.ssidStartScan.setSelection(isSSIDScaning);
@@ -3657,7 +3969,7 @@ public class RoomWindow implements IMessageSource {
 	private class MyRoomServerHandler implements IMyRoomMasterHandler {
 		@Override
 		public void log(String message) {
-			application.getLogWindow().appendLogTo(message, true, false);
+			application.getLogWindow().appendLog(message, true, false);
 		}
 
 		@Override
@@ -3746,7 +4058,7 @@ public class RoomWindow implements IMessageSource {
 	private class RoomProtocol implements IProtocol {
 		@Override
 		public void log(String message) {
-			application.getLogWindow().appendLogTo(message, true, true);
+			application.getLogWindow().appendLog(message, true, true);
 		}
 
 		@Override
@@ -3849,7 +4161,7 @@ public class RoomWindow implements IMessageSource {
 
 		@Override
 		public void log(String message) {
-			application.getLogWindow().appendLogTo(message, true, true);
+			application.getLogWindow().appendLog(message, true, true);
 		}
 
 		@Override
@@ -4017,7 +4329,7 @@ public class RoomWindow implements IMessageSource {
 			@Override
 			public boolean process(IProtocolDriver client, String argument) {
 				updateTunnelStatus(true);
-				application.getLogWindow().appendLogTo("トンネル通信の接続が開始しました", true, false);
+				application.getLogWindow().appendLog("トンネル通信の接続が開始しました", true, false);
 				return true;
 			}
 		});
@@ -4233,15 +4545,18 @@ public class RoomWindow implements IMessageSource {
 		} catch (IOException e) {
 			ErrorLog log = new ErrorLog(e.getMessage());
 			widgets.logViewer.appendMessage(log);
+			application.getLogWindow().appendLog(Utility.stackTraceToString(e), true, false);
 		} catch (RuntimeException e) {
-			application.getLogWindow().appendLogTo(Utility.stackTraceToString(e), true, true);
+			ErrorLog log = new ErrorLog(e.getMessage());
+			widgets.logViewer.appendMessage(log);
+			application.getLogWindow().appendLog(Utility.stackTraceToString(e), true, false);
 		}
 	}
 
 	private class TunnelProtocol implements IProtocol {
 		@Override
 		public void log(String message) {
-			application.getLogWindow().appendLogTo(message, true, true);
+			application.getLogWindow().appendLog(message, true, true);
 		}
 
 		@Override
@@ -4306,7 +4621,7 @@ public class RoomWindow implements IMessageSource {
 		public void connectionDisconnected() {
 			updateTunnelStatus(false);
 			tunnelConnection = ISocketConnection.NULL;
-			application.getLogWindow().appendLogTo("トンネル通信の接続が終了しました", true, false);
+			application.getLogWindow().appendLog("トンネル通信の接続が終了しました", true, false);
 
 			if (roomConnection.isConnected())
 				switch (sessionState) {
@@ -4319,7 +4634,7 @@ public class RoomWindow implements IMessageSource {
 		@Override
 		public void errorProtocolNumber(String number) {
 			String message = String.format("サーバーとのプロトコルナンバーが一致しないので接続できません サーバー:%s クライアント:%s", number, IProtocol.NUMBER);
-			application.getLogWindow().appendLogTo(message, true, true);
+			application.getLogWindow().appendLog(message, true, true);
 		}
 	}
 
@@ -4327,19 +4642,15 @@ public class RoomWindow implements IMessageSource {
 		widgets.wlanAdapterListCombo.removeAll();
 		widgets.wlanAdapterListCombo.add("選択されていません");
 
-		wlanAdaptorList.clear();
+		wlanAdapterList.clear();
 
 		try {
-			Wlan.findDevices(wlanAdaptorList);
+			wlanLibrary.findDevices(wlanAdapterList);
 		} catch (RuntimeException e) {
-			application.getLogWindow().appendLogTo(Utility.stackTraceToString(e), true, true);
+			application.getLogWindow().appendLog(Utility.stackTraceToString(e), true, true);
 			return;
 		} catch (UnsatisfiedLinkError e) {
-			try {
-				application.getLogWindow().appendLogTo(Utility.stackTraceToString(e), true, true);
-			} catch (NullPointerException ne) {
-				ne.printStackTrace();
-			}
+			application.getLogWindow().appendLog(Utility.stackTraceToString(e), true, true);
 			return;
 		}
 
@@ -4348,34 +4659,42 @@ public class RoomWindow implements IMessageSource {
 
 		IniSection nicSection = application.getIniSection(SECTION_LAN_ADAPTERS);
 
-		int maxNameLength = 5;
+		int maxNameLength = 15;
 		int i = 1;
-		for (Iterator<WlanDevice> iter = wlanAdaptorList.iterator(); iter.hasNext(); i++) {
+		for (Iterator<WlanDevice> iter = wlanAdapterList.iterator(); iter.hasNext(); i++) {
 			WlanDevice device = iter.next();
-			String macAddress = Utility.macAddressToString(device.getHardwareAddress(), 0, true);
-			if (lastUsedMacAddress.equals(macAddress)) {
-				lastUsedIndex = i;
+			byte[] mac = device.getHardwareAddress();
+
+			String name;
+			if (mac != null) {
+				String macAddress = Utility.macAddressToString(mac, 0, true);
+				if (lastUsedMacAddress.equals(macAddress)) {
+					lastUsedIndex = i;
+				}
+
+				name = nicSection.get(macAddress, "");
+
+				if (Utility.isEmpty(name)) {
+					name = device.getName();
+					name = name.replace("(Microsoft's Packet Scheduler)", "");
+					name = name.replaceAll(" {2,}", " ").trim();
+
+					nicSection.set(macAddress, name);
+				} else if (name.equals("")) {
+					iter.remove();
+					continue;
+				}
+
+				name += " [" + macAddress + "]";
+				widgets.wlanAdapterListCombo.add(name);
+
+				wlanAdapterMacAddressMap.put(device, macAddress);
+			} else {
+				name = device.getName();
+				widgets.wlanAdapterListCombo.add(name);
 			}
 
-			String description = nicSection.get(macAddress, "");
-
-			if (Utility.isEmpty(description)) {
-				description = device.getName();
-				description = description.replace("(Microsoft's Packet Scheduler)", "");
-				description = description.replaceAll(" {2,}", " ").trim();
-
-				nicSection.set(macAddress, description);
-			} else if (description.equals("")) {
-				iter.remove();
-				continue;
-			}
-
-			description += " [" + macAddress + "]";
-			widgets.wlanAdapterListCombo.add(description);
-
-			wlanAdaptorMacAddressMap.put(device, macAddress);
-
-			maxNameLength = Math.max(description.length(), maxNameLength);
+			maxNameLength = Math.max(name.length(), maxNameLength);
 		}
 
 		StringBuilder sb = new StringBuilder(maxNameLength);
@@ -4433,17 +4752,11 @@ public class RoomWindow implements IMessageSource {
 		destStats.totalInBytes += packetLength;
 
 		if (isPacketCapturing && currentWlanDevice != null) {
-			// send packet
 			currentWlanDevice.sendPacket(packet);
 		}
 	}
 
 	private void processCapturedPacket() {
-		// if (packet != null) {
-		// System.out.println(packet.toHexdump());
-		// return;
-		// }
-
 		// System.out.println(bufferForCapturing);
 		if (!Utility.isPspPacket(bufferForCapturing))
 			return;
@@ -4507,27 +4820,27 @@ public class RoomWindow implements IMessageSource {
 	}
 
 	private boolean startPacketCapturing() {
-		int index = widgets.wlanAdapterListCombo.getSelectionIndex() - 1;
-		WlanDevice device = wlanAdaptorList.get(index);
-
 		try {
+			int index = widgets.wlanAdapterListCombo.getSelectionIndex() - 1;
+			WlanDevice device = wlanAdapterList.get(index);
+
 			device.open();
+
+			currentWlanDevice = device;
+
+			checkSsidChange();
+
+			isPacketCapturing = true;
+			wakeupThread(packetCaptureThread);
+			wakeupThread(packetMonitorThread);
+
+			return true;
 		} catch (RuntimeException e) {
-			application.getLogWindow().appendLogTo(Utility.stackTraceToString(e), true, true);
+			application.getLogWindow().appendLog(Utility.stackTraceToString(e), true, true);
 			return false;
 		} catch (Exception e) {
-			application.getLogWindow().appendLogTo(Utility.stackTraceToString(e), true, true);
+			application.getLogWindow().appendLog(Utility.stackTraceToString(e), true, true);
 			return false;
 		}
-
-		currentWlanDevice = device;
-
-		checkSsidChange();
-
-		isPacketCapturing = true;
-		wakeupThread(packetCaptureThread);
-		wakeupThread(packetMonitorThread);
-
-		return true;
 	}
 }

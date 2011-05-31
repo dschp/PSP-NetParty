@@ -390,7 +390,7 @@ public class RoomEngine {
 			sb.append(description);
 		}
 
-		private boolean testWhiteListBlackList(String mac) {
+		private boolean checkMacAddressFiltering(String mac) {
 			if (isMacAdressWhiteListEnabled && !macAddressWhiteList.isEmpty() && !macAddressWhiteList.contains(mac))
 				return true;
 			else if (isMacAdressBlackListEnabled && macAddressBlackList.contains(mac))
@@ -398,7 +398,7 @@ public class RoomEngine {
 			return false;
 		}
 
-		private boolean testWhiteListBlackList(String mac1, String mac2) {
+		private boolean checkMacAddressFiltering(String mac1, String mac2) {
 			if (isMacAdressWhiteListEnabled && !macAddressWhiteList.isEmpty() && !macAddressWhiteList.contains(mac1)
 					&& !macAddressWhiteList.contains(mac2))
 				return true;
@@ -1158,10 +1158,10 @@ public class RoomEngine {
 
 		@Override
 		public IProtocolDriver createDriver(ISocketConnection connection) {
-			TunnelProtocolDriver client = new TunnelProtocolDriver();
-			client.connection = connection;
-			notYetLinkedTunnels.put(connection.getRemoteAddress(), client);
-			return client;
+			TunnelProtocolDriver tunnel = new TunnelProtocolDriver();
+			tunnel.connection = connection;
+			notYetLinkedTunnels.put(connection.getRemoteAddress(), tunnel);
+			return tunnel;
 		}
 
 		@Override
@@ -1212,17 +1212,19 @@ public class RoomEngine {
 			String srcMac = Utility.macAddressToString(packet, 6, false);
 
 			room.tunnelsByMacAddress.put(srcMac, this);
-			if (player == room.roomMaster)
+			if (srcPlayer == room.roomMaster)
 				room.macAddressWhiteList.add(srcMac);
 
 			if (Utility.isMacBroadCastAddress(destMac)) {
-				if (room.testWhiteListBlackList(srcMac))
+				if (room.checkMacAddressFiltering(srcMac))
 					return true;
 
 				for (Entry<String, RoomProtocolDriver> entry : room.playersByName.entrySet()) {
 					RoomProtocolDriver destPlayer = entry.getValue();
+					if (srcPlayer == destPlayer)
+						continue;
 					TunnelProtocolDriver destTunnel = destPlayer.tunnel;
-					if (destTunnel == null || destTunnel == this)
+					if (destTunnel == null)
 						continue;
 					if (srcPlayerSsidIsNotEmpty && !Utility.isEmpty(destPlayer.ssid))
 						if (!srcPlayer.ssid.equals(destPlayer.ssid))
@@ -1232,7 +1234,7 @@ public class RoomEngine {
 					destTunnel.connection.send(packet);
 				}
 			} else {
-				if (room.testWhiteListBlackList(srcMac, destMac))
+				if (room.checkMacAddressFiltering(srcMac, destMac))
 					return true;
 
 				TunnelProtocolDriver destTunnel = room.tunnelsByMacAddress.get(destMac);
@@ -1255,14 +1257,13 @@ public class RoomEngine {
 		public void connectionDisconnected() {
 			try {
 				player.tunnel = null;
+				player = null;
+				room = null;
 			} catch (NullPointerException e) {
+				InetSocketAddress address = connection.getRemoteAddress();
+				if (address != null)
+					notYetLinkedTunnels.remove(address);
 			}
-			room = null;
-			player = null;
-
-			InetSocketAddress address = connection.getRemoteAddress();
-			if (address != null)
-				notYetLinkedTunnels.remove(address);
 		}
 
 		@Override

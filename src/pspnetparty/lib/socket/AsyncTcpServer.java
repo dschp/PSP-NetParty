@@ -32,7 +32,6 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.concurrent.ConcurrentHashMap;
 
-import pspnetparty.lib.ILogger;
 import pspnetparty.lib.Utility;
 import pspnetparty.lib.constants.AppConstants;
 
@@ -40,7 +39,6 @@ public class AsyncTcpServer implements IServer {
 
 	private static final int INITIAL_READ_BUFFER_SIZE = 2000;
 
-	private ILogger logger;
 	private int maxPacketSize;
 
 	private Selector selector;
@@ -58,8 +56,7 @@ public class AsyncTcpServer implements IServer {
 	private Thread selectorThread;
 	private Thread pingThread;
 
-	public AsyncTcpServer(ILogger logger, int maxPacketSize) {
-		this.logger = logger;
+	public AsyncTcpServer(int maxPacketSize) {
 		this.maxPacketSize = maxPacketSize;
 		serverListeners = new ConcurrentHashMap<IServerListener, Object>();
 		establishedConnections = new ConcurrentHashMap<Connection, Object>(30, 0.75f, 3);
@@ -80,6 +77,11 @@ public class AsyncTcpServer implements IServer {
 		return selector != null && selector.isOpen();
 	}
 
+	private void log(String message) {
+		for (IServerListener listener : serverListeners.keySet())
+			listener.log(message);
+	}
+
 	@Override
 	public void startListening(InetSocketAddress bindAddress) throws IOException {
 		if (isListening())
@@ -93,8 +95,7 @@ public class AsyncTcpServer implements IServer {
 
 		ServerSocket socket = serverChannel.socket();
 
-		for (IServerListener listener : serverListeners.keySet())
-			listener.log("TCP: Listening on " + socket.getLocalSocketAddress());
+		log("TCP: Listening on " + socket.getLocalSocketAddress());
 
 		selectorThread = new Thread(new Runnable() {
 			@Override
@@ -181,7 +182,7 @@ public class AsyncTcpServer implements IServer {
 			for (Connection conn : establishedConnections.keySet()) {
 				try {
 					if (conn.lastPingTime < deadline) {
-						logger.log(Utility.makePingDisconnectLog("TCP", conn.getRemoteAddress(), deadline, conn.lastPingTime));
+						log(Utility.makePingDisconnectLog("TCP", conn.getRemoteAddress(), deadline, conn.lastPingTime));
 						conn.disconnect();
 						// disconnectCount++;
 					} else {
@@ -190,9 +191,9 @@ public class AsyncTcpServer implements IServer {
 						// pingCount++;
 					}
 				} catch (RuntimeException e) {
-					logger.log(Utility.stackTraceToString(e));
+					log(Utility.stackTraceToString(e));
 				} catch (Exception e) {
-					logger.log(Utility.stackTraceToString(e));
+					log(Utility.stackTraceToString(e));
 				}
 			}
 
@@ -242,7 +243,7 @@ public class AsyncTcpServer implements IServer {
 		private IProtocolDriver driver;
 
 		private ByteBuffer headerReadBuffer = ByteBuffer.allocate(IProtocol.HEADER_BYTE_SIZE);
-		private ByteBuffer dataReadBuffer = ByteBuffer.allocate(INITIAL_READ_BUFFER_SIZE);
+		private ByteBuffer dataReadBuffer = ByteBuffer.allocateDirect(INITIAL_READ_BUFFER_SIZE);
 		private PacketData packetData = new PacketData(dataReadBuffer);
 
 		Connection(SocketChannel channel) {
@@ -334,7 +335,7 @@ public class AsyncTcpServer implements IServer {
 				}
 
 				if (dataSize > dataReadBuffer.capacity()) {
-					dataReadBuffer = ByteBuffer.allocate(dataSize);
+					dataReadBuffer = ByteBuffer.allocateDirect(dataSize);
 					packetData.replaceBuffer(dataReadBuffer);
 				} else {
 					dataReadBuffer.limit(dataSize);
@@ -396,11 +397,7 @@ public class AsyncTcpServer implements IServer {
 
 	public static void main(String[] args) throws IOException {
 		InetSocketAddress address = new InetSocketAddress(30000);
-		AsyncTcpServer server = new AsyncTcpServer(new ILogger() {
-			@Override
-			public void log(String message) {
-			}
-		}, 40000);
+		AsyncTcpServer server = new AsyncTcpServer(40000);
 		server.addServerListener(new IServerListener() {
 			@Override
 			public void log(String message) {

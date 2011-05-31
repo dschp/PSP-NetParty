@@ -66,7 +66,7 @@ public class LobbyServer {
 		ini.saveToIni();
 
 		ILogger logger = ServerUtils.createLogger();
-		AsyncTcpServer tcpServer = new AsyncTcpServer(logger, 40000);
+		AsyncTcpServer tcpServer = new AsyncTcpServer(40000);
 
 		final LobbyEngine engine = new LobbyEngine(tcpServer, logger, new IniPublicServer());
 		engine.setTitle(title);

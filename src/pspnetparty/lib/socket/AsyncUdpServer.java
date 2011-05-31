@@ -31,7 +31,6 @@ import java.util.Iterator;
 import java.util.Map.Entry;
 import java.util.concurrent.ConcurrentHashMap;
 
-import pspnetparty.lib.ILogger;
 import pspnetparty.lib.Utility;
 import pspnetparty.lib.constants.AppConstants;
 
@@ -39,7 +38,6 @@ public class AsyncUdpServer implements IServer {
 
 	private static final int READ_BUFFER_SIZE = 20000;
 
-	private ILogger logger;
 	private Selector selector;
 	private ConcurrentHashMap<IServerListener, Object> serverListeners;
 
@@ -52,12 +50,12 @@ public class AsyncUdpServer implements IServer {
 
 	private ByteBuffer bufferProtocolOK = AppConstants.CHARSET.encode(IProtocol.PROTOCOL_OK);
 	private ByteBuffer bufferProtocolNG = AppConstants.CHARSET.encode(IProtocol.PROTOCOL_NG);
+	private ByteBuffer terminateBuffer = ByteBuffer.wrap(new byte[] { 0 });
 
 	private Thread selectorThread;
 	private Thread pingThread;
 
-	public AsyncUdpServer(ILogger logger) {
-		this.logger = logger;
+	public AsyncUdpServer() {
 		serverListeners = new ConcurrentHashMap<IServerListener, Object>();
 		establishedConnections = new ConcurrentHashMap<InetSocketAddress, Connection>(30, 0.75f, 3);
 	}
@@ -77,6 +75,11 @@ public class AsyncUdpServer implements IServer {
 		return selector != null && selector.isOpen();
 	}
 
+	private void log(String message) {
+		for (IServerListener listener : serverListeners.keySet())
+			listener.log(message);
+	}
+
 	@Override
 	public void startListening(InetSocketAddress bindAddress) throws IOException {
 		if (isListening())
@@ -89,8 +92,7 @@ public class AsyncUdpServer implements IServer {
 		serverChannel.socket().bind(bindAddress);
 		serverChannel.register(selector, SelectionKey.OP_READ);
 
-		for (IServerListener listener : serverListeners.keySet())
-			listener.log("UDP: Listening on " + bindAddress);
+		log("UDP: Listening on " + bindAddress);
 
 		selectorThread = new Thread(new Runnable() {
 			@Override
@@ -168,15 +170,15 @@ public class AsyncUdpServer implements IServer {
 										continue;
 									}
 
-									conn.driver = handler.createDriver(conn);
-									if (conn.driver == null) {
-										bufferProtocolNG.position(0);
-										conn.send(bufferProtocolNG);
-										continue;
-									}
-
 									bufferProtocolOK.position(0);
 									conn.send(bufferProtocolOK);
+
+									conn.driver = handler.createDriver(conn);
+									if (conn.driver == null) {
+										terminateBuffer.position(0);
+										conn.send(terminateBuffer);
+										continue;
+									}
 
 									establishedConnections.put(remoteAddress, conn);
 								} else {
@@ -206,7 +208,7 @@ public class AsyncUdpServer implements IServer {
 				try {
 					Connection conn = entry.getValue();
 					if (conn.lastPingTime < deadline) {
-						logger.log(Utility.makePingDisconnectLog("UDP", conn.remoteAddress, deadline, conn.lastPingTime));
+						log(Utility.makePingDisconnectLog("UDP", conn.remoteAddress, deadline, conn.lastPingTime));
 						conn.disconnect();
 						// disconnectCount++;
 					} else {
@@ -215,9 +217,9 @@ public class AsyncUdpServer implements IServer {
 						// pingCount++;
 					}
 				} catch (RuntimeException e) {
-					logger.log(Utility.stackTraceToString(e));
+					log(Utility.stackTraceToString(e));
 				} catch (Exception e) {
-					logger.log(Utility.stackTraceToString(e));
+					log(Utility.stackTraceToString(e));
 				}
 			}
 
@@ -289,7 +291,7 @@ public class AsyncUdpServer implements IServer {
 			} catch (IOException e) {
 			}
 		}
-
+		
 		@Override
 		public void send(byte[] data) {
 			ByteBuffer buffer = ByteBuffer.wrap(data);
@@ -340,11 +342,7 @@ public class AsyncUdpServer implements IServer {
 
 	public static void main(String[] args) throws IOException {
 		InetSocketAddress address = new InetSocketAddress(30000);
-		AsyncUdpServer server = new AsyncUdpServer(new ILogger() {
-			@Override
-			public void log(String message) {
-			}
-		});
+		AsyncUdpServer server = new AsyncUdpServer();
 		server.addServerListener(new IServerListener() {
 			@Override
 			public void log(String message) {

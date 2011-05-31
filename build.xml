@@ -33,7 +33,7 @@
 		</mapper>
 	</pathconvert>
 
-	<target name="jar" depends="jar-lib, jar-swt, jar-portal, jar-room, jar-search, jar-lobby, jar-allinone">
+	<target name="jar" depends="jar-lib, jar-swt, jar-swt-proxy, jar-portal, jar-room, jar-search, jar-lobby, jar-allinone">
 	</target>
 
 	<target name="jar-lib">
@@ -46,9 +46,26 @@
 	</target>
 
 	<target name="jar-swt">
-		<jar basedir="bin" jarfile="${publish_directory}/PlayClient.jar" includes="pspnetparty/client/swt/**">
+		<jar jarfile="${publish_directory}/PlayClient.jar">
+			<fileset dir="bin" includes="pspnetparty/client/swt/**">
+				<exclude name="pspnetparty/client/swt/app/**" />
+			</fileset>
 			<manifest>
 				<attribute name="Main-Class" value="pspnetparty.client.swt.PlayClient" />
+				<attribute name="Class-Path" value="PspNetParty.jar ${manifest.classpath.swt}" />
+			</manifest>
+		</jar>
+	</target>
+
+	<target name="jar-swt-proxy">
+		<jar jarfile="${publish_directory}/WlanProxy.jar">
+			<fileset dir="bin">
+				<include name="pspnetparty/client/swt/SwtUtils*" />
+				<include name="pspnetparty/client/swt/WlanProxyConstants*" />
+				<include name="pspnetparty/client/swt/app/WlanProxy*" />
+			</fileset>
+			<manifest>
+				<attribute name="Main-Class" value="pspnetparty.client.swt.app.WlanProxyApp" />
 				<attribute name="Class-Path" value="PspNetParty.jar ${manifest.classpath.swt}" />
 			</manifest>
 		</jar>

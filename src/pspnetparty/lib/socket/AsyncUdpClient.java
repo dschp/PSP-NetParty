@@ -238,7 +238,7 @@ public class AsyncUdpClient implements IClient {
 			readBuffer.clear();
 			channel.read(readBuffer);
 			readBuffer.flip();
-
+			
 			if (readBuffer.limit() == 1) {
 				switch (readBuffer.get(0)) {
 				case 0:

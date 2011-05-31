@@ -54,7 +54,9 @@ import org.eclipse.swt.widgets.Table;
 import org.eclipse.swt.widgets.TableColumn;
 import org.eclipse.swt.widgets.Text;
 
-import pspnetparty.client.swt.IApplication.PortalQuery;
+import pspnetparty.client.swt.IPlayClient.PortalQuery;
+import pspnetparty.client.swt.config.IniAppData;
+import pspnetparty.client.swt.config.IniSettings;
 import pspnetparty.client.swt.message.AdminNotify;
 import pspnetparty.client.swt.message.Chat;
 import pspnetparty.client.swt.message.ErrorLog;
@@ -88,7 +90,7 @@ public class LobbyWindow implements IMessageSource {
 	private String loginUserName;
 	private long lastLobbyActivity = 0L;
 
-	private IApplication application;
+	private IPlayClient application;
 
 	private Shell shell;
 	private boolean isActive;
@@ -109,7 +111,7 @@ public class LobbyWindow implements IMessageSource {
 
 	private HashSet<IMessageListener> messageListeners = new HashSet<IMessageListener>();
 
-	public LobbyWindow(IApplication application) {
+	public LobbyWindow(IPlayClient application) {
 		this.application = application;
 
 		// Shell parentShell = application.getShell();

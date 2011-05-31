@@ -41,9 +41,9 @@ import org.eclipse.swt.layout.FillLayout;
 import org.eclipse.swt.widgets.Composite;
 import org.eclipse.swt.widgets.Control;
 
-import pspnetparty.client.swt.IApplication;
-import pspnetparty.client.swt.IniAppearance;
+import pspnetparty.client.swt.IPlayClient;
 import pspnetparty.client.swt.SwtUtils;
+import pspnetparty.client.swt.config.IniAppearance;
 import pspnetparty.lib.FixedSizeList;
 
 public class LogViewer {
@@ -52,7 +52,7 @@ public class LogViewer {
 
 	private FixedSizeList<IMessage> messageList;
 
-	private IApplication application;
+	private IPlayClient application;
 
 	private Composite container;
 	private SourceViewer sourceViewer;
@@ -65,7 +65,7 @@ public class LogViewer {
 	private String lineDelimiter;
 	private ArrayList<StyleRange> styleRanges = new ArrayList<StyleRange>();
 
-	public LogViewer(Composite parent, int size, IApplication application) {
+	public LogViewer(Composite parent, int size, IPlayClient application) {
 		this.application = application;
 
 		messageList = new FixedSizeList<IMessage>(size);
@@ -177,8 +177,9 @@ public class LogViewer {
 			}
 
 			int lineCount = logWidget.getLineCount();
+			int topLineIndex = logWidget.getTopIndex();
 			int bottomLineIndex = logWidget.getLineIndex(logWidget.getSize().y);
-			boolean scrollLock = lineCount - bottomLineIndex > 1;
+			boolean scrollLastLine = lineCount - bottomLineIndex < 2;
 
 			IMessage removed = messageList.add(message);
 			if (removed != null) {
@@ -200,10 +201,13 @@ public class LogViewer {
 				logWidget.setStyleRange(range);
 			}
 
-			if (scrollLock)
-				return;
-			logWidget.setTopIndex(lineCount);
-			ruler.update();
+			if (scrollLastLine) {
+				logWidget.setTopIndex(lineCount);
+				ruler.update();
+			} else if (removed != null && topLineIndex > 1) {
+				logWidget.setTopIndex(topLineIndex - 2);
+				ruler.update();
+			}
 		} catch (SWTException e) {
 		}
 	}

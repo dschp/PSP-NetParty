@@ -30,15 +30,16 @@ import org.eclipse.swt.layout.FillLayout;
 import org.eclipse.swt.widgets.Shell;
 import org.eclipse.swt.widgets.Text;
 
+import pspnetparty.client.swt.config.IniAppData;
 import pspnetparty.lib.Utility;
 
 public class LogWindow {
 
-	private IApplication application;
+	private IPlayClient application;
 	private Shell shell;
 	private Text logText;
 
-	public LogWindow(IApplication application, Shell parentShell) {
+	public LogWindow(IPlayClient application, Shell parentShell) {
 		this.application = application;
 
 		// shell = new Shell((Shell) null, SWT.SHELL_TRIM | SWT.TOOL);
@@ -97,7 +98,7 @@ public class LogWindow {
 		shell.setVisible(visible);
 	}
 
-	public void appendLogTo(final String message, final boolean timestamp, final boolean showWindow) {
+	public void appendLog(final String message, final boolean timestamp, final boolean showWindow) {
 		if (Utility.isEmpty(message))
 			return;
 
@@ -106,7 +107,7 @@ public class LogWindow {
 				SwtUtils.DISPLAY.asyncExec(new Runnable() {
 					@Override
 					public void run() {
-						appendLogTo(message, timestamp, showWindow);
+						appendLog(message, timestamp, showWindow);
 					}
 				});
 				return;
@@ -117,7 +118,7 @@ public class LogWindow {
 
 			if (timestamp) {
 				Date now = new Date();
-				logText.append(IApplication.LOG_DATE_FORMAT.format(now));
+				logText.append(SwtUtils.LOG_DATE_FORMAT.format(now));
 				logText.append(" - ");
 			}
 

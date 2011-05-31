@@ -56,7 +56,8 @@ import org.eclipse.swt.widgets.Shell;
 import org.eclipse.swt.widgets.Table;
 import org.eclipse.swt.widgets.TableColumn;
 
-import pspnetparty.client.swt.IApplication.PortalQuery;
+import pspnetparty.client.swt.IPlayClient.PortalQuery;
+import pspnetparty.client.swt.config.IniAppData;
 import pspnetparty.client.swt.message.ErrorLog;
 import pspnetparty.lib.Utility;
 import pspnetparty.lib.constants.ProtocolConstants;
@@ -83,7 +84,7 @@ public class SearchWindow {
 	private boolean isQueryUpdateOn = true;
 	private long nextQueryTime = 0L;
 
-	private IApplication application;
+	private IPlayClient application;
 
 	private Shell shell;
 
@@ -105,7 +106,7 @@ public class SearchWindow {
 	private ComboHistoryManager queryMasterNameHistoryManager;
 	private ComboHistoryManager queryMasterNameNgHistoryManager;
 
-	public SearchWindow(IApplication application) {
+	public SearchWindow(IPlayClient application) {
 		this.application = application;
 
 		shell = new Shell(SWT.SHELL_TRIM);// | SWT.TOOL);
@@ -234,7 +235,7 @@ public class SearchWindow {
 		SwtUtils.installSorter(searchResultTableViewer, columnTimestamp, PlayRoomUtils.TIMESTAMP_SORTER);
 
 		TableColumn columnDescription = new TableColumn(searchResultTable, SWT.LEFT);
-		columnDescription.setText("詳細・備考");
+		columnDescription.setText("部屋の紹介");
 
 		TableColumn columnRoomServer = new TableColumn(searchResultTable, SWT.LEFT);
 		columnRoomServer.setText("ルームサーバー");
@@ -468,7 +469,7 @@ public class SearchWindow {
 			@Override
 			public void failCallback(ErrorLog log) {
 				updateServerLoginButton(false);
-				application.getLogWindow().appendLogTo(log.getMessage(), true, true);
+				application.getLogWindow().appendLog(log.getMessage(), true, true);
 			}
 
 			@Override
@@ -485,7 +486,7 @@ public class SearchWindow {
 			if (SwtUtils.isNotUIThread()) {
 				if (address == null) {
 					updateServerLoginButton(false);
-					application.getLogWindow().appendLogTo("アドレスを取得できませんでした", true, true);
+					application.getLogWindow().appendLog("アドレスを取得できませんでした", true, true);
 					return;
 				}
 				SwtUtils.DISPLAY.asyncExec(new Runnable() {
@@ -515,7 +516,7 @@ public class SearchWindow {
 					} catch (IOException e) {
 						sessionState = SessionState.OFFLINE;
 						updateServerLoginButton(false);
-						application.getLogWindow().appendLogTo(e.getMessage(), true, true);
+						application.getLogWindow().appendLog(e.getMessage(), true, true);
 					}
 				}
 			};
@@ -545,7 +546,7 @@ public class SearchWindow {
 						return;
 					}
 
-					application.getLogWindow().appendLogTo(errorLog.getMessage(), true, true);
+					application.getLogWindow().appendLog(errorLog.getMessage(), true, true);
 					searchServerLoginButton.setEnabled(true);
 				} catch (SWTException e) {
 				}
@@ -587,7 +588,7 @@ public class SearchWindow {
 
 			if (list.isEmpty()) {
 				ErrorLog log = new ErrorLog("検索サーバーが見つかりません");
-				application.getLogWindow().appendLogTo(log.getMessage(), true, true);
+				application.getLogWindow().appendLog(log.getMessage(), true, true);
 
 				searchServerLoginButton.setEnabled(true);
 			} else {
@@ -658,7 +659,7 @@ public class SearchWindow {
 	private class SearchProtocol implements IProtocol {
 		@Override
 		public void log(String message) {
-			application.getLogWindow().appendLogTo(message, true, true);
+			application.getLogWindow().appendLog(message, true, true);
 		}
 
 		@Override
@@ -679,7 +680,7 @@ public class SearchWindow {
 				}
 
 				updateServerLoginButton(true);
-				application.getLogWindow().appendLogTo("検索サーバーにログインしました", true, false);
+				application.getLogWindow().appendLog("検索サーバーにログインしました", true, false);
 			} catch (SWTException e) {
 			}
 		}
@@ -706,13 +707,13 @@ public class SearchWindow {
 
 		@Override
 		public void log(String message) {
-			application.getLogWindow().appendLogTo(message, true, true);
+			application.getLogWindow().appendLog(message, true, true);
 		}
 
 		@Override
 		public void errorProtocolNumber(String number) {
 			String error = String.format("サーバーとのプロトコルナンバーが一致しないので接続できません サーバー:%s クライアント:%s", number, IProtocol.NUMBER);
-			application.getLogWindow().appendLogTo(error, true, true);
+			application.getLogWindow().appendLog(error, true, true);
 		}
 
 		@Override
@@ -730,10 +731,10 @@ public class SearchWindow {
 
 				switch (sessionState) {
 				case CONNECTING:
-					application.getLogWindow().appendLogTo("検索サーバーに接続できません", true, true);
+					application.getLogWindow().appendLog("検索サーバーに接続できません", true, true);
 					break;
 				case LOGIN:
-					application.getLogWindow().appendLogTo("検索サーバーからログアウトしました", true, false);
+					application.getLogWindow().appendLog("検索サーバーからログアウトしました", true, false);
 					break;
 				}
 
@@ -812,7 +813,7 @@ public class SearchWindow {
 
 					now.setTime(System.currentTimeMillis());
 
-					String message = "検索結果: " + searchResultRooms.size() + "件 (" + IApplication.LOG_DATE_FORMAT.format(now) + ")";
+					String message = "検索結果: " + searchResultRooms.size() + "件 (" + SwtUtils.LOG_DATE_FORMAT.format(now) + ")";
 					statusSearchResultLabel.setText(message);
 					statusSearchResultLabel.getParent().layout();
 
@@ -865,14 +866,14 @@ public class SearchWindow {
 		searchHandlers.put(ProtocolConstants.Search.NOTIFY_FROM_ADMIN, new IProtocolMessageHandler() {
 			@Override
 			public boolean process(IProtocolDriver driver, String argument) {
-				application.getLogWindow().appendLogTo(argument, true, true);
+				application.getLogWindow().appendLog(argument, true, true);
 				return true;
 			}
 		});
 		searchHandlers.put(ProtocolConstants.Search.ERROR_LOGIN_BEYOND_CAPACITY, new IProtocolMessageHandler() {
 			@Override
 			public boolean process(IProtocolDriver driver, String argument) {
-				application.getLogWindow().appendLogTo("サーバーのログイン上限人数に達したのでログインできません", true, true);
+				application.getLogWindow().appendLog("サーバーのログイン上限人数に達したのでログインできません", true, true);
 				return true;
 			}
 		});

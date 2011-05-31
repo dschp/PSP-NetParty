@@ -145,7 +145,14 @@ public class TraficStatistics {
 		public int compare(Viewer viewer, Object e1, Object e2) {
 			TraficStatistics s1 = (TraficStatistics) e1;
 			TraficStatistics s2 = (TraficStatistics) e2;
-			return s1.playerName.compareTo(s2.playerName);
+
+			String pn1 = s1.playerName;
+			if (pn1 == null)
+				pn1 = "";
+			String pn2 = s2.playerName;
+			if (pn2 == null)
+				pn2 = "";
+			return pn1.compareTo(pn2);
 		}
 	};
 

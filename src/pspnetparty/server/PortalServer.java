@@ -61,7 +61,7 @@ public class PortalServer {
 		ini.saveToIni();
 
 		ILogger logger = ServerUtils.createLogger();
-		AsyncTcpServer tcpServer = new AsyncTcpServer(logger, 40000);
+		AsyncTcpServer tcpServer = new AsyncTcpServer(40000);
 
 		final PortalEngine engine = new PortalEngine(tcpServer, logger);
 

@@ -16,7 +16,7 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-package pspnetparty.client.swt;
+package pspnetparty.client.swt.config;
 
 import java.util.ArrayList;
 
@@ -45,12 +45,14 @@ import org.eclipse.swt.widgets.Listener;
 import org.eclipse.swt.widgets.Spinner;
 import org.eclipse.swt.widgets.Text;
 
-import pspnetparty.client.swt.IApplication.ColorType;
-import pspnetparty.client.swt.IApplication.FontType;
+import pspnetparty.client.swt.IPlayClient;
+import pspnetparty.client.swt.SwtUtils;
+import pspnetparty.client.swt.IPlayClient.ColorType;
+import pspnetparty.client.swt.IPlayClient.FontType;
 
 public class AppearancePage extends PreferencePage {
 
-	private IApplication application;
+	private IPlayClient application;
 	private IniAppearance iniAppearance;
 
 	private FontData fontGlobal;
@@ -97,7 +99,7 @@ public class AppearancePage extends PreferencePage {
 	private ColorSelector selectorColorNameRulerFG;
 	private Spinner spinnerNameRulerWidth;
 
-	public AppearancePage(IApplication application) {
+	public AppearancePage(IPlayClient application) {
 		super("フォントと色");
 		this.application = application;
 		iniAppearance = application.getAppearance();

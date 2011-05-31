@@ -16,13 +16,14 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-package pspnetparty.client.swt;
+package pspnetparty.client.swt.config;
 
 import org.eclipse.swt.graphics.Color;
 import org.eclipse.swt.graphics.Font;
 import org.eclipse.swt.graphics.FontData;
 import org.eclipse.swt.graphics.RGB;
 
+import pspnetparty.client.swt.SwtUtils;
 import pspnetparty.lib.IniSection;
 
 public class IniAppearance {

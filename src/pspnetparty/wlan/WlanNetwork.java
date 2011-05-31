@@ -22,6 +22,14 @@ public class WlanNetwork {
 	private String ssid;
 	private int rssi;
 
+	public WlanNetwork() {
+	}
+
+	public WlanNetwork(String ssid, int rssi) {
+		this.ssid = ssid;
+		this.rssi = rssi;
+	}
+
 	public String getSsid() {
 		return ssid;
 	}

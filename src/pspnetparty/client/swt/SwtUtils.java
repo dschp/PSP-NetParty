@@ -18,6 +18,8 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 package pspnetparty.client.swt;
 
+import java.text.SimpleDateFormat;
+
 import org.eclipse.jface.viewers.TableViewer;
 import org.eclipse.jface.viewers.Viewer;
 import org.eclipse.jface.viewers.ViewerSorter;
@@ -40,6 +42,8 @@ public class SwtUtils {
 
 	public static final Display DISPLAY = Display.getDefault();
 	private static final Thread UI_THREAD = DISPLAY.getThread();
+
+	public static final SimpleDateFormat LOG_DATE_FORMAT = new SimpleDateFormat("HH:mm:ss");
 
 	public static boolean isNotUIThread() {
 		return Thread.currentThread() != UI_THREAD;

@@ -16,26 +16,20 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-package pspnetparty.client.swt.message;
+package pspnetparty.client.swt;
 
-import java.util.List;
+import pspnetparty.lib.constants.AppConstants;
 
-import org.eclipse.swt.custom.StyleRange;
+public class WlanProxyConstants {
+	public static final String PROTOCOL = "PNP_ADHOC_PROXY";
 
-import pspnetparty.client.swt.config.IniAppearance;
+	public static final char COMMAND_SSID_FEATURE_ENABLED = 'F';
+	public static final char COMMAND_SSID_FEATURE_DISABLED = 'f';
+	public static final char COMMAND_PACKET = 'P';
+	public static final char COMMAND_GET_SSID = 'S';
+	public static final char COMMAND_SET_SSID = 's';
+	public static final char COMMAND_SCAN_NETWORK = 'n';
+	public static final char COMMAND_FIND_NETWORK = 'N';
 
-public class ServerLog extends AbstractMessage {
-
-	public ServerLog(String message) {
-		super("", message);
-	}
-
-	@Override
-	public void configureStyle(List<StyleRange> styles, IniAppearance appearance) {
-		StyleRange range = new StyleRange();
-		range.start = 0;
-		range.length = length();
-		range.foreground = appearance.getColorLogServer();
-		styles.add(range);
-	}
+	public static final byte BYTE_COMMAND_PACKET = AppConstants.CHARSET.encode(String.valueOf(WlanProxyConstants.COMMAND_PACKET)).get(0);
 }
