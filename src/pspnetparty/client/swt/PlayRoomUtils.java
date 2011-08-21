@@ -29,6 +29,7 @@ import org.eclipse.jface.viewers.Viewer;
 import org.eclipse.jface.viewers.ViewerSorter;
 import org.eclipse.swt.graphics.Image;
 
+import pspnetparty.lib.Utility;
 import pspnetparty.lib.engine.PlayRoom;
 
 public class PlayRoomUtils {
@@ -91,6 +92,7 @@ public class PlayRoomUtils {
 			case 3:
 				return room.hasPassword() ? "有" : "";
 			case 4:
+				// return Long.toString(room.getCreatedTime());
 				return DATE_FORMAT.format(new Date(room.getCreatedTime()));
 			case 5:
 				return room.getDescription();
@@ -136,7 +138,7 @@ public class PlayRoomUtils {
 			PlayRoom r2 = (PlayRoom) e2;
 			int capacity1 = r1.getMaxPlayers() - r1.getCurrentPlayers();
 			int capacity2 = r2.getMaxPlayers() - r2.getCurrentPlayers();
-			return capacity1 - capacity2;
+			return Utility.compare(capacity1, capacity2);
 		}
 	};
 
@@ -153,7 +155,7 @@ public class PlayRoomUtils {
 		public int compare(Viewer viewer, Object e1, Object e2) {
 			PlayRoom r1 = (PlayRoom) e1;
 			PlayRoom r2 = (PlayRoom) e2;
-			return (int) (r1.getCreatedTime() - r2.getCreatedTime());
+			return Utility.compare(r1.getCreatedTime(), r2.getCreatedTime());
 		};
 	};
 }

@@ -68,7 +68,7 @@ public class RoomEngine {
 	private ConcurrentHashMap<RoomStatusProtocolDriver, Object> portalConnections;
 	private boolean isAcceptingPortal = true;
 
-	private HashSet<PlayRoom> myRoomEntries = new HashSet<PlayRoom>();
+	private ConcurrentHashMap<String, MyRoomProtocolDriver> myRoomEntries;
 
 	private CountDownSynchronizer countDownSynchronizer;
 	private ExecutorService executorService = Executors.newCachedThreadPool();
@@ -78,6 +78,7 @@ public class RoomEngine {
 
 		masterNameRoomMap = new ConcurrentHashMap<String, Room>(20, 0.75f, 1);
 		notYetLinkedTunnels = new ConcurrentHashMap<InetSocketAddress, TunnelProtocolDriver>(30, 0.75f, 2);
+		myRoomEntries = new ConcurrentHashMap<String, RoomEngine.MyRoomProtocolDriver>();
 		portalConnections = new ConcurrentHashMap<RoomStatusProtocolDriver, Object>(20, 0.75f, 2);
 
 		tcpClient = new AsyncTcpClient(logger, 4000, 3000);
@@ -167,6 +168,8 @@ public class RoomEngine {
 							}
 						}
 
+						// clearAllMyRoomGhosts();
+
 						Thread.sleep(60000);
 					}
 				} catch (InterruptedException e) {
@@ -252,6 +255,19 @@ public class RoomEngine {
 		return sb.toString();
 	}
 
+	public String myRoomsToString() {
+		StringBuilder sb = new StringBuilder();
+		for (Entry<String, MyRoomProtocolDriver> entry : myRoomEntries.entrySet()) {
+			PlayRoom room = entry.getValue().myRoom;
+			sb.append(room.getRoomAddress());
+			sb.append('\t').append(room.getTitle());
+			sb.append('\t').append(room.getCurrentPlayers()).append('/').append(room.getMaxPlayers());
+			sb.append('\t').append(room.hasPassword() ? "鍵有" : "鍵無");
+			sb.append(AppConstants.NEW_LINE);
+		}
+		return sb.toString();
+	}
+
 	public void notifyAllPlayers(String message) {
 		final String notify = ProtocolConstants.Room.NOTIFY_FROM_ADMIN + TextProtocolDriver.ARGUMENT_SEPARATOR + message;
 
@@ -308,6 +324,30 @@ public class RoomEngine {
 			return;
 
 		room.maxPlayers++;
+	}
+
+	public boolean destroyMyRoom(String roomAddress) {
+		MyRoomProtocolDriver driver = myRoomEntries.get(roomAddress);
+		if (driver == null)
+			return false;
+
+		ISocketConnection conn = driver.getConnection();
+		if (conn.isConnected()) {
+			conn.disconnect();
+		} else {
+			driver.dispose();
+		}
+		return true;
+	}
+
+	private void clearAllMyRoomGhosts() {
+		for (Entry<String, MyRoomProtocolDriver> entry : myRoomEntries.entrySet()) {
+			MyRoomProtocolDriver driver = entry.getValue();
+			ISocketConnection conn = driver.getConnection();
+			if (!conn.isConnected()) {
+				driver.dispose();
+			}
+		}
 	}
 
 	private static class Room {
@@ -1321,7 +1361,8 @@ public class RoomEngine {
 				}
 			}
 			if (!myRoomEntries.isEmpty()) {
-				for (PlayRoom room : myRoomEntries) {
+				for (Entry<String, MyRoomProtocolDriver> entry : myRoomEntries.entrySet()) {
+					PlayRoom room = entry.getValue().myRoom;
 					sb.append(TextProtocolDriver.MESSAGE_SEPARATOR);
 					appendMyRoomCreated(room, sb);
 				}
@@ -1401,24 +1442,29 @@ public class RoomEngine {
 
 		@Override
 		public void connectionDisconnected() {
-			if (myRoom != null) {
-				PlayRoom room = myRoom;
-				myRoom = null;
-				myRoomEntries.remove(room);
+			dispose();
+		}
 
-				StringBuilder sb = new StringBuilder();
+		private void dispose() {
+			if (myRoom == null)
+				return;
 
-				sb.append(ProtocolConstants.RoomStatus.NOTIFY_ROOM_DELETED);
-				sb.append(TextProtocolDriver.ARGUMENT_SEPARATOR);
-				sb.append(room.getRoomAddress());
+			PlayRoom room = myRoom;
+			myRoom = null;
+			myRoomEntries.remove(room.getRoomAddress());
 
-				sb.append(TextProtocolDriver.MESSAGE_SEPARATOR);
-				appendServerStatus(sb);
+			StringBuilder sb = new StringBuilder();
 
-				String notify = sb.toString();
-				for (RoomStatusProtocolDriver driver : portalConnections.keySet()) {
-					driver.getConnection().send(notify);
-				}
+			sb.append(ProtocolConstants.RoomStatus.NOTIFY_ROOM_DELETED);
+			sb.append(TextProtocolDriver.ARGUMENT_SEPARATOR);
+			sb.append(room.getRoomAddress());
+
+			sb.append(TextProtocolDriver.MESSAGE_SEPARATOR);
+			appendServerStatus(sb);
+
+			String notify = sb.toString();
+			for (RoomStatusProtocolDriver driver : portalConnections.keySet()) {
+				driver.getConnection().send(notify);
 			}
 		}
 
@@ -1500,6 +1546,7 @@ public class RoomEngine {
 						} catch (IOException e) {
 							driver.getConnection().send(ProtocolConstants.MyRoom.ERROR_UDP_PORT_NOT_OPEN);
 							driver.getConnection().disconnect();
+							return;
 						}
 
 						IProtocol roomProtocol = new IProtocol() {
@@ -1546,7 +1593,7 @@ public class RoomEngine {
 									public void connectionDisconnected() {
 										if (success) {
 											driver.myRoom = room;
-											myRoomEntries.add(room);
+											myRoomEntries.put(room.getRoomAddress(), driver);
 
 											StringBuilder sb = new StringBuilder();
 
@@ -1556,8 +1603,8 @@ public class RoomEngine {
 											appendServerStatus(sb);
 
 											String portalNotify = sb.toString();
-											for (RoomStatusProtocolDriver client : portalConnections.keySet()) {
-												client.getConnection().send(portalNotify);
+											for (RoomStatusProtocolDriver portal : portalConnections.keySet()) {
+												portal.getConnection().send(portalNotify);
 											}
 
 											driver.getConnection().send(ProtocolConstants.MyRoom.COMMAND_ENTRY);
@@ -1580,6 +1627,7 @@ public class RoomEngine {
 						} catch (IOException e) {
 							driver.getConnection().send(ProtocolConstants.MyRoom.ERROR_TCP_PORT_NOT_OPEN);
 							driver.getConnection().disconnect();
+							return;
 						}
 					}
 				};
@@ -1600,9 +1648,9 @@ public class RoomEngine {
 		myRoomHandlers.put(ProtocolConstants.MyRoom.COMMAND_UPDATE, new IProtocolMessageHandler() {
 			@Override
 			public boolean process(IProtocolDriver driver, String argument) {
-				MyRoomProtocolDriver state = (MyRoomProtocolDriver) driver;
+				MyRoomProtocolDriver myroom = (MyRoomProtocolDriver) driver;
 
-				if (state.myRoom == null)
+				if (myroom.myRoom == null)
 					return false;
 
 				// U title maxPlayers hasPassword description
@@ -1616,7 +1664,7 @@ public class RoomEngine {
 					boolean hasPassword = "Y".equals(tokens[2]);
 					String description = tokens[3];
 
-					PlayRoom room = state.myRoom;
+					PlayRoom room = myroom.myRoom;
 					room.setTitle(title);
 					room.setMaxPlayers(maxPlayers);
 					room.setHasPassword(hasPassword);

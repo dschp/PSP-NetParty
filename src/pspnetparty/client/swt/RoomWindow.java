@@ -3901,7 +3901,7 @@ public class RoomWindow implements IMessageSource {
 					isEntryCompleted = false;
 					roomServerHistoryManager.addCurrentItem();
 
-					RoomLog log = new RoomLog("マイルームの登録を解除しました");
+					RoomLog log = new RoomLog("マイルームの登録が解除されました");
 					widgets.logViewer.appendMessage(log);
 				} else {
 					ErrorLog log = new ErrorLog("マイルームを登録できませんでした");
@@ -4677,6 +4677,7 @@ public class RoomWindow implements IMessageSource {
 				if (Utility.isEmpty(name)) {
 					name = device.getName();
 					name = name.replace("(Microsoft's Packet Scheduler)", "");
+					name = name.replace(" - パケット スケジューラ ミニポート", "");
 					name = name.replaceAll(" {2,}", " ").trim();
 
 					nicSection.set(macAddress, name);

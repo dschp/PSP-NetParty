@@ -27,6 +27,8 @@ import org.eclipse.jface.viewers.Viewer;
 import org.eclipse.jface.viewers.ViewerSorter;
 import org.eclipse.swt.graphics.Image;
 
+import pspnetparty.lib.Utility;
+
 public class TraficStatistics {
 
 	public String macAddress;
@@ -179,7 +181,7 @@ public class TraficStatistics {
 		public int compare(Viewer viewer, Object e1, Object e2) {
 			TraficStatistics s1 = (TraficStatistics) e1;
 			TraficStatistics s2 = (TraficStatistics) e2;
-			return Long.valueOf(s1.totalInBytes).compareTo(s2.totalInBytes);
+			return Utility.compare(s1.totalInBytes, s2.totalInBytes);
 		}
 	};
 
@@ -188,7 +190,7 @@ public class TraficStatistics {
 		public int compare(Viewer viewer, Object e1, Object e2) {
 			TraficStatistics s1 = (TraficStatistics) e1;
 			TraficStatistics s2 = (TraficStatistics) e2;
-			return Long.valueOf(s1.totalOutBytes).compareTo(s2.totalOutBytes);
+			return Utility.compare(s1.totalOutBytes, s2.totalOutBytes);
 		}
 	};
 }

@@ -93,6 +93,9 @@ public class RoomServer {
 				System.out.println("notify メッセージ\n\t全員にメッセージを告知");
 				System.out.println("destroy 部屋主名\n\t部屋主名の部屋を解体する");
 				System.out.println("goma 部屋主名\n\t部屋主名の部屋の最大人数を増やす");
+				System.out.println("myroom list\n\tマイルームの一覧");
+				// System.out.println("myroom clear\n\tマイルームのクリア");
+				System.out.println("myroom destroy ルームアドレス\n\t指定したマイルームの登録を削除する");
 				System.out.println("portal list\n\t登録中のポータル一覧");
 				System.out.println("portal accept\n\tポータル登録の受付開始");
 				System.out.println("portal reject\n\tポータル登録の受付停止");
@@ -165,6 +168,32 @@ public class RoomServer {
 
 				engine.hirakeGoma(masterName);
 				System.out.println("部屋に入れるようになりました : " + masterName);
+			}
+		});
+		handlers.put("myroom", new ICommandHandler() {
+			@Override
+			public void process(String argument) {
+				String[] tokens = argument.trim().split(" ");
+				if (tokens.length == 0)
+					return;
+
+				String action = tokens[0].toLowerCase();
+				if ("list".equals(action)) {
+					System.out.println("[登録マイルームの一覧]");
+					System.out.println(engine.myRoomsToString());
+					// } else if ("clear".equals(action)) {
+					// engine.clearAllMyRoomGhosts();
+					// System.out.println("マイルームゴーストをクリアしました");
+				} else if ("destroy".equals(action)) {
+					if (tokens.length == 2) {
+						String roomAddress = tokens[1];
+						if (engine.destroyMyRoom(roomAddress)) {
+							System.out.println("マイルームの登録を削除しました : " + roomAddress);
+						} else {
+							System.out.println("マイルームの登録を削除できませんでした");
+						}
+					}
+				}
 			}
 		});
 		handlers.put("portal", new ICommandHandler() {

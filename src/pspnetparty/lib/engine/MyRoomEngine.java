@@ -656,15 +656,6 @@ public class MyRoomEngine {
 		return false;
 	}
 
-	private boolean checkMacAddressFiltering(String mac1, String mac2) {
-		if (isMacAdressWhiteListEnabled && !macAddressWhiteList.isEmpty() && !macAddressWhiteList.contains(mac1)
-				&& !macAddressWhiteList.contains(mac2))
-			return true;
-		else if (isMacAdressBlackListEnabled && (macAddressBlackList.contains(mac1) || macAddressBlackList.contains(mac2)))
-			return true;
-		return false;
-	}
-
 	private class TunnelProtocolDriver implements IProtocolDriver {
 		private ISocketConnection connection;
 		private RoomProtocolDriver player;

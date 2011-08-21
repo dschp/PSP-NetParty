@@ -28,6 +28,8 @@ import org.eclipse.jface.viewers.Viewer;
 import org.eclipse.jface.viewers.ViewerSorter;
 import org.eclipse.swt.graphics.Image;
 
+import pspnetparty.lib.Utility;
+
 public class Player {
 
 	private String name;
@@ -141,7 +143,7 @@ public class Player {
 		public int compare(Viewer viewer, Object e1, Object e2) {
 			Player p1 = (Player) e1;
 			Player p2 = (Player) e2;
-			return Integer.valueOf(p1.ping).compareTo(p2.ping);
+			return Utility.compare(p1.ping, p2.ping);
 		}
 	};
 
