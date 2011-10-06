@@ -45,14 +45,16 @@ import org.eclipse.swt.widgets.Listener;
 import org.eclipse.swt.widgets.Spinner;
 import org.eclipse.swt.widgets.Text;
 
-import pspnetparty.client.swt.IPlayClient;
+import pspnetparty.client.swt.PlayClient;
 import pspnetparty.client.swt.SwtUtils;
-import pspnetparty.client.swt.IPlayClient.ColorType;
-import pspnetparty.client.swt.IPlayClient.FontType;
+import pspnetparty.client.swt.PlayClient.ColorType;
+import pspnetparty.client.swt.PlayClient.FontType;
 
 public class AppearancePage extends PreferencePage {
 
-	private IPlayClient application;
+	public static final String PAGE_ID = "appearance";
+
+	private PlayClient application;
 	private IniAppearance iniAppearance;
 
 	private FontData fontGlobal;
@@ -99,7 +101,7 @@ public class AppearancePage extends PreferencePage {
 	private ColorSelector selectorColorNameRulerFG;
 	private Spinner spinnerNameRulerWidth;
 
-	public AppearancePage(IPlayClient application) {
+	public AppearancePage(PlayClient application) {
 		super("フォントと色");
 		this.application = application;
 		iniAppearance = application.getAppearance();

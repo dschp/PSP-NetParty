@@ -53,7 +53,7 @@ public class AsyncUdpServer implements IServer {
 	private ByteBuffer terminateBuffer = ByteBuffer.wrap(new byte[] { 0 });
 
 	private Thread selectorThread;
-	private Thread pingThread;
+	private Thread keepAliveThread;
 
 	public AsyncUdpServer() {
 		serverListeners = new ConcurrentHashMap<IServerListener, Object>();
@@ -106,25 +106,25 @@ public class AsyncUdpServer implements IServer {
 					listener.log("UDP: Now shuting down...");
 					listener.serverShutdownFinished();
 				}
-				pingThread.interrupt();
+				keepAliveThread.interrupt();
 			}
 		});
 		selectorThread.setName(getClass().getName() + " Selector");
 		selectorThread.setDaemon(true);
 		selectorThread.start();
 
-		pingThread = new Thread(new Runnable() {
+		keepAliveThread = new Thread(new Runnable() {
 			@Override
 			public void run() {
 				try {
-					pingLoop();
+					keepAliveLoop();
 				} catch (InterruptedException e) {
 				}
 			}
 		});
-		pingThread.setName(getClass().getName() + " Ping");
-		pingThread.setDaemon(true);
-		pingThread.start();
+		keepAliveThread.setName(getClass().getName() + " KeepAlive");
+		keepAliveThread.setDaemon(true);
+		keepAliveThread.start();
 	}
 
 	private void selectorLoop() {
@@ -198,23 +198,20 @@ public class AsyncUdpServer implements IServer {
 		}
 	}
 
-	private void pingLoop() throws InterruptedException {
-		ByteBuffer pingBuffer = ByteBuffer.wrap(new byte[] { 1 });
+	private void keepAliveLoop() throws InterruptedException {
+		ByteBuffer keepAliveBuffer = ByteBuffer.wrap(new byte[] { 1 });
 		while (isListening()) {
-			long deadline = System.currentTimeMillis() - IProtocol.PING_DEADLINE;
-			// int pingCount = 0, disconnectCount = 0;
+			long deadline = System.currentTimeMillis() - IProtocol.KEEPALIVE_DEADLINE;
 
 			for (Entry<InetSocketAddress, Connection> entry : establishedConnections.entrySet()) {
 				try {
 					Connection conn = entry.getValue();
-					if (conn.lastPingTime < deadline) {
-						log(Utility.makePingDisconnectLog("UDP", conn.remoteAddress, deadline, conn.lastPingTime));
+					if (conn.lastKeepAliveReceived < deadline) {
+						log(Utility.makeKeepAliveDisconnectLog("UDP", conn.remoteAddress, deadline, conn.lastKeepAliveReceived));
 						conn.disconnect();
-						// disconnectCount++;
 					} else {
-						pingBuffer.clear();
-						conn.send(pingBuffer);
-						// pingCount++;
+						keepAliveBuffer.clear();
+						conn.send(keepAliveBuffer);
 					}
 				} catch (RuntimeException e) {
 					log(Utility.stackTraceToString(e));
@@ -223,9 +220,7 @@ public class AsyncUdpServer implements IServer {
 				}
 			}
 
-			// logger.log("UDP Server Ping送信: p=" + pingCount + " d=" +
-			// disconnectCount);
-			Thread.sleep(IProtocol.PING_INTERVAL);
+			Thread.sleep(IProtocol.KEEPALIVE_INTERVAL);
 		}
 	}
 
@@ -238,7 +233,6 @@ public class AsyncUdpServer implements IServer {
 			selector.close();
 		} catch (IOException e) {
 		}
-		// selector = null;
 
 		if (serverChannel != null && serverChannel.isOpen()) {
 			try {
@@ -256,11 +250,11 @@ public class AsyncUdpServer implements IServer {
 		private InetSocketAddress remoteAddress;
 		private IProtocolDriver driver;
 
-		public long lastPingTime;
+		public long lastKeepAliveReceived;
 
 		public Connection(InetSocketAddress remoteAddress) {
 			this.remoteAddress = remoteAddress;
-			lastPingTime = System.currentTimeMillis();
+			lastKeepAliveReceived = System.currentTimeMillis();
 		}
 
 		@Override
@@ -291,7 +285,7 @@ public class AsyncUdpServer implements IServer {
 			} catch (IOException e) {
 			}
 		}
-		
+
 		@Override
 		public void send(byte[] data) {
 			ByteBuffer buffer = ByteBuffer.wrap(data);
@@ -311,7 +305,7 @@ public class AsyncUdpServer implements IServer {
 				driver = null;
 			}
 
-			lastPingTime = 0;
+			lastKeepAliveReceived = 0;
 		}
 
 		private void processData() {
@@ -321,9 +315,7 @@ public class AsyncUdpServer implements IServer {
 					disconnect();
 					return;
 				case 1:
-					lastPingTime = System.currentTimeMillis();
-					// logger.log(Utility.makePingLog("UDP Server",
-					// getLocalAddress(), remoteAddress, lastPingTime));
+					lastKeepAliveReceived = System.currentTimeMillis();
 					return;
 				}
 			}

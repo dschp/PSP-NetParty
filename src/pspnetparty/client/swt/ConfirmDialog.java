@@ -27,22 +27,27 @@ import org.eclipse.swt.widgets.Shell;
 
 public class ConfirmDialog extends Dialog {
 
-	protected ConfirmDialog(Shell parentShell) {
+	private String shellText;
+	private String labelText;
+
+	protected ConfirmDialog(Shell parentShell, String shellText, String labelText) {
 		super(parentShell);
+		this.shellText = shellText;
+		this.labelText = labelText;
 	}
 
 	@Override
 	protected void configureShell(Shell newShell) {
 		super.configureShell(newShell);
-		newShell.setText("PSP NetPartyを終了します");
+		newShell.setText(shellText);
 	}
-	
+
 	@Override
 	protected Control createDialogArea(Composite parent) {
 		Composite composite = (Composite) super.createDialogArea(parent);
 
 		Label label = new Label(composite, SWT.NONE);
-		label.setText("PSP NetPartyを終了します。よろしいですか？");
+		label.setText(labelText);
 
 		return composite;
 	}

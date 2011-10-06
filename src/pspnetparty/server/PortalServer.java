@@ -28,7 +28,7 @@ import pspnetparty.lib.ILogger;
 import pspnetparty.lib.IniFile;
 import pspnetparty.lib.IniSection;
 import pspnetparty.lib.constants.AppConstants;
-import pspnetparty.lib.constants.IniPublicServer;
+import pspnetparty.lib.constants.IniPublicServerRegistry;
 import pspnetparty.lib.engine.PortalEngine;
 import pspnetparty.lib.server.IniConstants;
 import pspnetparty.lib.server.ServerUtils;
@@ -104,15 +104,11 @@ public class PortalServer {
 					printList(engine.listActiveRoomServers());
 					System.out.println("[接続中の検索サーバーの一覧]");
 					printList(engine.listActiveSearchServers());
-					System.out.println("[接続中のロビーサーバーの一覧]");
-					printList(engine.listActiveLobbyServers());
 				} else if ("dead".equalsIgnoreCase(argument)) {
 					System.out.println("[切断されたルームサーバーの一覧]");
 					printList(engine.listDeadRoomServers());
 					System.out.println("[切断された検索サーバーの一覧]");
 					printList(engine.listDeadSearchServers());
-					System.out.println("[切断されたロビーサーバーの一覧]");
-					printList(engine.listDeadLobbyServers());
 				} else if ("reload".equalsIgnoreCase(argument)) {
 					try {
 						connect(engine);
@@ -142,7 +138,7 @@ public class PortalServer {
 	}
 
 	private static void connect(PortalEngine engine) throws IOException {
-		IniPublicServer publicServer = new IniPublicServer();
+		IniPublicServerRegistry publicServer = new IniPublicServerRegistry();
 		HashSet<String> addresses = new HashSet<String>();
 
 		for (String address : publicServer.getRoomServers()) {

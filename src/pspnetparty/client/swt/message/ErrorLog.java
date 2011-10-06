@@ -30,6 +30,10 @@ public class ErrorLog extends AbstractMessage {
 		super("", message);
 	}
 
+	public ErrorLog(Exception e) {
+		super("", e.getMessage() == null ? e.toString() : e.getMessage());
+	}
+
 	@Override
 	public void configureStyle(List<StyleRange> styles, IniAppearance appearance) {
 		StyleRange range = new StyleRange();

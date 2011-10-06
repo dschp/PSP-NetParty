@@ -40,11 +40,17 @@ import org.eclipse.swt.events.ControlListener;
 import org.eclipse.swt.layout.FillLayout;
 import org.eclipse.swt.widgets.Composite;
 import org.eclipse.swt.widgets.Control;
+import org.eclipse.swt.widgets.Event;
+import org.eclipse.swt.widgets.Listener;
+import org.eclipse.swt.widgets.Menu;
+import org.eclipse.swt.widgets.MenuItem;
 
-import pspnetparty.client.swt.IPlayClient;
+import pspnetparty.client.swt.PlayClient;
 import pspnetparty.client.swt.SwtUtils;
 import pspnetparty.client.swt.config.IniAppearance;
 import pspnetparty.lib.FixedSizeList;
+import pspnetparty.lib.Utility;
+import pspnetparty.lib.constants.AppConstants;
 
 public class LogViewer {
 
@@ -52,7 +58,7 @@ public class LogViewer {
 
 	private FixedSizeList<IMessage> messageList;
 
-	private IPlayClient application;
+	private PlayClient application;
 
 	private Composite container;
 	private SourceViewer sourceViewer;
@@ -65,7 +71,7 @@ public class LogViewer {
 	private String lineDelimiter;
 	private ArrayList<StyleRange> styleRanges = new ArrayList<StyleRange>();
 
-	public LogViewer(Composite parent, int size, IPlayClient application) {
+	public LogViewer(Composite parent, int size, PlayClient application) {
 		this.application = application;
 
 		messageList = new FixedSizeList<IMessage>(size);
@@ -130,6 +136,35 @@ public class LogViewer {
 
 		manager.install(sourceViewer, presenter, new IHyperlinkDetector[] { new URLHyperlinkDetector() }, SWT.NONE);
 		applyAppearance();
+
+		Menu menu = new Menu(parent.getShell(), SWT.POP_UP);
+		logWidget.setMenu(menu);
+
+		MenuItem menuCopyLog = new MenuItem(menu, SWT.PUSH);
+		menuCopyLog.setText("ログをコピー");
+		menuCopyLog.addListener(SWT.Selection, new Listener() {
+			private Date date = new Date();
+
+			@Override
+			public void handleEvent(Event event) {
+				StringBuilder sb = new StringBuilder();
+
+				for (int i = 0; i < messageList.size(); i++) {
+					IMessage log = messageList.get(i);
+					date.setTime(log.getTimestamp());
+					sb.append(DATE_FORMAT.format(date));
+					if (Utility.isEmpty(log.getName())) {
+						sb.append(' ');
+					} else {
+						sb.append(" <").append(log.getName()).append("> ");
+					}
+					sb.append(log.getMessage());
+					sb.append(AppConstants.NEW_LINE);
+				}
+
+				LogViewer.this.application.putClipboard(sb.toString());
+			}
+		});
 	}
 
 	public void applyAppearance() {
@@ -209,6 +244,8 @@ public class LogViewer {
 				ruler.update();
 			}
 		} catch (SWTException e) {
+		} catch (RuntimeException e) {
+			e.fillInStackTrace();
 		}
 	}
 

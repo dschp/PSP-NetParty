@@ -1,4 +1,4 @@
-package pspnetparty.lib.engine;
+package pspnetparty.lib;
 
 import java.util.HashMap;
 

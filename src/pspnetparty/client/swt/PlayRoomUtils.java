@@ -38,7 +38,7 @@ public class PlayRoomUtils {
 
 	public static final SimpleDateFormat DATE_FORMAT = new SimpleDateFormat("M/d HH:mm:ss");
 
-	public class ListContentProvider implements IStructuredContentProvider {
+	public static final IStructuredContentProvider CONTENT_PROVIDER = new IStructuredContentProvider() {
 		@Override
 		public void dispose() {
 		}
@@ -53,9 +53,9 @@ public class PlayRoomUtils {
 			HashMap<String, PlayRoom> playRooms = (HashMap<String, PlayRoom>) input;
 			return playRooms.values().toArray();
 		}
-	}
+	};
 
-	public static class LabelProvider implements ITableLabelProvider {
+	public static final ITableLabelProvider LABEL_PROVIDER = new ITableLabelProvider() {
 		@Override
 		public void addListener(ILabelProviderListener arg0) {
 		}
@@ -90,19 +90,16 @@ public class PlayRoomUtils {
 			case 2:
 				return room.getCurrentPlayers() + " / " + room.getMaxPlayers();
 			case 3:
-				return room.hasPassword() ? "有" : "";
-			case 4:
-				// return Long.toString(room.getCreatedTime());
-				return DATE_FORMAT.format(new Date(room.getCreatedTime()));
-			case 5:
 				return room.getDescription();
-			case 6:
+			case 4:
 				return room.getServerAddress();
+			case 5:
+				return DATE_FORMAT.format(new Date(room.getCreatedTime()));
 			}
 
 			return "";
 		}
-	}
+	};
 
 	public static final ViewerSorter ADDRESS_SORTER = new ViewerSorter() {
 		@Override

@@ -18,8 +18,6 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 package pspnetparty.client.swt;
 
-import java.util.List;
-
 import org.eclipse.jface.dialogs.Dialog;
 import org.eclipse.jface.viewers.ArrayContentProvider;
 import org.eclipse.jface.viewers.DoubleClickEvent;
@@ -40,13 +38,13 @@ import org.eclipse.swt.widgets.TableColumn;
 
 public class SearchServerSelectDialog extends Dialog {
 
-	private List<SearchServerInfo> serverList;
-	private SearchServerInfo selectedServer;
+	private String[] serverList;
+	private String selectedServer;
 
-	protected SearchServerSelectDialog(Shell parentShell, List<SearchServerInfo> list) {
+	protected SearchServerSelectDialog(Shell parentShell, String[] list) {
 		super(parentShell);
 		serverList = list;
-		selectedServer = list.get(0);
+		selectedServer = list.length > 0 ? list[0] : "";
 	}
 
 	@Override
@@ -69,9 +67,6 @@ public class SearchServerSelectDialog extends Dialog {
 		TableColumn addressColumn = new TableColumn(table, SWT.LEFT);
 		addressColumn.setText("アドレス");
 
-		TableColumn useRateColumn = new TableColumn(table, SWT.RIGHT);
-		useRateColumn.setText("利用率");
-
 		viewer.setContentProvider(new ArrayContentProvider());
 		viewer.setLabelProvider(SearchServerInfo.LABEL_PROVIDER);
 
@@ -81,7 +76,7 @@ public class SearchServerSelectDialog extends Dialog {
 			@Override
 			public void selectionChanged(SelectionChangedEvent e) {
 				IStructuredSelection selection = (IStructuredSelection) e.getSelection();
-				selectedServer = (SearchServerInfo) selection.getFirstElement();
+				selectedServer = (String) selection.getFirstElement();
 				getButton(OK).setEnabled(selectedServer != null);
 			}
 		});
@@ -89,14 +84,13 @@ public class SearchServerSelectDialog extends Dialog {
 			@Override
 			public void doubleClick(DoubleClickEvent e) {
 				IStructuredSelection selection = (IStructuredSelection) e.getSelection();
-				selectedServer = (SearchServerInfo) selection.getFirstElement();
+				selectedServer = (String) selection.getFirstElement();
 				setReturnCode(OK);
 				close();
 			}
 		});
 
 		addressColumn.pack();
-		useRateColumn.pack();
 
 		table.select(0);
 
@@ -108,12 +102,12 @@ public class SearchServerSelectDialog extends Dialog {
 		Control control = super.createButtonBar(parent);
 
 		Button ok = getButton(OK);
-		ok.setText("ログイン");
+		ok.setText("接続する");
 
 		return control;
 	}
 
-	public SearchServerInfo getSelectedServer() {
+	public String getSelectedServer() {
 		return selectedServer;
 	}
 }

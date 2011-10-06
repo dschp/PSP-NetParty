@@ -26,18 +26,17 @@ import pspnetparty.client.swt.SwtUtils;
 import pspnetparty.lib.IniSection;
 
 public class IniAppData {
-	private static final String MAIN_WINDOW_BOUNDS = "MainWindowBounds";
-	private static final String SEARCH_WINDOW_BOUNDS = "SearchWindowBounds";
-	private static final String LOBBY_WINDOW_BOUNDS = "LobbyWindowBounds";
-	private static final String LOG_WINDOW_BOUNDS = "LogWindowBounds";
+	private static final String ARENA_WINDOW_BOUNDS = "ArenaWindowBounds";
+	private static final String ROOM_WINDOW_BOUNDS = "RoomWindowBounds";
+	private static final String USER_PROFILE_WINDOW_BOUNDS = "UserProfileWindowBounds";
 
-	private static final String SEARCH_SASH_WEIGHT = "SearchSashWeight";
-	private static final String LOBBY_SASH_WEIGHT = "LobbySashWeight";
+	private static final String ARENA_SASH_WEIGHT = "ArenaSashWeight";
+	private static final String ARENA_LOBBY_SASH_WEIGHT = "ArenaLobbySashWeight";
 	private static final String ROOM_SASH_WEIGHT = "RoomSashWeight";
 	private static final String ROOM_CENTER_SASH_WEIGHT = "RoomCenterSashWeight";
 	private static final String ROOM_RIGHT_SASH_WEIGHT = "RoomRightSashWeight";
 
-	private static final String SEARCH_RESULT_TABLE = "SearchResultTable";
+	private static final String SEARCH_ROOM_TABLE = "SearchRoomTable";
 	private static final String LOBBY_USER_TABLE = "LobbyUserTable";
 	private static final String ROOM_PACKET_MONITOR_TABLE = "RoomPacketMonitorTable";
 	private static final String ROOM_SSID_SCAN_TABLE = "RoomSsidScanTable";
@@ -80,36 +79,28 @@ public class IniAppData {
 		section.set(iniItem, bounds.x + "," + bounds.y + "," + bounds.width + "," + bounds.height);
 	}
 
+	public void restoreArenaWindow(Shell shell) {
+		restoreShellBounds(ARENA_WINDOW_BOUNDS, shell, 800, 600);
+	}
+
+	public void storeArenaWindow(Rectangle bounds) {
+		storeBounds(ARENA_WINDOW_BOUNDS, bounds);
+	}
+
 	public void restoreMainWindow(Shell shell) {
-		restoreShellBounds(MAIN_WINDOW_BOUNDS, shell, 800, 600);
+		restoreShellBounds(ROOM_WINDOW_BOUNDS, shell, 800, 600);
 	}
 
 	public void storeMainWindow(Rectangle bounds) {
-		storeBounds(MAIN_WINDOW_BOUNDS, bounds);
+		storeBounds(ROOM_WINDOW_BOUNDS, bounds);
 	}
 
-	public void restoreSearchWindow(Shell shell) {
-		restoreShellBounds(SEARCH_WINDOW_BOUNDS, shell, 700, 400);
+	public void restoreUserProfileWindow(Shell shell) {
+		restoreShellBounds(USER_PROFILE_WINDOW_BOUNDS, shell, 450, 300);
 	}
 
-	public void storeSearchWindow(Rectangle bounds) {
-		storeBounds(SEARCH_WINDOW_BOUNDS, bounds);
-	}
-
-	public void restoreLobbyWindow(Shell shell) {
-		restoreShellBounds(LOBBY_WINDOW_BOUNDS, shell, 500, 500);
-	}
-
-	public void storeLobbyWindow(Rectangle bounds) {
-		storeBounds(LOBBY_WINDOW_BOUNDS, bounds);
-	}
-
-	public void restoreLogWindow(Shell shell) {
-		restoreShellBounds(LOG_WINDOW_BOUNDS, shell, 400, 300);
-	}
-
-	public void storeLogWindow(Rectangle bounds) {
-		storeBounds(LOG_WINDOW_BOUNDS, bounds);
+	public void storeUserProfilegWindow(Rectangle bounds) {
+		storeBounds(USER_PROFILE_WINDOW_BOUNDS, bounds);
 	}
 
 	public String getLastLanAdapter() {
@@ -168,20 +159,20 @@ public class IniAppData {
 		section.set(SEARCH_HISTORY_TITLE_NG, csv);
 	}
 
-	public int[] getArenaSearchSashWeights() {
-		return section.get(IniAppData.SEARCH_SASH_WEIGHT, new int[] { 5, 7 });
+	public int[] getArenaSashWeights() {
+		return section.get(IniAppData.ARENA_SASH_WEIGHT, new int[] { 3, 5 });
 	}
 
-	public void setArenaSearchSashWeights(int[] weights) {
-		section.set(SEARCH_SASH_WEIGHT, weights);
+	public void setArenaSashWeights(int[] weights) {
+		section.set(ARENA_SASH_WEIGHT, weights);
 	}
 
 	public int[] getArenaLobbySashFormWeights() {
-		return section.get(IniAppData.LOBBY_SASH_WEIGHT, new int[] { 8, 3 });
+		return section.get(IniAppData.ARENA_LOBBY_SASH_WEIGHT, new int[] { 8, 3 });
 	}
 
 	public void setArenaLobbySashFormWeights(int[] weights) {
-		section.set(LOBBY_SASH_WEIGHT, weights);
+		section.set(ARENA_LOBBY_SASH_WEIGHT, weights);
 	}
 
 	public int[] getRoomSashWeights() {
@@ -208,23 +199,23 @@ public class IniAppData {
 		section.set(ROOM_RIGHT_SASH_WEIGHT, weights);
 	}
 
-	public void restoreSearchResultTable(Table table) {
-		SwtUtils.deserializeTableColumns(table, section.get(SEARCH_RESULT_TABLE, ""), new int[] { 120, 200, 65, 40, 85, 250, 100 });
+	public void restoreSearchRoomTable(Table table) {
+		SwtUtils.deserializeTableColumns(table, section.get(SEARCH_ROOM_TABLE, ""), new int[] { 120, 200, 65, 250, 100, 85 });
 	}
 
-	public void storeSearchResultTable(Table table) {
-		section.set(SEARCH_RESULT_TABLE, SwtUtils.serializeTableColumns(table));
+	public void storeSearchRoomTable(Table table) {
+		section.set(SEARCH_ROOM_TABLE, SwtUtils.serializeTableColumns(table));
 	}
 
-	public void restoreLobbyUserTableSetting(Table table) {
-		SwtUtils.deserializeTableColumns(table, section.get(LOBBY_USER_TABLE, ""), new int[] { 115, 55 });
+	public void restoreLobbyUserTable(Table table) {
+		SwtUtils.deserializeTableColumns(table, section.get(LOBBY_USER_TABLE, ""), new int[] { 100, 75, 200 });
 	}
 
-	public void storeLobbyUserTableSetting(Table table) {
+	public void storeLobbyUserTable(Table table) {
 		section.set(LOBBY_USER_TABLE, SwtUtils.serializeTableColumns(table));
 	}
 
-	public void restorePacketMonitorTableSetting(Table table) {
+	public void restorePacketMonitorTable(Table table) {
 		SwtUtils.deserializeTableColumns(table, section.get(ROOM_PACKET_MONITOR_TABLE, ""), new int[] { 25, 100, 100, 80, 80, 100, 100 });
 	}
 
@@ -232,7 +223,7 @@ public class IniAppData {
 		section.set(ROOM_PACKET_MONITOR_TABLE, SwtUtils.serializeTableColumns(table));
 	}
 
-	public void restoreSsidScanTableSetting(Table table) {
+	public void restoreSsidScanTable(Table table) {
 		SwtUtils.deserializeTableColumns(table, section.get(ROOM_SSID_SCAN_TABLE, ""), new int[] { 150, 40 });
 	}
 
@@ -240,7 +231,7 @@ public class IniAppData {
 		section.set(ROOM_SSID_SCAN_TABLE, SwtUtils.serializeTableColumns(table));
 	}
 
-	public void restoreRoomPlayerTableSetting(Table table) {
+	public void restoreRoomPlayerTable(Table table) {
 		SwtUtils.deserializeTableColumns(table, section.get(ROOM_PLAYER_TABLE, ""), new int[] { 22, 100, 100, 50 });
 	}
 

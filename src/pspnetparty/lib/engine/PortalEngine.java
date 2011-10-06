@@ -68,6 +68,8 @@ public class PortalEngine {
 	private ConcurrentSkipListMap<String, ISocketConnection> lobbyServerConnections;
 	private ConcurrentSkipListMap<String, RetryInfo> lobbyServerRetryAddresses;
 
+	private ConcurrentSkipListSet<RoomListProtocolDriver> roomListClients;
+
 	private final Object reconnectLock = new Object();
 	private boolean isStarted = false;
 
@@ -97,6 +99,8 @@ public class PortalEngine {
 		lobbyServers = new ConcurrentSkipListSet<PortalEngine.LobbyServerStatusProtocolDriver>();
 		lobbyServerConnections = new ConcurrentSkipListMap<String, ISocketConnection>();
 		lobbyServerRetryAddresses = new ConcurrentSkipListMap<String, PortalEngine.RetryInfo>();
+
+		roomListClients = new ConcurrentSkipListSet<PortalEngine.RoomListProtocolDriver>();
 
 		tcpClient = new AsyncTcpClient(logger, 1000000, 2000);
 
@@ -161,6 +165,8 @@ public class PortalEngine {
 			}
 		});
 		server.addProtocol(new PortalProtocol());
+		server.addProtocol(new RoomListProtocol());
+		server.addProtocol(new RoomDataProtocol());
 	}
 
 	public String statusToString() {
@@ -176,6 +182,10 @@ public class PortalEngine {
 
 		sb.append("Lobby : ");
 		sb.append(lobbyServers);
+		sb.append(AppConstants.NEW_LINE);
+
+		sb.append("RoomList Clients : ");
+		sb.append(roomListClients.size());
 		sb.append(AppConstants.NEW_LINE);
 
 		return sb.toString();
@@ -307,25 +317,106 @@ public class PortalEngine {
 				return false;
 			}
 		});
-		portalHandlers.put(ProtocolConstants.Portal.COMMAND_LIST_LOBBY_SERVERS, new IProtocolMessageHandler() {
+		portalHandlers.put(ProtocolConstants.Portal.COMMAND_FIND_LOBBY_SERVERS, new IProtocolMessageHandler() {
 			@Override
 			public boolean process(IProtocolDriver driver, String argument) {
-				StringBuilder sb = new StringBuilder();
-
-				for (LobbyServerStatusProtocolDriver d : lobbyServers) {
-					sb.append(d.address);
-					sb.append('\t');
-					sb.append(d.currentUsers);
-					sb.append('\t');
-					sb.append(d.title);
-					sb.append('\n');
+				try {
+					LobbyServerStatusProtocolDriver d = lobbyServers.first();
+					driver.getConnection().send(d.address);
+				} catch (NoSuchElementException e) {
 				}
-
-				driver.getConnection().send(sb.toString());
 				return false;
 			}
 		});
 	}
+
+	private void sendRoomListServerStatus() {
+		StringBuilder sb = new StringBuilder();
+
+		sb.append(ProtocolConstants.SERVER_STATUS);
+		sb.append(TextProtocolDriver.ARGUMENT_SEPARATOR);
+		sb.append(roomListClients.size());
+
+		String notify = sb.toString();
+		for (RoomListProtocolDriver d : roomListClients) {
+			d.getConnection().send(notify);
+		}
+	}
+
+	private class RoomListProtocol implements IProtocol {
+		@Override
+		public void log(String message) {
+			logger.log(message);
+		}
+
+		@Override
+		public String getProtocol() {
+			return ProtocolConstants.PROTOCOL_ROOM_LIST;
+		}
+
+		@Override
+		public IProtocolDriver createDriver(ISocketConnection connection) {
+			RoomListProtocolDriver driver = new RoomListProtocolDriver(connection);
+			roomListClients.add(driver);
+
+			sendRoomListServerStatus();
+
+			StringBuilder sb = new StringBuilder();
+			for (RoomServerStatusProtocolDriver d : roomServers) {
+				for (Entry<String, PortalPlayRoom> e : d.playRooms.entrySet()) {
+					PortalPlayRoom room = e.getValue();
+					room.appendRoomCreated(sb, d.address);
+					sb.append(TextProtocolDriver.MESSAGE_SEPARATOR);
+				}
+			}
+			if (sb.length() > 0) {
+				sb.deleteCharAt(sb.length() - 1);
+				connection.send(sb.toString());
+			}
+
+			return driver;
+		}
+	}
+
+	private class RoomDataProtocol extends RoomListProtocol {
+		@Override
+		public String getProtocol() {
+			return "PNP_ROOMDATA";
+		}
+	}
+
+	private class RoomListProtocolDriver extends TextProtocolDriver implements Comparable<RoomListProtocolDriver> {
+		private long created = System.currentTimeMillis();
+
+		public RoomListProtocolDriver(ISocketConnection conn) {
+			super(conn, roomListHandlers);
+		}
+
+		@Override
+		public void connectionDisconnected() {
+			roomListClients.remove(this);
+			sendRoomListServerStatus();
+		}
+
+		@Override
+		public void errorProtocolNumber(String number) {
+		}
+
+		@Override
+		public void log(String message) {
+		}
+
+		@Override
+		public int compareTo(RoomListProtocolDriver o) {
+			if (this.created < o.created)
+				return -1;
+			else if (this.created > o.created)
+				return 1;
+			return 0;
+		}
+	}
+
+	private HashMap<String, IProtocolMessageHandler> roomListHandlers = new HashMap<String, IProtocolMessageHandler>();
 
 	private void logConnectionError(InetSocketAddress socketAddress, IOException ex) {
 		logger.log("( " + socketAddress + " ) " + ex.toString());
@@ -456,6 +547,8 @@ public class PortalEngine {
 			lobbyServerConnections.put(driver.address, connection);
 			lobbyServerRetryAddresses.remove(driver.address);
 
+			lobbyServers.add(driver);
+
 			logger.log(getTypeName() + "と接続しました: " + connection.getRemoteAddress());
 			return driver;
 		}
@@ -463,9 +556,6 @@ public class PortalEngine {
 
 	private class LobbyServerStatusProtocolDriver extends TextProtocolDriver implements Comparable<LobbyServerStatusProtocolDriver> {
 		private String address;
-
-		private String title;
-		private int currentUsers;
 
 		public LobbyServerStatusProtocolDriver(ISocketConnection connection) {
 			super(connection, lobbyServerHandlers);
@@ -500,82 +590,16 @@ public class PortalEngine {
 
 		@Override
 		public int compareTo(LobbyServerStatusProtocolDriver d) {
-			int diff = d.currentUsers - currentUsers;
-			if (diff == 0)
-				return address.compareTo(d.address);
-			return diff;
+			return address.compareTo(d.address);
 		}
 
 		@Override
 		public String toString() {
-			return "LobbyServer(" + address + "," + currentUsers + "," + title + ")";
+			return "LobbyServer(" + address + ")";
 		}
 	}
 
 	private HashMap<String, IProtocolMessageHandler> lobbyServerHandlers = new HashMap<String, IProtocolMessageHandler>();
-	{
-		lobbyServerHandlers.put(ProtocolConstants.SERVER_STATUS, new IProtocolMessageHandler() {
-			@Override
-			public boolean process(IProtocolDriver driver, String argument) {
-				try {
-					int currentUsers = Integer.parseInt(argument);
-
-					LobbyServerStatusProtocolDriver status = (LobbyServerStatusProtocolDriver) driver;
-					// System.out.println("Before: " + lobbyServers);
-					lobbyServers.remove(status);
-
-					status.currentUsers = currentUsers;
-
-					lobbyServers.add(status);
-					// System.out.println("After : " + lobbyServers);
-				} catch (NumberFormatException e) {
-				}
-				return true;
-			}
-		});
-		lobbyServerHandlers.put(ProtocolConstants.LobbyStatus.NOTIFY_LOBBY_INFO, new IProtocolMessageHandler() {
-			@Override
-			public boolean process(IProtocolDriver driver, String title) {
-				LobbyServerStatusProtocolDriver status = (LobbyServerStatusProtocolDriver) driver;
-				status.title = title;
-				return true;
-			}
-		});
-	}
-
-	private static class PortalPlayRoom extends PlayRoom {
-		private boolean isMyRoom;
-
-		private PortalPlayRoom(String serverAddress, String masterName, String title, boolean hasPassword, int currentPlayers,
-				int maxPlayers, long created, boolean isMyRoom) {
-			super(serverAddress, masterName, title, hasPassword, currentPlayers, maxPlayers, created);
-
-			this.isMyRoom = isMyRoom;
-		}
-
-		private void appendRoomCreated(StringBuilder sb, String source) {
-			sb.append(ProtocolConstants.SearchStatus.NOTIFY_ROOM_CREATED);
-			sb.append(TextProtocolDriver.ARGUMENT_SEPARATOR);
-			sb.append(source);
-			sb.append(TextProtocolDriver.ARGUMENT_SEPARATOR);
-			if (isMyRoom)
-				sb.append(getServerAddress());
-			sb.append(TextProtocolDriver.ARGUMENT_SEPARATOR);
-			sb.append(getMasterName());
-			sb.append(TextProtocolDriver.ARGUMENT_SEPARATOR);
-			sb.append(getTitle());
-			sb.append(TextProtocolDriver.ARGUMENT_SEPARATOR);
-			sb.append(getCurrentPlayers());
-			sb.append(TextProtocolDriver.ARGUMENT_SEPARATOR);
-			sb.append(getMaxPlayers());
-			sb.append(TextProtocolDriver.ARGUMENT_SEPARATOR);
-			sb.append(hasPassword() ? "Y" : "N");
-			sb.append(TextProtocolDriver.ARGUMENT_SEPARATOR);
-			sb.append(getCreatedTime());
-			sb.append(TextProtocolDriver.ARGUMENT_SEPARATOR);
-			sb.append(getDescription());
-		}
-	}
 
 	private class SearchServerStatusProtocol implements IServerProtocol {
 		@Override
@@ -731,6 +755,17 @@ public class PortalEngine {
 		});
 	}
 
+	private void sendRoomDataNotify(String notify) {
+		for (SearchServerStatusProtocolDriver s : searchServers) {
+			if (s.feedRoomData)
+				s.getConnection().send(notify);
+		}
+
+		for (RoomListProtocolDriver d : roomListClients) {
+			d.getConnection().send(notify);
+		}
+	}
+
 	private class RoomServerStatusProtocol implements IServerProtocol {
 		@Override
 		public void log(String message) {
@@ -754,15 +789,10 @@ public class PortalEngine {
 			roomServerConnections.put(driver.address, connection);
 			roomServerRetryAddresses.remove(driver.address);
 
+			roomServers.add(driver);
+
 			logger.log(getTypeName() + "と接続しました: " + connection.getRemoteAddress());
 			return driver;
-		}
-	}
-
-	private void sendRoomServerNotifyToSearchServer(String notify) {
-		for (SearchServerStatusProtocolDriver s : searchServers) {
-			if (s.feedRoomData)
-				s.getConnection().send(notify);
 		}
 	}
 
@@ -771,7 +801,7 @@ public class PortalEngine {
 
 		private int currentRooms;
 		private int maxRooms;
-		private int myRoomCount;
+		private int myRooms;
 
 		private ConcurrentHashMap<String, PortalPlayRoom> playRooms;
 
@@ -787,7 +817,7 @@ public class PortalEngine {
 			roomServers.remove(this);
 
 			String notify = ProtocolConstants.SearchStatus.NOTIFY_ROOM_SERVER_REMOVED + TextProtocolDriver.ARGUMENT_SEPARATOR + address;
-			sendRoomServerNotifyToSearchServer(notify);
+			sendRoomDataNotify(notify);
 
 			InetSocketAddress socketAddress = getConnection().getRemoteAddress();
 			ISocketConnection conn = roomServerConnections.remove(address);
@@ -851,7 +881,7 @@ public class PortalEngine {
 
 		@Override
 		public String toString() {
-			return "RoomServer(" + address + "," + currentRooms + "/" + maxRooms + ")";
+			return "RoomServer(" + address + "," + currentRooms + "/" + maxRooms + "," + myRooms + ")";
 		}
 	}
 
@@ -860,24 +890,24 @@ public class PortalEngine {
 		roomServerHandlers.put(ProtocolConstants.SERVER_STATUS, new IProtocolMessageHandler() {
 			@Override
 			public boolean process(IProtocolDriver driver, String argument) {
+				// NRRC maxRooms
 				// NRRC roomCount maxRooms myRoomCount
 				String[] tokens = argument.split(TextProtocolDriver.ARGUMENT_SEPARATOR, -1);
-				if (tokens.length != 3)
-					return true;
 
+				int maxRooms;
 				try {
-					int currentRooms = Integer.parseInt(tokens[0]);
-					int maxRooms = Integer.parseInt(tokens[1]);
-					int myRoomCount = Integer.parseInt(tokens[2]);
+					if (tokens.length == 1) {
+						maxRooms = Integer.parseInt(tokens[0]);
+					} else if (tokens.length == 3) {
+						maxRooms = Integer.parseInt(tokens[1]);
+					} else {
+						return true;
+					}
 
 					RoomServerStatusProtocolDriver status = (RoomServerStatusProtocolDriver) driver;
 					// System.out.println("Before: " + roomServers);
 					roomServers.remove(status);
-
-					status.currentRooms = currentRooms;
 					status.maxRooms = maxRooms;
-					status.myRoomCount = myRoomCount;
-
 					roomServers.add(status);
 					// System.out.println("After : " + roomServers);
 				} catch (NumberFormatException e) {
@@ -916,10 +946,18 @@ public class PortalEngine {
 
 					status.playRooms.put(room.getRoomAddress(), room);
 
+					if (isMyRoom) {
+						status.myRooms++;
+					} else {
+						roomServers.remove(status);
+						status.currentRooms++;
+						roomServers.add(status);
+					}
+
 					StringBuilder sb = new StringBuilder();
 					room.appendRoomCreated(sb, status.address);
 
-					sendRoomServerNotifyToSearchServer(sb.toString());
+					sendRoomDataNotify(sb.toString());
 				} catch (NumberFormatException e) {
 				}
 				return true;
@@ -965,7 +1003,7 @@ public class PortalEngine {
 					sb.append(TextProtocolDriver.ARGUMENT_SEPARATOR);
 					sb.append(description);
 
-					sendRoomServerNotifyToSearchServer(sb.toString());
+					sendRoomDataNotify(sb.toString());
 				} catch (NumberFormatException e) {
 				}
 				return true;
@@ -979,14 +1017,24 @@ public class PortalEngine {
 				// NRD hostname:port:master
 				String address = status.supplementServerAddress(argument);
 
-				status.playRooms.remove(address);
+				PortalPlayRoom room = status.playRooms.remove(address);
+				if (room == null)
+					return true;
+
+				if (room.isMyRoom) {
+					status.myRooms--;
+				} else {
+					roomServers.remove(status);
+					status.currentRooms--;
+					roomServers.add(status);
+				}
 
 				StringBuilder sb = new StringBuilder();
 				sb.append(ProtocolConstants.SearchStatus.NOTIFY_ROOM_DELETED);
 				sb.append(TextProtocolDriver.ARGUMENT_SEPARATOR);
 				sb.append(address);
 
-				sendRoomServerNotifyToSearchServer(sb.toString());
+				sendRoomDataNotify(sb.toString());
 				return true;
 			}
 		});
@@ -1017,11 +1065,45 @@ public class PortalEngine {
 					sb.append(TextProtocolDriver.ARGUMENT_SEPARATOR);
 					sb.append(playerCount);
 
-					sendRoomServerNotifyToSearchServer(sb.toString());
+					sendRoomDataNotify(sb.toString());
 				} catch (NumberFormatException e) {
 				}
 				return true;
 			}
 		});
+	}
+
+	private static class PortalPlayRoom extends PlayRoom {
+		private boolean isMyRoom;
+
+		private PortalPlayRoom(String serverAddress, String masterName, String title, boolean hasPassword, int currentPlayers,
+				int maxPlayers, long created, boolean isMyRoom) {
+			super(null, serverAddress, masterName, title, hasPassword, currentPlayers, maxPlayers, created);
+
+			this.isMyRoom = isMyRoom;
+		}
+
+		private void appendRoomCreated(StringBuilder sb, String source) {
+			sb.append(ProtocolConstants.SearchStatus.NOTIFY_ROOM_CREATED);
+			sb.append(TextProtocolDriver.ARGUMENT_SEPARATOR);
+			sb.append(source);
+			sb.append(TextProtocolDriver.ARGUMENT_SEPARATOR);
+			if (isMyRoom)
+				sb.append(getServerAddress());
+			sb.append(TextProtocolDriver.ARGUMENT_SEPARATOR);
+			sb.append(getMasterName());
+			sb.append(TextProtocolDriver.ARGUMENT_SEPARATOR);
+			sb.append(getTitle());
+			sb.append(TextProtocolDriver.ARGUMENT_SEPARATOR);
+			sb.append(getCurrentPlayers());
+			sb.append(TextProtocolDriver.ARGUMENT_SEPARATOR);
+			sb.append(getMaxPlayers());
+			sb.append(TextProtocolDriver.ARGUMENT_SEPARATOR);
+			sb.append(hasPassword() ? "Y" : "N");
+			sb.append(TextProtocolDriver.ARGUMENT_SEPARATOR);
+			sb.append(getCreatedTime());
+			sb.append(TextProtocolDriver.ARGUMENT_SEPARATOR);
+			sb.append(getDescription());
+		}
 	}
 }

@@ -22,6 +22,7 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 
 import pspnetparty.lib.ICommandHandler;
 import pspnetparty.lib.ILogger;
@@ -29,7 +30,7 @@ import pspnetparty.lib.IniFile;
 import pspnetparty.lib.IniSection;
 import pspnetparty.lib.Utility;
 import pspnetparty.lib.constants.AppConstants;
-import pspnetparty.lib.constants.IServerNetwork;
+import pspnetparty.lib.constants.IServerRegistry;
 import pspnetparty.lib.engine.LobbyEngine;
 import pspnetparty.lib.engine.PortalEngine;
 import pspnetparty.lib.engine.RoomEngine;
@@ -78,7 +79,7 @@ public class AllInOneServer {
 		AsyncTcpServer tcpServer = new AsyncTcpServer(100000);
 		AsyncUdpServer udpServer = new AsyncUdpServer();
 
-		IServerNetwork network = new IServerNetwork() {
+		IServerRegistry registry = new IServerRegistry() {
 			@Override
 			public void reload() {
 			}
@@ -86,6 +87,31 @@ public class AllInOneServer {
 			@Override
 			public boolean isValidPortalServer(InetAddress address) {
 				return true;
+			}
+
+			@Override
+			public String[] getPortalServers() {
+				return null;
+			}
+
+			@Override
+			public String[] getRoomServers() {
+				return null;
+			}
+
+			@Override
+			public String[] getSearchServers() {
+				return null;
+			}
+
+			@Override
+			public String[] getLobbyServers() {
+				return null;
+			}
+
+			@Override
+			public Iterator<String> getPortalRotator() {
+				return null;
 			}
 		};
 
@@ -97,7 +123,7 @@ public class AllInOneServer {
 			}
 			System.out.println("最大部屋数: " + maxRooms);
 
-			RoomEngine roomEngine = new RoomEngine(tcpServer, udpServer, logger, network);
+			RoomEngine roomEngine = new RoomEngine(tcpServer, udpServer, logger, registry);
 			roomEngine.setMaxRooms(maxRooms);
 			roomEngine.setLoginMessageFile(loginMessageFile);
 		}
@@ -123,22 +149,23 @@ public class AllInOneServer {
 			}
 			System.out.println("部屋の詳細・備考の最大文字数: " + descriptionMaxLength);
 
-			SearchEngine searchEngine = new SearchEngine(tcpServer, logger, network);
+			SearchEngine searchEngine = new SearchEngine(tcpServer, logger, registry);
 			searchEngine.setMaxUsers(maxUsers);
 			searchEngine.setMaxSearchResults(maxSearchResults);
 			searchEngine.setDescriptionMaxLength(descriptionMaxLength);
 		}
 		{
-			LobbyEngine lobbyEngine = new LobbyEngine(tcpServer, logger, network);
-			lobbyEngine.setTitle("ロビー");
+			LobbyEngine lobbyEngine = new LobbyEngine(tcpServer, logger, registry);
 			lobbyEngine.setLoginMessageFile(loginMessageFile);
 		}
 
 		ini.saveToIni();
 
 		PortalEngine portalEngine = new PortalEngine(tcpServer, logger);
+
+		String address = hostname + ":" + port;
 		HashSet<String> addresses = new HashSet<String>();
-		addresses.add(hostname + ":" + port);
+		addresses.add(address);
 
 		InetSocketAddress bindAddress = new InetSocketAddress(port);
 		tcpServer.startListening(bindAddress);

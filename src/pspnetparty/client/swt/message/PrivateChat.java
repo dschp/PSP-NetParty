@@ -47,7 +47,7 @@ public class PrivateChat extends Chat {
 		StyleRange range = new StyleRange();
 		range.start = 0;
 		range.length = length();
-		range.foreground = appearance.getColorChatPrivate();
+		range.foreground = isMine() ? appearance.getColorChatMine() : appearance.getColorChatPrivate();
 		styles.add(range);
 	}
 }

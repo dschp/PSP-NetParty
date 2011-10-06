@@ -27,7 +27,7 @@ import pspnetparty.lib.IniFile;
 import pspnetparty.lib.IniSection;
 import pspnetparty.lib.Utility;
 import pspnetparty.lib.constants.AppConstants;
-import pspnetparty.lib.constants.IniPublicServer;
+import pspnetparty.lib.constants.IniPublicServerRegistry;
 import pspnetparty.lib.engine.RoomEngine;
 import pspnetparty.lib.server.IniConstants;
 import pspnetparty.lib.server.ServerUtils;
@@ -74,7 +74,7 @@ public class RoomServer {
 		AsyncTcpServer tcpServer = new AsyncTcpServer(40000);
 		AsyncUdpServer udpServer = new AsyncUdpServer();
 
-		final RoomEngine engine = new RoomEngine(tcpServer, udpServer, logger, new IniPublicServer());
+		final RoomEngine engine = new RoomEngine(tcpServer, udpServer, logger, new IniPublicServerRegistry());
 		engine.setMaxRooms(maxRooms);
 		engine.setLoginMessageFile(loginMessageFile);
 
@@ -94,7 +94,6 @@ public class RoomServer {
 				System.out.println("destroy 部屋主名\n\t部屋主名の部屋を解体する");
 				System.out.println("goma 部屋主名\n\t部屋主名の部屋の最大人数を増やす");
 				System.out.println("myroom list\n\tマイルームの一覧");
-				// System.out.println("myroom clear\n\tマイルームのクリア");
 				System.out.println("myroom destroy ルームアドレス\n\t指定したマイルームの登録を削除する");
 				System.out.println("portal list\n\t登録中のポータル一覧");
 				System.out.println("portal accept\n\tポータル登録の受付開始");
@@ -181,9 +180,6 @@ public class RoomServer {
 				if ("list".equals(action)) {
 					System.out.println("[登録マイルームの一覧]");
 					System.out.println(engine.myRoomsToString());
-					// } else if ("clear".equals(action)) {
-					// engine.clearAllMyRoomGhosts();
-					// System.out.println("マイルームゴーストをクリアしました");
 				} else if ("destroy".equals(action)) {
 					if (tokens.length == 2) {
 						String roomAddress = tokens[1];

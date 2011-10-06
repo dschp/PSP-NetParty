@@ -20,8 +20,6 @@ package pspnetparty.client.swt.config;
 
 import org.eclipse.jface.preference.PreferencePage;
 import org.eclipse.swt.SWT;
-import org.eclipse.swt.events.ModifyEvent;
-import org.eclipse.swt.events.ModifyListener;
 import org.eclipse.swt.layout.GridData;
 import org.eclipse.swt.layout.GridLayout;
 import org.eclipse.swt.widgets.Button;
@@ -33,15 +31,21 @@ import org.eclipse.swt.widgets.Label;
 import org.eclipse.swt.widgets.Listener;
 import org.eclipse.swt.widgets.Text;
 
-import pspnetparty.lib.Utility;
-import pspnetparty.lib.constants.AppConstants;
 import pspnetparty.lib.socket.TransportLayer;
+import pspnetparty.wlan.JnetPcapWlanDevice;
+import pspnetparty.wlan.NativeWlanDevice;
+import pspnetparty.wlan.WlanLibrary;
 
-public class BasicSettingPage extends PreferencePage {
+public class MiscSettingPage extends PreferencePage {
+
+	public static final String PAGE_ID = "settings";
 
 	private IniSettings settings;
 
-	private Text userNameText;
+	private Button startupWindowArena;
+	private Button startupWindowRoom;
+	private Button arenaAutoLoginRoomList;
+	private Button arenaAutoLoginLobby;
 	private Button appCloseConfirmCheck;
 	private Button logLobbyEnterExitCheck;
 	private Button balloonNotifyLobbyCheck;
@@ -50,12 +54,16 @@ public class BasicSettingPage extends PreferencePage {
 	private Text privatePortalServerAddress;
 	private Button myRoomAllowEmptyMasterNameCheck;
 
+	private Button libraryPnpWlan;
+	private Button libraryJnetPcap;
+	private Button libraryProxy;
+
 	private Button ssidAutoScan;
 	private Button tunnelTransportTcp;
 	private Button tunnelTransportUdp;
 
-	public BasicSettingPage(IniSettings settings) {
-		super("基本設定");
+	public MiscSettingPage(IniSettings settings) {
+		super("各種設定");
 		this.settings = settings;
 
 		noDefaultAndApplyButton();
@@ -64,6 +72,7 @@ public class BasicSettingPage extends PreferencePage {
 	@Override
 	protected Control createContents(Composite parent) {
 		GridLayout gridLayout;
+		GridData gridData;
 
 		Composite configContainer = new Composite(parent, SWT.NONE);
 		gridLayout = new GridLayout(1, false);
@@ -74,21 +83,37 @@ public class BasicSettingPage extends PreferencePage {
 		gridLayout.marginTop = 2;
 		configContainer.setLayout(gridLayout);
 
-		Composite configUserNameContainer = new Composite(configContainer, SWT.NONE);
-		configUserNameContainer.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+		Group startupWindowGroup = new Group(configContainer, SWT.SHADOW_IN);
+		startupWindowGroup.setText("起動ウインドウ");
+		startupWindowGroup.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, false, false));
 		gridLayout = new GridLayout(2, false);
-		gridLayout.horizontalSpacing = 7;
-		gridLayout.verticalSpacing = 0;
-		gridLayout.marginWidth = 0;
-		gridLayout.marginHeight = 0;
-		configUserNameContainer.setLayout(gridLayout);
+		gridLayout.horizontalSpacing = 5;
+		gridLayout.verticalSpacing = 3;
+		gridLayout.marginWidth = 4;
+		gridLayout.marginHeight = 5;
+		startupWindowGroup.setLayout(gridLayout);
 
-		Label configUserNameLabel = new Label(configUserNameContainer, SWT.NONE);
-		configUserNameLabel.setText("ユーザー名");
+		startupWindowArena = new Button(startupWindowGroup, SWT.RADIO | SWT.FLAT);
+		startupWindowArena.setText("アリーナ");
 
-		userNameText = new Text(configUserNameContainer, SWT.SINGLE | SWT.BORDER);
-		userNameText.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
-		userNameText.setTextLimit(AppConstants.LOGIN_NAME_LIMIT);
+		startupWindowRoom = new Button(startupWindowGroup, SWT.RADIO | SWT.FLAT);
+		startupWindowRoom.setText("ルーム");
+
+		Group arenaAutoLoginGroup = new Group(configContainer, SWT.SHADOW_IN);
+		arenaAutoLoginGroup.setText("アリーナウインドウを開く時に自動で接続する");
+		arenaAutoLoginGroup.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, false, false));
+		gridLayout = new GridLayout(2, false);
+		gridLayout.horizontalSpacing = 5;
+		gridLayout.verticalSpacing = 3;
+		gridLayout.marginWidth = 4;
+		gridLayout.marginHeight = 5;
+		arenaAutoLoginGroup.setLayout(gridLayout);
+
+		arenaAutoLoginRoomList = new Button(arenaAutoLoginGroup, SWT.CHECK | SWT.FLAT);
+		arenaAutoLoginRoomList.setText("部屋リスト");
+
+		arenaAutoLoginLobby = new Button(arenaAutoLoginGroup, SWT.CHECK | SWT.FLAT);
+		arenaAutoLoginLobby.setText("ロビー");
 
 		appCloseConfirmCheck = new Button(configContainer, SWT.CHECK | SWT.FLAT);
 		appCloseConfirmCheck.setText("アプリケーションを閉じる時に確認する");
@@ -107,8 +132,33 @@ public class BasicSettingPage extends PreferencePage {
 		balloonNotifyRoomCheck = new Button(configTaskTrayBalloonGroup, SWT.CHECK | SWT.FLAT);
 		balloonNotifyRoomCheck.setText("プレイルームのログメッセージ");
 
-		ssidAutoScan = new Button(configContainer, SWT.CHECK | SWT.FLAT);
+		Group ssidGroup = new Group(configContainer, SWT.SHADOW_IN);
+		ssidGroup.setText("SSID機能");
+		ssidGroup.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, false, false));
+		gridLayout = new GridLayout(3, false);
+		gridLayout.horizontalSpacing = 5;
+		gridLayout.verticalSpacing = 3;
+		gridLayout.marginWidth = 4;
+		gridLayout.marginHeight = 5;
+		ssidGroup.setLayout(gridLayout);
+
+		libraryPnpWlan = new Button(ssidGroup, SWT.RADIO);
+		libraryPnpWlan.setText("ON (PnpWlan)");
+		libraryPnpWlan.setEnabled(NativeWlanDevice.LIBRARY.isReady());
+
+		libraryJnetPcap = new Button(ssidGroup, SWT.RADIO);
+		libraryJnetPcap.setText("OFF (jNetPcap)");
+		libraryJnetPcap.setEnabled(JnetPcapWlanDevice.LIBRARY.isReady());
+
+		libraryProxy = new Button(ssidGroup, SWT.RADIO);
+		libraryProxy.setText("プロキシ (特殊なモード)");
+
+		ssidAutoScan = new Button(ssidGroup, SWT.CHECK | SWT.FLAT);
 		ssidAutoScan.setText("SSIDスキャンを自動的に開始する");
+		gridData = new GridData();
+		gridData.horizontalSpan = 3;
+		// gridData.verticalIndent = 6;
+		ssidAutoScan.setLayoutData(gridData);
 
 		Group configTunnelGroup = new Group(configContainer, SWT.SHADOW_IN);
 		configTunnelGroup.setText("トンネル通信");
@@ -165,18 +215,31 @@ public class BasicSettingPage extends PreferencePage {
 		myRoomAllowEmptyMasterNameCheck.setText("アドレスの部屋主名を省略でもログインできるようにする");
 		myRoomAllowEmptyMasterNameCheck.setLayoutData(new GridData(SWT.LEFT, SWT.CENTER, false, false));
 
-		userNameText.setText(Utility.validateUserName(settings.getUserName()));
-
+		if (settings.isStartupWindowArena())
+			startupWindowArena.setSelection(true);
+		else
+			startupWindowRoom.setSelection(true);
 		appCloseConfirmCheck.setSelection(settings.isNeedAppCloseConfirm());
 		logLobbyEnterExitCheck.setSelection(settings.isLogLobbyEnterExit());
 		balloonNotifyLobbyCheck.setSelection(settings.isBallonNotifyLobby());
 		balloonNotifyRoomCheck.setSelection(settings.isBallonNotifyRoom());
+		arenaAutoLoginRoomList.setSelection(settings.isArenaAutoLoginRoomList());
+		arenaAutoLoginLobby.setSelection(settings.isArenaAutoLoginLobby());
 
 		privatePortalServerUseCheck.setSelection(settings.isPrivatePortalServerUse());
 		privatePortalServerAddress.setText(settings.getPrivatePortalServerAddress());
 		privatePortalServerAddress.setEnabled(settings.isPrivatePortalServerUse());
 
 		myRoomAllowEmptyMasterNameCheck.setSelection(settings.isMyRoomAllowNoMasterName());
+
+		WlanLibrary library = settings.getWlanLibrary();
+		if (library == NativeWlanDevice.LIBRARY) {
+			libraryPnpWlan.setSelection(true);
+		} else if (library == JnetPcapWlanDevice.LIBRARY) {
+			libraryJnetPcap.setSelection(true);
+		} else {
+			libraryProxy.setSelection(true);
+		}
 
 		ssidAutoScan.setSelection(settings.isSsidAutoScan());
 		switch (settings.getTunnelTransportLayer()) {
@@ -188,13 +251,6 @@ public class BasicSettingPage extends PreferencePage {
 			break;
 		}
 
-		userNameText.addModifyListener(new ModifyListener() {
-			@Override
-			public void modifyText(ModifyEvent e) {
-				checkUserName();
-			}
-		});
-
 		privatePortalServerUseCheck.addListener(SWT.Selection, new Listener() {
 			@Override
 			public void handleEvent(Event event) {
@@ -202,31 +258,30 @@ public class BasicSettingPage extends PreferencePage {
 			}
 		});
 
-		checkUserName();
 		return configContainer;
 	}
 
-	private void checkUserName() {
-		if (Utility.isValidUserName(userNameText.getText())) {
-			setValid(true);
-			setErrorMessage(null);
-		} else {
-			setValid(false);
-			setErrorMessage("ユーザー名が不正な値です");
-		}
-	}
-
-	private void refrectValues() {
+	private void reflectValues() {
 		if (!isControlCreated())
 			return;
-		settings.setUserName(userNameText.getText());
+
+		settings.setStartupWindowArena(startupWindowArena.getSelection());
 		settings.setNeedAppCloseConfirm(appCloseConfirmCheck.getSelection());
 		settings.setLogLobbyEnterExit(logLobbyEnterExitCheck.getSelection());
 		settings.setBallonNotifyLobby(balloonNotifyLobbyCheck.getSelection());
 		settings.setBallonNotifyRoom(balloonNotifyRoomCheck.getSelection());
+		settings.setArenaAutoLoginSearch(arenaAutoLoginRoomList.getSelection());
+		settings.setArenaAutoLoginLobby(arenaAutoLoginLobby.getSelection());
 		settings.setPrivatePortalServerUse(privatePortalServerUseCheck.getSelection());
 		settings.setPrivatePortalServerAddress(privatePortalServerAddress.getText());
 
+		if (libraryPnpWlan.getSelection()) {
+			settings.setWlanLibrary(NativeWlanDevice.LIBRARY);
+		} else if (libraryJnetPcap.getSelection()) {
+			settings.setWlanLibrary(JnetPcapWlanDevice.LIBRARY);
+		} else {
+			settings.setWlanLibrary(null);
+		}
 		settings.setSsidAutoScan(ssidAutoScan.getSelection());
 		if (tunnelTransportTcp.getSelection()) {
 			settings.setTunnelTransportLayer(TransportLayer.TCP);
@@ -238,12 +293,12 @@ public class BasicSettingPage extends PreferencePage {
 	@Override
 	protected void performApply() {
 		super.performApply();
-		refrectValues();
+		reflectValues();
 	}
 
 	@Override
 	public boolean performOk() {
-		refrectValues();
+		reflectValues();
 		return super.performOk();
 	}
 }

@@ -28,8 +28,10 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 import pspnetparty.lib.ILogger;
+import pspnetparty.lib.LobbyUser;
+import pspnetparty.lib.LobbyUserState;
 import pspnetparty.lib.Utility;
-import pspnetparty.lib.constants.IServerNetwork;
+import pspnetparty.lib.constants.IServerRegistry;
 import pspnetparty.lib.constants.ProtocolConstants;
 import pspnetparty.lib.socket.IProtocol;
 import pspnetparty.lib.socket.IProtocolDriver;
@@ -42,23 +44,25 @@ import pspnetparty.lib.socket.TextProtocolDriver;
 public class LobbyEngine {
 
 	private ILogger logger;
+
 	private File loginMessageFile;
-
-	private String title = "未設定";
 	private int maxUsers = Integer.MAX_VALUE;
-	private ConcurrentHashMap<String, LobbyProtocolDriver> loginUsers;
 
-	private IServerNetwork serverNetWork;
+	private ConcurrentHashMap<String, LobbyProtocolDriver> loginUsers;
+	private ConcurrentHashMap<String, ConcurrentHashMap<String, LobbyProtocolDriver>> circleMap;
+
+	private IServerRegistry serverNetWork;
 	private ConcurrentHashMap<LobbyStatusProtocolDriver, Object> portalConnections;
 	private boolean isAcceptingPortal = true;
 
-	public LobbyEngine(IServer server, ILogger logger, IServerNetwork net) throws IOException {
+	public LobbyEngine(IServer server, ILogger logger, IServerRegistry net) throws IOException {
 		this.logger = logger;
 
 		serverNetWork = net;
+		portalConnections = new ConcurrentHashMap<LobbyStatusProtocolDriver, Object>();
 
 		loginUsers = new ConcurrentHashMap<String, LobbyProtocolDriver>();
-		portalConnections = new ConcurrentHashMap<LobbyStatusProtocolDriver, Object>();
+		circleMap = new ConcurrentHashMap<String, ConcurrentHashMap<String, LobbyProtocolDriver>>();
 
 		server.addServerListener(new IServerListener() {
 			@Override
@@ -123,35 +127,6 @@ public class LobbyEngine {
 		return loginUsers.size();
 	}
 
-	public String getTitle() {
-		return title;
-	}
-
-	public void setTitle(String title) {
-		if (Utility.isEmpty(title))
-			return;
-		if (title.equals(this.title))
-			return;
-
-		this.title = title;
-
-		StringBuilder sb = new StringBuilder();
-		appendNotifyLobbyInfoForClient(sb);
-
-		String notify = sb.toString();
-		for (Entry<String, LobbyProtocolDriver> e : loginUsers.entrySet()) {
-			LobbyProtocolDriver user = e.getValue();
-			user.getConnection().send(notify);
-		}
-
-		sb.delete(0, sb.length());
-		appendNotifyLobbyInfoForPortal(sb);
-		notify = sb.toString();
-		for (LobbyStatusProtocolDriver portal : portalConnections.keySet()) {
-			portal.getConnection().send(notify);
-		}
-	}
-
 	public void notifyAllUsers(String message) {
 		String notify = ProtocolConstants.Lobby.NOTIFY_FROM_ADMIN + TextProtocolDriver.ARGUMENT_SEPARATOR + message;
 
@@ -159,24 +134,6 @@ public class LobbyEngine {
 			LobbyProtocolDriver user = entry.getValue();
 			user.getConnection().send(notify);
 		}
-	}
-
-	private void appendNotifyLobbyInfoForClient(StringBuilder sb) {
-		sb.append(ProtocolConstants.Lobby.NOTIFY_LOBBY_INFO);
-		sb.append(TextProtocolDriver.ARGUMENT_SEPARATOR);
-		sb.append(title);
-	}
-
-	private void appendNotifyLobbyInfoForPortal(StringBuilder sb) {
-		sb.append(ProtocolConstants.LobbyStatus.NOTIFY_LOBBY_INFO);
-		sb.append(TextProtocolDriver.ARGUMENT_SEPARATOR);
-		sb.append(title);
-	}
-
-	private void appendServerStatus(StringBuilder sb) {
-		sb.append(ProtocolConstants.SERVER_STATUS);
-		sb.append(TextProtocolDriver.ARGUMENT_SEPARATOR);
-		sb.append(loginUsers.size());
 	}
 
 	private class LobbyProtocol implements IProtocol {
@@ -197,8 +154,7 @@ public class LobbyEngine {
 	}
 
 	private class LobbyProtocolDriver extends TextProtocolDriver {
-		private String name;
-		private LobbyUserState state = LobbyUserState.OFFLINE;
+		private LobbyUser bean;
 
 		public LobbyProtocolDriver(ISocketConnection connection) {
 			super(connection, lobbyLoginHandlers);
@@ -211,24 +167,20 @@ public class LobbyEngine {
 
 		@Override
 		public void connectionDisconnected() {
-			if (Utility.isEmpty(name))
+			if (bean == null)
 				return;
-
+			String name = bean.getName();
 			loginUsers.remove(name);
 
-			String notify = ProtocolConstants.Lobby.NOTIFY_USER_LOGOUT + TextProtocolDriver.ARGUMENT_SEPARATOR + name;
+			for (ConcurrentHashMap<String, LobbyProtocolDriver> members : circleMap.values()) {
+				members.remove(name);
+			}
+
+			final String notify = ProtocolConstants.Lobby.NOTIFY_LOGOUT + TextProtocolDriver.ARGUMENT_SEPARATOR + name;
 			for (Entry<String, LobbyProtocolDriver> e : loginUsers.entrySet()) {
 				LobbyProtocolDriver user = e.getValue();
 
 				user.getConnection().send(notify);
-			}
-
-			StringBuilder sb = new StringBuilder();
-			appendServerStatus(sb);
-
-			notify = sb.toString();
-			for (LobbyStatusProtocolDriver d : portalConnections.keySet()) {
-				d.getConnection().send(notify);
 			}
 		}
 
@@ -236,11 +188,40 @@ public class LobbyEngine {
 		public void errorProtocolNumber(String number) {
 		}
 
-		private void appendUserInfo(StringBuilder sb) {
+		private void appendUserInitializer(StringBuilder sb) {
 			sb.append(TextProtocolDriver.ARGUMENT_SEPARATOR);
-			sb.append(name);
+			sb.append(bean.getName());
 			sb.append(TextProtocolDriver.ARGUMENT_SEPARATOR);
-			sb.append(state.getAbbreviation());
+			sb.append(bean.getState().getAbbreviation());
+			sb.append(TextProtocolDriver.ARGUMENT_SEPARATOR);
+			sb.append(bean.getUrl());
+			sb.append(TextProtocolDriver.ARGUMENT_SEPARATOR);
+			sb.append(bean.getIconUrl());
+			sb.append(TextProtocolDriver.ARGUMENT_SEPARATOR);
+			sb.append(bean.getProfile());
+
+			sb.append(TextProtocolDriver.ARGUMENT_SEPARATOR);
+			for (String circle : bean.getCircles()) {
+				sb.append(circle).append("\n");
+			}
+		}
+
+		private void appendUserProfile(StringBuilder sb) {
+			sb.append(TextProtocolDriver.ARGUMENT_SEPARATOR);
+			sb.append(bean.getName());
+			sb.append(TextProtocolDriver.ARGUMENT_SEPARATOR);
+			sb.append(bean.getUrl());
+			sb.append(TextProtocolDriver.ARGUMENT_SEPARATOR);
+			sb.append(bean.getIconUrl());
+			sb.append(TextProtocolDriver.ARGUMENT_SEPARATOR);
+			sb.append(bean.getProfile());
+		}
+
+		private void appendUserState(StringBuilder sb) {
+			sb.append(TextProtocolDriver.ARGUMENT_SEPARATOR);
+			sb.append(bean.getName());
+			sb.append(TextProtocolDriver.ARGUMENT_SEPARATOR);
+			sb.append(bean.getState().getAbbreviation());
 		}
 	}
 
@@ -249,70 +230,56 @@ public class LobbyEngine {
 	{
 		lobbyLoginHandlers.put(ProtocolConstants.Lobby.COMMAND_LOGIN, new IProtocolMessageHandler() {
 			@Override
-			public boolean process(IProtocolDriver driver, String origName) {
-				if (!Utility.isValidUserName(origName))
+			public boolean process(IProtocolDriver driver, String argument) {
+				String[] tokens = argument.split(TextProtocolDriver.ARGUMENT_SEPARATOR, -1);
+				if (tokens.length != 4)
+					return false;
+
+				String name = tokens[0];
+				if (!Utility.isValidNameString(name))
 					return false;
 				if (loginUsers.size() > maxUsers) {
 					driver.getConnection().send(ProtocolConstants.Lobby.ERROR_LOGIN_USER_BEYOND_CAPACITY);
 					return false;
 				}
 
+				String url = tokens[1].trim();
+				String iconUrl = tokens[2].trim();
+				String profile = tokens[3].trim();
+
 				LobbyProtocolDriver user = (LobbyProtocolDriver) driver;
-				String name = origName;
-				boolean success = false;
-				for (int i = 2; i < 10; i++) {
-					if (loginUsers.putIfAbsent(name, user) == null) {
-						success = true;
-						break;
-					}
-					name = origName + i;
-				}
-				if (!success) {
+
+				if (loginUsers.putIfAbsent(name, user) != null) {
 					driver.getConnection().send(ProtocolConstants.Lobby.ERROR_LOGIN_USER_DUPLICATED_NAME);
 					return false;
 				}
 
-				user.name = name;
-				user.state = LobbyUserState.LOGIN;
+				user.bean = new LobbyUser(name, LobbyUserState.LOGIN);
+				user.bean.setUrl(url);
+				user.bean.setIconUrl(iconUrl);
+				user.bean.setProfile(profile);
 
 				StringBuilder sb = new StringBuilder();
-				sb.append(ProtocolConstants.Lobby.NOTIFY_USER_INFO);
-				user.appendUserInfo(sb);
-				String notify = sb.toString();
+				sb.append(ProtocolConstants.Lobby.NOTIFY_LOGIN);
+				user.appendUserProfile(sb);
+				final String loginNotify = sb.toString();
 
 				sb.delete(0, sb.length());
 
-				if (loginUsers.size() > 1) {
-					sb.append(ProtocolConstants.Lobby.NOTIFY_USER_LIST);
-					for (Entry<String, LobbyProtocolDriver> e : loginUsers.entrySet()) {
-						LobbyProtocolDriver u = e.getValue();
-						if (u == user)
-							continue;
-
-						u.getConnection().send(notify);
-
-						u.appendUserInfo(sb);
-					}
-					sb.append(TextProtocolDriver.MESSAGE_SEPARATOR);
-				}
 				sb.append(ProtocolConstants.Lobby.COMMAND_LOGIN);
-				sb.append(TextProtocolDriver.ARGUMENT_SEPARATOR);
-				sb.append(name);
+				for (Entry<String, LobbyProtocolDriver> e : loginUsers.entrySet()) {
+					LobbyProtocolDriver u = e.getValue();
+					if (u == user)
+						continue;
+
+					u.getConnection().send(loginNotify);
+
+					u.appendUserInitializer(sb);
+				}
 				appendLoginMessage(sb);
 
-				sb.append(TextProtocolDriver.MESSAGE_SEPARATOR);
-				appendNotifyLobbyInfoForClient(sb);
-
-				user.getConnection().send(sb.toString());
 				user.setMessageHandlers(lobbyHandlers);
-
-				sb.delete(0, sb.length());
-				appendServerStatus(sb);
-
-				notify = sb.toString();
-				for (LobbyStatusProtocolDriver d : portalConnections.keySet()) {
-					d.getConnection().send(notify);
-				}
+				user.getConnection().send(sb.toString());
 
 				return true;
 			}
@@ -328,17 +295,33 @@ public class LobbyEngine {
 			public boolean process(IProtocolDriver driver, String argument) {
 				LobbyProtocolDriver user = (LobbyProtocolDriver) driver;
 
+				String[] tokens = argument.split(TextProtocolDriver.ARGUMENT_SEPARATOR, -1);
+				if (tokens.length != 2)
+					return true;
+
+				String circle = tokens[0];
+				String message = tokens[1];
+
+				ConcurrentHashMap<String, LobbyProtocolDriver> list;
+				if (Utility.isEmpty(circle)) {
+					list = loginUsers;
+				} else {
+					list = circleMap.get(circle);
+					if (list == null)
+						return true;
+				}
+
 				StringBuilder sb = new StringBuilder();
 				sb.append(ProtocolConstants.Lobby.COMMAND_CHAT);
 				sb.append(TextProtocolDriver.ARGUMENT_SEPARATOR);
-				sb.append(user.name);
+				sb.append(user.bean.getName());
 				sb.append(TextProtocolDriver.ARGUMENT_SEPARATOR);
-				sb.append(argument);
+				sb.append(circle);
+				sb.append(TextProtocolDriver.ARGUMENT_SEPARATOR);
+				sb.append(message);
 				String notify = sb.toString();
 
-				for (Entry<String, LobbyProtocolDriver> e : loginUsers.entrySet()) {
-					LobbyProtocolDriver u = e.getValue();
-
+				for (LobbyProtocolDriver u : list.values()) {
 					u.getConnection().send(notify);
 				}
 				return true;
@@ -360,7 +343,7 @@ public class LobbyEngine {
 				StringBuilder sb = new StringBuilder();
 				sb.append(ProtocolConstants.Lobby.COMMAND_PRIVATE_CHAT);
 				sb.append(TextProtocolDriver.ARGUMENT_SEPARATOR);
-				sb.append(user.name);
+				sb.append(user.bean.getName());
 				sb.append(TextProtocolDriver.ARGUMENT_SEPARATOR);
 				sb.append(tokens[1]);
 				String notify = sb.toString();
@@ -382,11 +365,11 @@ public class LobbyEngine {
 					return false;
 				}
 
-				user.state = state;
+				user.bean.setState(state);
 
 				StringBuilder sb = new StringBuilder();
-				sb.append(ProtocolConstants.Lobby.NOTIFY_USER_INFO);
-				user.appendUserInfo(sb);
+				sb.append(ProtocolConstants.Lobby.NOTIFY_STATE_CHANGE);
+				user.appendUserState(sb);
 
 				String notify = sb.toString();
 				for (Entry<String, LobbyProtocolDriver> e : loginUsers.entrySet()) {
@@ -397,32 +380,109 @@ public class LobbyEngine {
 				return true;
 			}
 		});
-		lobbyHandlers.put(ProtocolConstants.Lobby.COMMAND_CHANGE_NAME, new IProtocolMessageHandler() {
+		lobbyHandlers.put(ProtocolConstants.Lobby.COMMAND_UPDATE_PROFILE, new IProtocolMessageHandler() {
 			@Override
-			public boolean process(IProtocolDriver driver, String name) {
+			public boolean process(IProtocolDriver driver, String argument) {
 				LobbyProtocolDriver user = (LobbyProtocolDriver) driver;
-				if (user.name.equals(name))
+
+				String[] tokens = argument.split(TextProtocolDriver.ARGUMENT_SEPARATOR, -1);
+				if (tokens.length != 3)
 					return true;
-				if (!Utility.isValidUserName(name))
-					return false;
 
-				if (loginUsers.putIfAbsent(name, user) != null) {
-					driver.getConnection().send(ProtocolConstants.Lobby.ERROR_LOGIN_USER_DUPLICATED_NAME);
-					return true;
-				}
-				String oldName = user.name;
-				loginUsers.remove(oldName);
+				user.bean.setUrl(tokens[0].trim());
+				user.bean.setIconUrl(tokens[1].trim());
+				user.bean.setProfile(tokens[2].trim());
 
-				user.name = name;
+				StringBuilder sb = new StringBuilder();
 
-				String notify = ProtocolConstants.Lobby.NOTIFY_USER_NAME_CHANGED + TextProtocolDriver.ARGUMENT_SEPARATOR + oldName
-						+ TextProtocolDriver.ARGUMENT_SEPARATOR + name;
+				sb.append(ProtocolConstants.Lobby.NOTIFY_PROFILE_UPDATE);
+				user.appendUserProfile(sb);
 
+				String notify = sb.toString();
 				for (Entry<String, LobbyProtocolDriver> e : loginUsers.entrySet()) {
 					LobbyProtocolDriver u = e.getValue();
 
 					u.getConnection().send(notify);
 				}
+
+				return true;
+			}
+		});
+		lobbyHandlers.put(ProtocolConstants.Lobby.COMMAND_CIRCLE_JOIN, new IProtocolMessageHandler() {
+			@Override
+			public boolean process(IProtocolDriver driver, String argument) {
+				String[] tokens = argument.split(TextProtocolDriver.ARGUMENT_SEPARATOR, -1);
+				if (tokens.length != 1)
+					return true;
+				String circleName = tokens[0];
+				if (!Utility.isValidNameString(circleName))
+					return true;
+
+				LobbyProtocolDriver user = (LobbyProtocolDriver) driver;
+
+				ConcurrentHashMap<String, LobbyProtocolDriver> members = circleMap.get(circleName);
+				if (members == null) {
+					members = new ConcurrentHashMap<String, LobbyProtocolDriver>();
+					circleMap.put(circleName, members);
+				}
+				String name = user.bean.getName();
+				if (members.putIfAbsent(name, user) != null)
+					return true;
+				user.bean.addCircle(circleName);
+
+				StringBuilder sb = new StringBuilder();
+				sb.append(ProtocolConstants.Lobby.NOTIFY_CIRCLE_JOIN);
+				sb.append(TextProtocolDriver.ARGUMENT_SEPARATOR);
+				sb.append(name);
+				sb.append(TextProtocolDriver.ARGUMENT_SEPARATOR);
+				sb.append(circleName);
+
+				String notify = sb.toString();
+				for (Entry<String, LobbyProtocolDriver> e : loginUsers.entrySet()) {
+					LobbyProtocolDriver u = e.getValue();
+
+					u.getConnection().send(notify);
+				}
+
+				return true;
+			}
+		});
+		lobbyHandlers.put(ProtocolConstants.Lobby.COMMAND_CIRCLE_LEAVE, new IProtocolMessageHandler() {
+			@Override
+			public boolean process(IProtocolDriver driver, String argument) {
+				String[] tokens = argument.split(TextProtocolDriver.ARGUMENT_SEPARATOR, -1);
+				if (tokens.length != 1)
+					return true;
+				String circleName = tokens[0];
+				if (!Utility.isValidNameString(circleName))
+					return true;
+
+				LobbyProtocolDriver user = (LobbyProtocolDriver) driver;
+
+				ConcurrentHashMap<String, LobbyProtocolDriver> members = circleMap.get(circleName);
+				if (members == null) {
+					return true;
+				}
+
+				String name = user.bean.getName();
+				if (members.remove(name) == null)
+					return true;
+				user.bean.removeCircle(circleName);
+
+				StringBuilder sb = new StringBuilder();
+				sb.append(ProtocolConstants.Lobby.NOTIFY_CIRCLE_LEAVE);
+				sb.append(TextProtocolDriver.ARGUMENT_SEPARATOR);
+				sb.append(name);
+				sb.append(TextProtocolDriver.ARGUMENT_SEPARATOR);
+				sb.append(circleName);
+
+				String notify = sb.toString();
+				for (Entry<String, LobbyProtocolDriver> e : loginUsers.entrySet()) {
+					LobbyProtocolDriver u = e.getValue();
+
+					u.getConnection().send(notify);
+				}
+
 				return true;
 			}
 		});
@@ -450,13 +510,6 @@ public class LobbyEngine {
 			LobbyStatusProtocolDriver driver = new LobbyStatusProtocolDriver(connection);
 
 			logger.log("ポータルから接続されました: " + driver.address);
-
-			StringBuilder sb = new StringBuilder();
-			appendNotifyLobbyInfoForPortal(sb);
-			sb.append(TextProtocolDriver.MESSAGE_SEPARATOR);
-			appendServerStatus(sb);
-
-			connection.send(sb.toString());
 
 			portalConnections.put(driver, this);
 			return driver;

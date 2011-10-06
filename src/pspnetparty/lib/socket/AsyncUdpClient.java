@@ -64,26 +64,24 @@ public class AsyncUdpClient implements IClient {
 		selectorThread.setDaemon(true);
 		selectorThread.start();
 
-		Thread pingThread = new Thread(new Runnable() {
+		Thread keepAliveThread = new Thread(new Runnable() {
 			@Override
 			public void run() {
 				try {
-					pingLoop();
+					keepAliveLoop();
 				} catch (InterruptedException e) {
 					AsyncUdpClient.this.logger.log(Utility.stackTraceToString(e));
 				}
 			}
-		}, getClass().getName() + " Ping");
-		pingThread.setDaemon(true);
-		pingThread.start();
+		}, getClass().getName() + " KeepAlive");
+		keepAliveThread.setDaemon(true);
+		keepAliveThread.start();
 	}
 
 	private void selectorLoop() {
 		try {
 			while (selector.isOpen()) {
-				int s = selector.select();
-				// System.out.println("Select: " + s);
-				if (s > 0) {
+				if (selector.select() > 0) {
 					for (Iterator<SelectionKey> it = selector.selectedKeys().iterator(); it.hasNext();) {
 						SelectionKey key = it.next();
 						it.remove();
@@ -118,22 +116,19 @@ public class AsyncUdpClient implements IClient {
 		}
 	}
 
-	private void pingLoop() throws InterruptedException {
-		ByteBuffer pingBuffer = ByteBuffer.wrap(new byte[] { 1 });
+	private void keepAliveLoop() throws InterruptedException {
+		ByteBuffer keepAliveBuffer = ByteBuffer.wrap(new byte[] { 1 });
 		while (selector.isOpen()) {
-			long deadline = System.currentTimeMillis() - IProtocol.PING_DEADLINE;
-			// int pingCount = 0, disconnectCount = 0;
+			long deadline = System.currentTimeMillis() - IProtocol.KEEPALIVE_DEADLINE;
 
 			for (Connection conn : establishedConnections.keySet()) {
 				try {
-					if (conn.lastPingTime < deadline) {
-						logger.log(Utility.makePingDisconnectLog("UDP", conn.remoteAddress, deadline, conn.lastPingTime));
+					if (conn.lastKeepAliveReceived < deadline) {
+						logger.log(Utility.makeKeepAliveDisconnectLog("UDP", conn.remoteAddress, deadline, conn.lastKeepAliveReceived));
 						conn.disconnect();
-						// disconnectCount++;
 					} else {
-						pingBuffer.clear();
-						conn.send(pingBuffer);
-						// pingCount++;
+						keepAliveBuffer.clear();
+						conn.send(keepAliveBuffer);
 					}
 				} catch (RuntimeException e) {
 					logger.log(Utility.stackTraceToString(e));
@@ -142,9 +137,7 @@ public class AsyncUdpClient implements IClient {
 				}
 			}
 
-			// logger.log("UDP Client Ping送信: p=" + pingCount + " d=" +
-			// disconnectCount);
-			Thread.sleep(IProtocol.PING_INTERVAL);
+			Thread.sleep(IProtocol.KEEPALIVE_INTERVAL);
 		}
 	}
 
@@ -219,7 +212,7 @@ public class AsyncUdpClient implements IClient {
 	private class Connection implements ISocketConnection {
 		private DatagramChannel channel;
 		private InetSocketAddress remoteAddress;
-		private long lastPingTime;
+		private long lastKeepAliveReceived;
 
 		private IProtocol protocol;
 		private IProtocolDriver driver;
@@ -231,22 +224,20 @@ public class AsyncUdpClient implements IClient {
 			this.channel = channel;
 			this.remoteAddress = (InetSocketAddress) channel.socket().getRemoteSocketAddress();
 			this.protocol = protocol;
-			lastPingTime = System.currentTimeMillis();
+			lastKeepAliveReceived = System.currentTimeMillis();
 		}
 
 		private boolean doRead() throws IOException {
 			readBuffer.clear();
 			channel.read(readBuffer);
 			readBuffer.flip();
-			
+
 			if (readBuffer.limit() == 1) {
 				switch (readBuffer.get(0)) {
 				case 0:
 					return false;
 				case 1:
-					lastPingTime = System.currentTimeMillis();
-					// logger.log(Utility.makePingLog("UDP Client",
-					// getLocalAddress(), remoteAddress, lastPingTime));
+					lastKeepAliveReceived = System.currentTimeMillis();
 					return true;
 				}
 			}

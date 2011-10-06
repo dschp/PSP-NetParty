@@ -35,12 +35,12 @@ import pspnetparty.lib.Utility;
 
 public class MultiLineChatDialog extends Dialog {
 
-	private IPlayClient application;
+	private PlayClient application;
 	private Text inputText;
 
 	private String message;
 
-	protected MultiLineChatDialog(Shell parentShell, IPlayClient application) {
+	protected MultiLineChatDialog(Shell parentShell, PlayClient application) {
 		super(parentShell);
 		this.application = application;
 		setShellStyle(getShellStyle() | SWT.RESIZE);

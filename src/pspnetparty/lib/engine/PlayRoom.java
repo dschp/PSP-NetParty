@@ -29,8 +29,10 @@ public class PlayRoom {
 	private long createdTime;
 	private String description;
 
-	public PlayRoom(String serverAddress, String masterName, String title, boolean hasPassword, int currentPlayers, int maxPlayers,
-			long created) {
+	private String sourceServer;
+
+	public PlayRoom(String source, String serverAddress, String masterName, String title, boolean hasPassword, int currentPlayers,
+			int maxPlayers, long created) {
 		this.serverAddress = serverAddress;
 		this.roomAddress = serverAddress + ":" + masterName;
 		this.masterName = masterName;
@@ -39,6 +41,8 @@ public class PlayRoom {
 		this.currentPlayers = currentPlayers;
 		this.maxPlayers = maxPlayers;
 		this.createdTime = created;
+
+		this.sourceServer = source;
 	}
 
 	public String getServerAddress() {
@@ -99,5 +103,9 @@ public class PlayRoom {
 
 	public long getCreatedTime() {
 		return createdTime;
+	}
+
+	public String getSourceServer() {
+		return sourceServer;
 	}
 }

@@ -27,7 +27,7 @@ import pspnetparty.lib.IniFile;
 import pspnetparty.lib.IniSection;
 import pspnetparty.lib.Utility;
 import pspnetparty.lib.constants.AppConstants;
-import pspnetparty.lib.constants.IniPublicServer;
+import pspnetparty.lib.constants.IniPublicServerRegistry;
 import pspnetparty.lib.engine.LobbyEngine;
 import pspnetparty.lib.server.IniConstants;
 import pspnetparty.lib.server.ServerUtils;
@@ -57,9 +57,6 @@ public class LobbyServer {
 		}
 		System.out.println("ポート: " + port);
 
-		String title = settings.get(IniConstants.LOBBY_TITLE, "ロビー");
-		System.out.println("ロビー名: " + title);
-
 		final String loginMessageFile = settings.get(IniConstants.LOGIN_MESSAGE_FILE, "");
 		System.out.println("ログインメッセージファイル : " + loginMessageFile);
 
@@ -68,8 +65,7 @@ public class LobbyServer {
 		ILogger logger = ServerUtils.createLogger();
 		AsyncTcpServer tcpServer = new AsyncTcpServer(40000);
 
-		final LobbyEngine engine = new LobbyEngine(tcpServer, logger, new IniPublicServer());
-		engine.setTitle(title);
+		final LobbyEngine engine = new LobbyEngine(tcpServer, logger, new IniPublicServerRegistry());
 		engine.setLoginMessageFile(loginMessageFile);
 
 		InetSocketAddress bindAddress = new InetSocketAddress(port);
@@ -81,7 +77,6 @@ public class LobbyServer {
 			public void process(String argument) {
 				System.out.println("shutdown\n\tサーバーを終了させる");
 				System.out.println("status\n\t現在のサーバーの状態を表示");
-				System.out.println("set Title ロビー名\n\tロビー名を設定");
 				System.out.println("notify メッセージ\n\t全員にメッセージを告知");
 				System.out.println("portal list\n\t登録中のポータル一覧");
 				System.out.println("portal accept\n\tポータル登録の受付開始");
@@ -92,7 +87,6 @@ public class LobbyServer {
 			@Override
 			public void process(String argument) {
 				System.out.println("ポート: " + port);
-				System.out.println("ロビー名: " + engine.getTitle());
 				System.out.println("ユーザー数: " + engine.getCurrentPlayers());
 				System.out.println("ログインメッセージファイル : " + loginMessageFile);
 				System.out.println("ポータル登録: " + (engine.isAcceptingPortal() ? "受付中" : "停止中"));
@@ -106,21 +100,6 @@ public class LobbyServer {
 
 				engine.notifyAllUsers(message);
 				System.out.println("メッセージを告知しました : " + message);
-			}
-		});
-		handlers.put("set", new ICommandHandler() {
-			@Override
-			public void process(String argument) {
-				String[] tokens = argument.split(" ", 2);
-				if (tokens.length != 2)
-					return;
-
-				String key = tokens[0];
-				String value = tokens[1];
-				if (IniConstants.LOBBY_TITLE.equalsIgnoreCase(key)) {
-					engine.setTitle(value);
-					System.out.println("ロビー名を " + value + " に設定しました");
-				}
 			}
 		});
 		handlers.put("portal", new ICommandHandler() {

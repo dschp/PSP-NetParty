@@ -18,8 +18,12 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 package pspnetparty.client.swt.config;
 
+import pspnetparty.client.swt.WlanProxyLibrary;
 import pspnetparty.lib.IniSection;
 import pspnetparty.lib.socket.TransportLayer;
+import pspnetparty.wlan.JnetPcapWlanDevice;
+import pspnetparty.wlan.NativeWlanDevice;
+import pspnetparty.wlan.WlanLibrary;
 
 public class IniSettings {
 	private static final String TCP = "TCP";
@@ -27,13 +31,15 @@ public class IniSettings {
 
 	public static final String SECTION = "Settings";
 
-	private static final String USER_NAME = "UserName";
-
+	private static final String STARTUP_WINDOW = "StartupWindow";
 	private static final String APP_CLOSE_CONFIRM = "AppCloseConfirm";
 	private static final String LOG_LOBBY_ENTER_EXIT = "LogLobbyEnterExit";
 	private static final String BALLOON_NOTIFY_LOBBY = "BalloonNotifyLobby";
 	private static final String BALLOON_NOTIFY_ROOM = "BalloonNotifyRoom";
+	private static final String ARENA_AUTO_LOGIN_ROOM_LIST = "ArenaAutoLoginSearch";
+	private static final String ARENA_AUTO_LOGIN_LOBBY = "ArenaAutoLoginLobby";
 
+	private static final String WLAN_LIBRARY = "WlanLibrary";
 	private static final String SSID_AUTO_SCAN = "SSIDAutoScan";
 	private static final String TUNNEL_TRANSPORT_LAYER = "TunnelTransportLayer";
 
@@ -52,16 +58,30 @@ public class IniSettings {
 	private static final String CHAT_PRESET_ENABLE_KEY_INPUT = "ChatPresetEnableKeyInput";
 
 	private IniSection section;
+	private WlanProxyLibrary wlanProxyLibrary;
 
-	public IniSettings(IniSection section) {
+	public IniSettings(IniSection section, WlanProxyLibrary proxyLibrary) {
 		this.section = section;
+		wlanProxyLibrary = proxyLibrary;
 
-		userName = section.get(USER_NAME, "");
+		startupWindowIsArena = !"Room".equals(section.get(STARTUP_WINDOW, "Arena"));
 		needAppCloseConfirm = section.get(APP_CLOSE_CONFIRM, true);
 		logLobbyEnterExit = section.get(LOG_LOBBY_ENTER_EXIT, true);
 		ballonNotifyLobby = section.get(BALLOON_NOTIFY_LOBBY, true);
 		ballonNotifyRoom = section.get(BALLOON_NOTIFY_ROOM, true);
+		arenaAutoLoginRoomList = section.get(ARENA_AUTO_LOGIN_ROOM_LIST, true);
+		arenaAutoLoginLobby = section.get(ARENA_AUTO_LOGIN_LOBBY, true);
 
+		String library = section.get(WLAN_LIBRARY, JnetPcapWlanDevice.LIBRARY_NAME);
+		if (NativeWlanDevice.LIBRARY_NAME.equals(library)) {
+			wlanLibrary = NativeWlanDevice.LIBRARY;
+		} else if (WlanProxyLibrary.LIBRARY_NAME.equals(library)) {
+			wlanLibrary = wlanProxyLibrary;
+		} else {
+			wlanLibrary = JnetPcapWlanDevice.LIBRARY;
+		}
+
+		section.set(WLAN_LIBRARY, wlanLibrary.getName());
 		ssidAutoScan = section.get(SSID_AUTO_SCAN, false);
 		tunnelTransportLayer = UDP.equals(section.get(TUNNEL_TRANSPORT_LAYER, TCP)) ? TransportLayer.UDP : TransportLayer.TCP;
 
@@ -80,13 +100,18 @@ public class IniSettings {
 		chatPresetEnableKeyInput = section.get(CHAT_PRESET_ENABLE_KEY_INPUT, false);
 	}
 
-	private String userName;
+	private boolean startupWindowIsArena;
 	private boolean needAppCloseConfirm;
 	private boolean logLobbyEnterExit;
 	private boolean ballonNotifyLobby;
 	private boolean ballonNotifyRoom;
+	private boolean arenaAutoLoginRoomList;
+	private boolean arenaAutoLoginLobby;
+
+	private WlanLibrary wlanLibrary;
 	private boolean ssidAutoScan;
 	private TransportLayer tunnelTransportLayer;
+
 	private String myRoomHostName;
 	private int myRoomPort;
 	private boolean myRoomAllowNoMasterName;
@@ -98,13 +123,13 @@ public class IniSettings {
 	private int chatPresetButtonMaxLength;
 	private boolean chatPresetEnableKeyInput;
 
-	public String getUserName() {
-		return userName;
+	public boolean isStartupWindowArena() {
+		return startupWindowIsArena;
 	}
 
-	public void setUserName(String userName) {
-		this.userName = userName;
-		section.set(USER_NAME, userName);
+	public void setStartupWindowArena(boolean startupWindowIsArena) {
+		this.startupWindowIsArena = startupWindowIsArena;
+		section.set(STARTUP_WINDOW, startupWindowIsArena ? "Arena" : "Room");
 	}
 
 	public boolean isNeedAppCloseConfirm() {
@@ -141,6 +166,24 @@ public class IniSettings {
 	public void setBallonNotifyRoom(boolean ballonNotifyRoom) {
 		this.ballonNotifyRoom = ballonNotifyRoom;
 		section.set(BALLOON_NOTIFY_ROOM, ballonNotifyRoom);
+	}
+
+	public boolean isArenaAutoLoginRoomList() {
+		return arenaAutoLoginRoomList;
+	}
+
+	public void setArenaAutoLoginSearch(boolean arenaAutoLoginSearch) {
+		this.arenaAutoLoginRoomList = arenaAutoLoginSearch;
+		section.set(ARENA_AUTO_LOGIN_ROOM_LIST, arenaAutoLoginSearch);
+	}
+
+	public boolean isArenaAutoLoginLobby() {
+		return arenaAutoLoginLobby;
+	}
+
+	public void setArenaAutoLoginLobby(boolean arenaAutoLoginLobby) {
+		this.arenaAutoLoginLobby = arenaAutoLoginLobby;
+		section.set(ARENA_AUTO_LOGIN_LOBBY, arenaAutoLoginLobby);
 	}
 
 	public boolean isPrivatePortalServerUse() {
@@ -186,6 +229,18 @@ public class IniSettings {
 	public void setMyRoomAllowNoMasterName(boolean myRoomAllowNoMasterName) {
 		this.myRoomAllowNoMasterName = myRoomAllowNoMasterName;
 		section.set(MY_ROOM_ALLOW_NO_MASTER_NAME, myRoomAllowNoMasterName);
+	}
+
+	public WlanLibrary getWlanLibrary() {
+		return wlanLibrary;
+	}
+
+	public void setWlanLibrary(WlanLibrary library) {
+		if (library == null)
+			library = wlanProxyLibrary;
+
+		wlanLibrary = library;
+		section.set(WLAN_LIBRARY, wlanLibrary.getName());
 	}
 
 	public boolean isSsidAutoScan() {

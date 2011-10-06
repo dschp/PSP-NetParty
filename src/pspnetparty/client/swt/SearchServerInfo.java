@@ -65,17 +65,8 @@ public class SearchServerInfo {
 
 		@Override
 		public String getColumnText(Object element, int index) {
-			SearchServerInfo info = (SearchServerInfo) element;
-
-			switch (index) {
-			case 0:
-				return info.address;
-			case 1:
-				double useRate = ((double) info.currentUsers) / ((double) info.maxUsers);
-				return String.format("%.1f%%", useRate * 100);
-			}
-
-			return "";
+			String address = (String) element;
+			return address;
 		}
 
 		@Override

@@ -35,7 +35,7 @@ import pspnetparty.lib.CountDownSynchronizer;
 import pspnetparty.lib.ILogger;
 import pspnetparty.lib.Utility;
 import pspnetparty.lib.constants.AppConstants;
-import pspnetparty.lib.constants.IServerNetwork;
+import pspnetparty.lib.constants.IServerRegistry;
 import pspnetparty.lib.constants.ProtocolConstants;
 import pspnetparty.lib.socket.AsyncTcpClient;
 import pspnetparty.lib.socket.AsyncUdpClient;
@@ -64,7 +64,7 @@ public class RoomEngine {
 	private int maxRooms = 10;
 	private File loginMessageFile;
 
-	private IServerNetwork serverNetwork;
+	private IServerRegistry serverNetwork;
 	private ConcurrentHashMap<RoomStatusProtocolDriver, Object> portalConnections;
 	private boolean isAcceptingPortal = true;
 
@@ -73,7 +73,7 @@ public class RoomEngine {
 	private CountDownSynchronizer countDownSynchronizer;
 	private ExecutorService executorService = Executors.newCachedThreadPool();
 
-	public RoomEngine(IServer tcpServer, IServer udpServer, ILogger logger, IServerNetwork net) throws IOException {
+	public RoomEngine(IServer tcpServer, IServer udpServer, ILogger logger, IServerRegistry net) throws IOException {
 		this.logger = logger;
 
 		masterNameRoomMap = new ConcurrentHashMap<String, Room>(20, 0.75f, 1);
@@ -203,7 +203,7 @@ public class RoomEngine {
 		this.maxRooms = maxRooms;
 
 		StringBuilder sb = new StringBuilder();
-		appendServerStatus(sb);
+		appendRoomServerStatus(sb);
 
 		String notify = sb.toString();
 		for (RoomStatusProtocolDriver client : portalConnections.keySet()) {
@@ -280,16 +280,6 @@ public class RoomEngine {
 		}
 	}
 
-	private void appendServerStatus(StringBuilder sb) {
-		sb.append(ProtocolConstants.SERVER_STATUS);
-		sb.append(TextProtocolDriver.ARGUMENT_SEPARATOR);
-		sb.append(masterNameRoomMap.size());
-		sb.append(TextProtocolDriver.ARGUMENT_SEPARATOR);
-		sb.append(maxRooms);
-		sb.append(TextProtocolDriver.ARGUMENT_SEPARATOR);
-		sb.append(myRoomEntries.size());
-	}
-
 	public boolean destroyRoom(String masterName) {
 		Room room = masterNameRoomMap.remove(masterName);
 		if (room == null)
@@ -307,9 +297,6 @@ public class RoomEngine {
 		sb.append(ProtocolConstants.RoomStatus.NOTIFY_ROOM_DELETED);
 		sb.append(TextProtocolDriver.ARGUMENT_SEPARATOR);
 		sb.append(":").append(masterName);
-
-		sb.append(TextProtocolDriver.MESSAGE_SEPARATOR);
-		appendServerStatus(sb);
 
 		String notify = sb.toString();
 		for (RoomStatusProtocolDriver client : portalConnections.keySet()) {
@@ -340,14 +327,10 @@ public class RoomEngine {
 		return true;
 	}
 
-	private void clearAllMyRoomGhosts() {
-		for (Entry<String, MyRoomProtocolDriver> entry : myRoomEntries.entrySet()) {
-			MyRoomProtocolDriver driver = entry.getValue();
-			ISocketConnection conn = driver.getConnection();
-			if (!conn.isConnected()) {
-				driver.dispose();
-			}
-		}
+	private void appendRoomServerStatus(StringBuilder sb) {
+		sb.append(ProtocolConstants.SERVER_STATUS);
+		sb.append(TextProtocolDriver.ARGUMENT_SEPARATOR);
+		sb.append(maxRooms);
 	}
 
 	private static class Room {
@@ -529,9 +512,6 @@ public class RoomEngine {
 					sb.append(TextProtocolDriver.ARGUMENT_SEPARATOR);
 					sb.append(":").append(name);
 
-					sb.append(TextProtocolDriver.MESSAGE_SEPARATOR);
-					appendServerStatus(sb);
-
 					String notify = sb.toString();
 					for (RoomStatusProtocolDriver portal : portalConnections.keySet()) {
 						portal.getConnection().send(notify);
@@ -616,7 +596,7 @@ public class RoomEngine {
 				String password = tokens[3];
 
 				String name = tokens[0];
-				if (!Utility.isValidUserName(name)) {
+				if (!Utility.isValidNameString(name)) {
 					player.getConnection().send(ProtocolConstants.Room.ERROR_ROOM_CREATE_INVALID_DATA_ENTRY);
 					return false;
 				}
@@ -683,9 +663,6 @@ public class RoomEngine {
 				sb.delete(0, sb.length());
 				newRoom.appendNotifyRoomCreated(sb);
 
-				sb.append(TextProtocolDriver.MESSAGE_SEPARATOR);
-				appendServerStatus(sb);
-
 				String portalNotify = sb.toString();
 				for (RoomStatusProtocolDriver stat : portalConnections.keySet()) {
 					stat.getConnection().send(portalNotify);
@@ -706,7 +683,7 @@ public class RoomEngine {
 					return false;
 
 				String name = tokens[0];
-				if (!Utility.isValidUserName(name)) {
+				if (!Utility.isValidNameString(name)) {
 					return false;
 				}
 
@@ -1352,7 +1329,7 @@ public class RoomEngine {
 			logger.log("ポータルから接続されました: " + driver.address);
 
 			StringBuilder sb = new StringBuilder();
-			appendServerStatus(sb);
+			appendRoomServerStatus(sb);
 
 			if (!masterNameRoomMap.isEmpty()) {
 				for (Room room : masterNameRoomMap.values()) {
@@ -1459,9 +1436,6 @@ public class RoomEngine {
 			sb.append(TextProtocolDriver.ARGUMENT_SEPARATOR);
 			sb.append(room.getRoomAddress());
 
-			sb.append(TextProtocolDriver.MESSAGE_SEPARATOR);
-			appendServerStatus(sb);
-
 			String notify = sb.toString();
 			for (RoomStatusProtocolDriver driver : portalConnections.keySet()) {
 				driver.getConnection().send(notify);
@@ -1508,7 +1482,8 @@ public class RoomEngine {
 					long created = Long.parseLong(tokens[7]);
 					String description = tokens[8];
 
-					PlayRoom room = new PlayRoom(hostname + ":" + port, masterName, title, hasPassword, currentPlayers, maxPlayers, created);
+					PlayRoom room = new PlayRoom(null, hostname + ":" + port, masterName, title, hasPassword, currentPlayers, maxPlayers,
+							created);
 					room.setDescription(description);
 
 					InetSocketAddress socketAddress = new InetSocketAddress(hostname, port);
@@ -1598,9 +1573,6 @@ public class RoomEngine {
 											StringBuilder sb = new StringBuilder();
 
 											appendMyRoomCreated(room, sb);
-
-											sb.append(TextProtocolDriver.MESSAGE_SEPARATOR);
-											appendServerStatus(sb);
 
 											String portalNotify = sb.toString();
 											for (RoomStatusProtocolDriver portal : portalConnections.keySet()) {

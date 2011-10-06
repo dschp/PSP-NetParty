@@ -1,21 +1,3 @@
-/*
-Copyright (C) 2011 monte
-
-This file is part of PSP NetParty.
-
-PSP NetParty is free software: you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
-
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU General Public License for more details.
-
-You should have received a copy of the GNU General Public License
-along with this program.  If not, see <http://www.gnu.org/licenses/>.
- */
 package pspnetparty.client.swt;
 
 import java.util.Map;
@@ -27,34 +9,9 @@ import org.eclipse.jface.viewers.Viewer;
 import org.eclipse.jface.viewers.ViewerSorter;
 import org.eclipse.swt.graphics.Image;
 
-import pspnetparty.lib.engine.LobbyUserState;
+import pspnetparty.lib.LobbyUser;
 
-public class LobbyUser {
-
-	private String name;
-	private LobbyUserState state;
-
-	public LobbyUser(String name, LobbyUserState state) {
-		this.name = name;
-		this.state = state;
-	}
-
-	public String getName() {
-		return name;
-	}
-
-	public void setName(String name) {
-		this.name = name;
-	}
-
-	public LobbyUserState getState() {
-		return state;
-	}
-
-	public void setState(LobbyUserState state) {
-		this.state = state;
-	}
-
+public class LobbyUserUtils {
 	public static final IStructuredContentProvider CONTENT_PROVIDER = new IStructuredContentProvider() {
 		@Override
 		public void inputChanged(Viewer arg0, Object arg1, Object arg2) {
@@ -101,9 +58,9 @@ public class LobbyUser {
 
 			switch (index) {
 			case 0:
-				return user.name;
+				return user.getName();
 			case 1:
-				switch (user.state) {
+				switch (user.getState()) {
 				case LOGIN:
 					return "参加中";
 				case AFK:
@@ -115,6 +72,8 @@ public class LobbyUser {
 				default:
 					return "";
 				}
+			case 2:
+				return user.getProfileOneLine();
 			}
 
 			return "";
@@ -126,7 +85,7 @@ public class LobbyUser {
 		public int compare(Viewer viewer, Object e1, Object e2) {
 			LobbyUser u1 = (LobbyUser) e1;
 			LobbyUser u2 = (LobbyUser) e2;
-			return u1.name.compareTo(u2.name);
+			return u1.getName().compareTo(u2.getName());
 		}
 	};
 
@@ -135,7 +94,7 @@ public class LobbyUser {
 		public int compare(Viewer viewer, Object e1, Object e2) {
 			LobbyUser u1 = (LobbyUser) e1;
 			LobbyUser u2 = (LobbyUser) e2;
-			return u1.state.compareTo(u2.state);
+			return u1.getState().compareTo(u2.getState());
 		}
 	};
 }

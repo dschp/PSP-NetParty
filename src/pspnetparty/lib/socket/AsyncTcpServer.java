@@ -54,7 +54,7 @@ public class AsyncTcpServer implements IServer {
 	private ByteBuffer bufferProtocolNG = AppConstants.CHARSET.encode(IProtocol.PROTOCOL_NG);
 
 	private Thread selectorThread;
-	private Thread pingThread;
+	private Thread keepAliveThread;
 
 	public AsyncTcpServer(int maxPacketSize) {
 		this.maxPacketSize = maxPacketSize;
@@ -109,23 +109,23 @@ public class AsyncTcpServer implements IServer {
 					listener.log("TCP: Now shuting down...");
 					listener.serverShutdownFinished();
 				}
-				pingThread.interrupt();
+				keepAliveThread.interrupt();
 			}
 		}, getClass().getName() + " Selector");
 		selectorThread.setDaemon(true);
 		selectorThread.start();
 
-		pingThread = new Thread(new Runnable() {
+		keepAliveThread = new Thread(new Runnable() {
 			@Override
 			public void run() {
 				try {
-					pingLoop();
+					keepAliveLoop();
 				} catch (InterruptedException e) {
 				}
 			}
-		}, getClass().getName() + " Ping");
-		pingThread.setDaemon(true);
-		pingThread.start();
+		}, getClass().getName() + " KeepAlive");
+		keepAliveThread.setDaemon(true);
+		keepAliveThread.start();
 	}
 
 	private void selectorLoop() {
@@ -172,23 +172,20 @@ public class AsyncTcpServer implements IServer {
 		}
 	}
 
-	private void pingLoop() throws InterruptedException {
-		ByteBuffer pingBuffer = ByteBuffer.allocate(IProtocol.HEADER_BYTE_SIZE);
-		pingBuffer.putInt(0);
+	private void keepAliveLoop() throws InterruptedException {
+		ByteBuffer keepAliveBuffer = ByteBuffer.allocate(IProtocol.HEADER_BYTE_SIZE);
+		keepAliveBuffer.putInt(0);
 		while (serverChannel.isOpen()) {
-			long deadline = System.currentTimeMillis() - IProtocol.PING_DEADLINE;
-			// int pingCount = 0, disconnectCount = 0;
+			long deadline = System.currentTimeMillis() - IProtocol.KEEPALIVE_DEADLINE;
 
 			for (Connection conn : establishedConnections.keySet()) {
 				try {
-					if (conn.lastPingTime < deadline) {
-						log(Utility.makePingDisconnectLog("TCP", conn.getRemoteAddress(), deadline, conn.lastPingTime));
+					if (conn.lastKeepAliveReceived < deadline) {
+						log(Utility.makeKeepAliveDisconnectLog("TCP", conn.getRemoteAddress(), deadline, conn.lastKeepAliveReceived));
 						conn.disconnect();
-						// disconnectCount++;
 					} else {
-						pingBuffer.clear();
-						conn.channel.write(pingBuffer);
-						// pingCount++;
+						keepAliveBuffer.clear();
+						conn.channel.write(keepAliveBuffer);
 					}
 				} catch (RuntimeException e) {
 					log(Utility.stackTraceToString(e));
@@ -197,9 +194,7 @@ public class AsyncTcpServer implements IServer {
 				}
 			}
 
-			// logger.log("TCP Server Ping送信: p=" + pingCount + " d=" +
-			// disconnectCount);
-			Thread.sleep(IProtocol.PING_INTERVAL);
+			Thread.sleep(IProtocol.KEEPALIVE_INTERVAL);
 		}
 	}
 
@@ -212,7 +207,6 @@ public class AsyncTcpServer implements IServer {
 			selector.close();
 		} catch (IOException e) {
 		}
-		// selector = null;
 
 		if (serverChannel != null && serverChannel.isOpen()) {
 			try {
@@ -238,7 +232,7 @@ public class AsyncTcpServer implements IServer {
 
 	private class Connection implements ISocketConnection {
 		private SocketChannel channel;
-		private long lastPingTime;
+		private long lastKeepAliveReceived;
 
 		private IProtocolDriver driver;
 
@@ -248,7 +242,7 @@ public class AsyncTcpServer implements IServer {
 
 		Connection(SocketChannel channel) {
 			this.channel = channel;
-			lastPingTime = System.currentTimeMillis();
+			lastKeepAliveReceived = System.currentTimeMillis();
 		}
 
 		@Override
@@ -320,10 +314,8 @@ public class AsyncTcpServer implements IServer {
 
 				int dataSize = headerReadBuffer.getInt(0);
 				if (dataSize == 0) {
-					lastPingTime = System.currentTimeMillis();
+					lastKeepAliveReceived = System.currentTimeMillis();
 					headerReadBuffer.position(0);
-					// logger.log(Utility.makePingLog("TCP Server",
-					// getLocalAddress(), getRemoteAddress(), lastPingTime));
 					return true;
 				}
 				// System.out.println("Data size=" + dataSize);

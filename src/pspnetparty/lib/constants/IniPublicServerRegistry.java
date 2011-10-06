@@ -4,11 +4,12 @@ import java.io.File;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
+import java.util.Iterator;
 
 import pspnetparty.lib.IniFile;
 import pspnetparty.lib.IniSection;
 
-public class IniPublicServer implements IServerNetwork {
+public class IniPublicServerRegistry implements IServerRegistry {
 	private static final String FILE_NAME = "PublicServerList";
 
 	private static final String PORTAL_SERVER_LIST = "PortalServers";
@@ -21,7 +22,12 @@ public class IniPublicServer implements IServerNetwork {
 
 	private IniSection section;
 
-	public IniPublicServer() throws IOException {
+	private String[] portalServers;
+	private String[] roomServers;
+	private String[] searchServers;
+	private String[] lobbyServers;
+
+	public IniPublicServerRegistry() throws IOException {
 		file = new File(FILE_NAME);
 		lastModified = file.lastModified();
 
@@ -30,24 +36,65 @@ public class IniPublicServer implements IServerNetwork {
 	}
 
 	public String[] getPortalServers() {
-		return section.get(PORTAL_SERVER_LIST, "").split(",");
+		if (portalServers == null) {
+			portalServers = section.get(PORTAL_SERVER_LIST, "").split(",");
+		}
+		return portalServers;
 	}
 
 	public String[] getRoomServers() {
-		return section.get(ROOM_SERVER_LIST, "").split(",");
+		if (roomServers == null) {
+			roomServers = section.get(ROOM_SERVER_LIST, "").split(",");
+		}
+		return roomServers;
 	}
 
 	public String[] getSearchServers() {
-		return section.get(SEARCH_SERVER_LIST, "").split(",");
+		if (searchServers == null) {
+			searchServers = section.get(SEARCH_SERVER_LIST, "").split(",");
+		}
+		return searchServers;
 	}
 
 	public String[] getLobbyServers() {
-		return section.get(LOBBY_SERVER_LIST, "").split(",");
+		if (lobbyServers == null) {
+			lobbyServers = section.get(LOBBY_SERVER_LIST, "").split(",");
+		}
+		return lobbyServers;
 	}
 
-	/* (non-Javadoc)
-	 * @see pspnetparty.lib.constants.IPublicServer#reload()
-	 */
+	public Iterator<String> getPortalRotator() {
+		return new Iterator<String>() {
+			int index;
+			{
+				String[] list = getPortalServers();
+				index = (int) (Math.random() * list.length);
+			}
+
+			@Override
+			public void remove() {
+			}
+
+			@Override
+			public String next() {
+				String[] list = getPortalServers();
+				if (list.length == 0)
+					return null;
+				if (index >= list.length)
+					index = 0;
+				String s = list[index];
+				index++;
+				return s;
+			}
+
+			@Override
+			public boolean hasNext() {
+				String[] list = getPortalServers();
+				return list.length > 0;
+			}
+		};
+	}
+
 	@Override
 	public void reload() {
 		if (lastModified >= file.lastModified())
@@ -56,14 +103,16 @@ public class IniPublicServer implements IServerNetwork {
 		try {
 			IniFile iniFile = new IniFile(FILE_NAME);
 			section = iniFile.getSection(null);
+
+			portalServers = null;
+			roomServers = null;
+			searchServers = null;
+			lobbyServers = null;
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
 	}
 
-	/* (non-Javadoc)
-	 * @see pspnetparty.lib.constants.IPublicServer#isValidPortalServer(java.net.InetAddress)
-	 */
 	@Override
 	public boolean isValidPortalServer(InetAddress address) {
 		for (String server : getPortalServers()) {

@@ -32,7 +32,5 @@ public class IniConstants {
 	public static final String MAX_SEARCH_RESULTS = "MaxSearchResults";
 	public static final String DESCRIPTION_MAX_LENGTH = "DescriptionMaxLength";
 
-	public static final String LOBBY_TITLE = "Title";
-
 	public static final String HOSTNAME = "HostName";
 }

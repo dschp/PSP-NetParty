@@ -136,31 +136,23 @@ public class WlanProxyApp {
 		appendLog(software, false);
 		appendLog("プロトコル: " + IProtocol.NUMBER, false);
 
-		try {
+		if (!JnetPcapWlanDevice.LIBRARY.isReady()) {
+			appendLog("Pcapがインストールされていません", false);
+		} else if (!NativeWlanDevice.LIBRARY.isReady()) {
+			appendLog("PcapインストールOK", false);
+			appendLog("Windowsワイヤレスネットワーク機能がインストールされていません", false);
+
+			wlanLibrary = JnetPcapWlanDevice.LIBRARY;
+			appendLog("SSID機能: Off (jNetPcap)", false);
+		} else {
+			appendLog("PcapインストールOK", false);
+			appendLog("Windowsワイヤレスネットワーク機能OK", false);
+
 			wlanLibrary = NativeWlanDevice.LIBRARY;
-			appendLog("pnpwlanライブラリを読み込みました", false);
-		} catch (Throwable e1) {
-			appendLog("pnpwlanライブラリが見つかりません", false);
-
-			try {
-				wlanLibrary = JnetPcapWlanDevice.LIBRARY;
-				appendLog("jnetpcapライブラリを読み込みました", false);
-			} catch (Throwable e2) {
-				appendLog("jnetpcapライブラリが見つかりません", false);
-
-				wlanLibrary = WlanLibrary.NULL;
-			}
+			appendLog("SSID機能: On (PnpWlan)", false);
 		}
 
-		if (wlanLibrary == WlanLibrary.NULL) {
-			adapterCombo.removeAll();
-			adapterCombo.add("使用できません");
-			adapterCombo.select(0);
-			adapterCombo.setEnabled(false);
-
-			portSpinner.setEnabled(false);
-			serverStart.setEnabled(false);
-		} else {
+		if (wlanLibrary.isReady()) {
 			adapterCombo.addListener(SWT.Selection, new Listener() {
 				@Override
 				public void handleEvent(Event event) {
@@ -225,6 +217,14 @@ public class WlanProxyApp {
 			udpServer.addServerListener(listener);
 
 			initCaptureBuffer();
+		} else {
+			adapterCombo.removeAll();
+			adapterCombo.add("使用できません");
+			adapterCombo.select(0);
+			adapterCombo.setEnabled(false);
+
+			portSpinner.setEnabled(false);
+			serverStart.setEnabled(false);
 		}
 
 		shell.pack();
@@ -545,7 +545,7 @@ public class WlanProxyApp {
 			appendLog("接続されました: " + connection.getRemoteAddress(), true);
 
 			featureBuffer.clear();
-			System.out.println(featureBuffer);
+			// System.out.println(featureBuffer);
 			connection.send(featureBuffer);
 
 			connection.send(WlanProxyConstants.COMMAND_GET_SSID + lastSSID);
@@ -585,7 +585,7 @@ public class WlanProxyApp {
 			case WlanProxyConstants.COMMAND_SET_SSID:
 				String ssid = Utility.decode(buffer);
 				currentDevice.setSSID(ssid);
-				System.out.println(ssid);
+				// System.out.println(ssid);
 				break;
 			case WlanProxyConstants.COMMAND_SCAN_NETWORK:
 				isScanNetworkRequested = true;

@@ -89,12 +89,18 @@ public class Utility {
 		return string.substring(0, Math.min(maxLength, string.length()));
 	}
 
-	public static String validateUserName(String name) {
-		return name.replaceAll("(^[\\s　]+|[\\s　]+$)", "").replaceAll("[\\s　]{2,}", " ");
+	public static String multiLineToSingleLine(String lines) {
+		if (lines == null)
+			return "";
+		return lines.replace("\r", "").replace("\n", " ");
 	}
 
-	public static boolean isValidUserName(String name) {
-		if (name == null || name.length() == 0 || name.length() > AppConstants.LOGIN_NAME_LIMIT)
+	public static String validateNameString(String name) {
+		return name.replaceAll("(^[\\s　]+|[\\s　]+$)", "").replaceAll("[\\s　]+", " ");
+	}
+
+	public static boolean isValidNameString(String name) {
+		if (name == null || name.length() == 0 || name.length() > AppConstants.NAME_STRING_MAX_LENGTH)
 			return false;
 		return !name.matches("(^[\\s　]+.*|.*[\\s　]{2,}.*|.*[\\s　]+$)");
 	}
@@ -200,11 +206,11 @@ public class Utility {
 		return "";
 	}
 
-	public static String makePingLog(String transport, InetSocketAddress local, InetSocketAddress remote, long time) {
+	public static String makeKeepAliveLog(String transport, InetSocketAddress local, InetSocketAddress remote, long time) {
 		StringBuilder sb = new StringBuilder();
 
 		sb.append(transport);
-		sb.append(" Ping受信: ");
+		sb.append(" KeepAlive受信: ");
 
 		sb.append(socketAddressToStringByIP(remote));
 		sb.append(" -> ");
@@ -216,19 +222,19 @@ public class Utility {
 		return sb.toString();
 	}
 
-	public static String makePingDisconnectLog(String transport, InetSocketAddress address, long deadline, long lastPingTime) {
+	public static String makeKeepAliveDisconnectLog(String transport, InetSocketAddress address, long deadline, long lastReceived) {
 		Date date = new Date();
 
 		StringBuilder sb = new StringBuilder();
 		sb.append(transport);
-		sb.append(" PING切断: ");
+		sb.append(" KeepAlive切断: ");
 
 		date.setTime(deadline);
 		sb.append("Deadline[");
 		sb.append(ILogger.DATE_FORMAT.format(date));
 
-		date.setTime(lastPingTime);
-		sb.append("] LastPingTime[");
+		date.setTime(lastReceived);
+		sb.append("] LastReceived[");
 		sb.append(ILogger.DATE_FORMAT.format(date));
 		sb.append("] @ ");
 

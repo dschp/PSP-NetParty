@@ -27,7 +27,7 @@ import pspnetparty.lib.IniFile;
 import pspnetparty.lib.IniSection;
 import pspnetparty.lib.Utility;
 import pspnetparty.lib.constants.AppConstants;
-import pspnetparty.lib.constants.IniPublicServer;
+import pspnetparty.lib.constants.IniPublicServerRegistry;
 import pspnetparty.lib.engine.SearchEngine;
 import pspnetparty.lib.server.IniConstants;
 import pspnetparty.lib.server.ServerUtils;
@@ -86,7 +86,7 @@ public class SearchServer {
 		ILogger logger = ServerUtils.createLogger();
 		AsyncTcpServer tcpServer = new AsyncTcpServer(1000000);
 
-		final SearchEngine engine = new SearchEngine(tcpServer, logger, new IniPublicServer());
+		final SearchEngine engine = new SearchEngine(tcpServer, logger, new IniPublicServerRegistry());
 		engine.setMaxUsers(maxUsers);
 		engine.setDescriptionMaxLength(descriptionMaxLength);
 		engine.setMaxSearchResults(maxSearchResults);

@@ -45,7 +45,7 @@ import org.apache.lucene.util.Version;
 
 import pspnetparty.lib.ILogger;
 import pspnetparty.lib.Utility;
-import pspnetparty.lib.constants.IServerNetwork;
+import pspnetparty.lib.constants.IServerRegistry;
 import pspnetparty.lib.constants.ProtocolConstants;
 import pspnetparty.lib.constants.ProtocolConstants.Search;
 import pspnetparty.lib.socket.IProtocol;
@@ -65,10 +65,10 @@ public class SearchEngine {
 	private IndexSearcher indexSearcher;
 	private QueryParser searchParser;
 
-	private ConcurrentHashMap<String, SearchPlayRoom> playRoomEntries;
+	private ConcurrentHashMap<String, PlayRoom> playRoomEntries;
 	private ConcurrentHashMap<SearchProtocolDriver, Object> searchClientConnections;
 
-	private IServerNetwork serverNetwork;
+	private IServerRegistry serverNetwork;
 	private ConcurrentSkipListMap<SearchStatusProtocolDriver, Object> portalConnections;
 	private SearchStatusProtocolDriver roomDataSource;
 
@@ -81,12 +81,12 @@ public class SearchEngine {
 
 	private int updateCount = 0;
 
-	public SearchEngine(IServer server, ILogger logger, IServerNetwork net) throws IOException {
+	public SearchEngine(IServer server, ILogger logger, IServerRegistry net) throws IOException {
 		this.logger = logger;
 
 		serverNetwork = net;
 
-		playRoomEntries = new ConcurrentHashMap<String, SearchPlayRoom>();
+		playRoomEntries = new ConcurrentHashMap<String, PlayRoom>();
 		searchClientConnections = new ConcurrentHashMap<SearchProtocolDriver, Object>();
 
 		portalConnections = new ConcurrentSkipListMap<SearchEngine.SearchStatusProtocolDriver, Object>();
@@ -178,7 +178,7 @@ public class SearchEngine {
 
 	public String allRoomsToString() {
 		StringBuilder sb = new StringBuilder();
-		for (Entry<String, SearchPlayRoom> entry : playRoomEntries.entrySet()) {
+		for (Entry<String, PlayRoom> entry : playRoomEntries.entrySet()) {
 			PlayRoom room = entry.getValue();
 
 			sb.append(room.getRoomAddress()).append('\t');
@@ -277,15 +277,6 @@ public class SearchEngine {
 			sb.append(ProtocolConstants.Room.NOTIFY_FROM_ADMIN);
 			sb.append(TextProtocolDriver.ARGUMENT_SEPARATOR);
 			sb.append(loginMessage);
-		}
-	}
-
-	private static class SearchPlayRoom extends PlayRoom {
-		private String source;
-
-		public SearchPlayRoom(String serverAddress, String masterName, String title, boolean hasPassword, int currentPlayers,
-				int maxPlayers, long created) {
-			super(serverAddress, masterName, title, hasPassword, currentPlayers, maxPlayers, created);
 		}
 	}
 
@@ -442,9 +433,8 @@ public class SearchEngine {
 					long created = Long.parseLong(tokens[7]);
 					String description = Utility.trim(tokens[8], descriptionMaxLength);
 
-					SearchPlayRoom room = new SearchPlayRoom(server, masterName, title, hasPassword, currentPlayers, maxPlayers, created);
+					PlayRoom room = new PlayRoom(source, server, masterName, title, hasPassword, currentPlayers, maxPlayers, created);
 					room.setDescription(description);
-					room.source = source;
 
 					updateRoomEntry(room, source);
 					playRoomEntries.put(room.getRoomAddress(), room);
@@ -471,7 +461,7 @@ public class SearchEngine {
 					boolean hasPassword = "Y".equals(tokens[3]);
 					String description = Utility.trim(tokens[4], descriptionMaxLength);
 
-					SearchPlayRoom room = playRoomEntries.get(address);
+					PlayRoom room = playRoomEntries.get(address);
 					if (room == null)
 						return true;
 
@@ -480,7 +470,7 @@ public class SearchEngine {
 					room.setHasPassword(hasPassword);
 					room.setDescription(description);
 
-					updateRoomEntry(room, room.source);
+					updateRoomEntry(room, room.getSourceServer());
 				} catch (NumberFormatException e) {
 				} catch (IOException e) {
 					logger.log(Utility.stackTraceToString(e));
@@ -518,7 +508,7 @@ public class SearchEngine {
 
 				String address = tokens[0];
 
-				SearchPlayRoom room = playRoomEntries.get(address);
+				PlayRoom room = playRoomEntries.get(address);
 				if (room == null)
 					return true;
 
@@ -526,7 +516,7 @@ public class SearchEngine {
 					int playerCount = Integer.parseInt(tokens[1]);
 					room.setCurrentPlayers(playerCount);
 
-					updateRoomEntry(room, room.source);
+					updateRoomEntry(room, room.getSourceServer());
 				} catch (NumberFormatException e) {
 				} catch (IOException e) {
 				}

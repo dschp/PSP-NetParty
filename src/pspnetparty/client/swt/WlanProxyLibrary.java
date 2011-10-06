@@ -38,7 +38,9 @@ import pspnetparty.wlan.WlanNetwork;
 
 public class WlanProxyLibrary implements WlanLibrary {
 
-	private IPlayClient application;
+	public static final String LIBRARY_NAME = "Proxy";
+
+	private PlayClient application;
 	private boolean isSSIDEnabled;
 
 	private ProxyProtocol protocol = new ProxyProtocol();
@@ -51,32 +53,23 @@ public class WlanProxyLibrary implements WlanLibrary {
 	private ByteBuffer captureBuffer = ByteBuffer.allocate(1);
 	private ByteBuffer sendBuffer = ByteBuffer.allocate(1);
 
-	public WlanProxyLibrary(IPlayClient application) {
+	public WlanProxyLibrary(PlayClient application) {
 		this.application = application;
 	}
 
 	@Override
+	public boolean isReady() {
+		return true;
+	}
+
+	@Override
 	public String getName() {
-		return "WlanProxy";
+		return LIBRARY_NAME;
 	}
 
 	@Override
 	public void findDevices(List<WlanDevice> devices) {
-		if (application.getRoomWindow() == null)
-			return;
-		ConnectAddressDialog dialog = new ConnectAddressDialog(application.getRoomWindow().getShell());
-		switch (dialog.open()) {
-		case IDialogConstants.OK_ID:
-			try {
-				InetSocketAddress address = new InetSocketAddress(dialog.getHostName(), dialog.getPort());
-				ProxyWlanDevice dev = new ProxyWlanDevice(dialog.getTransport(), address);
-				devices.add(dev);
-			} catch (Exception e) {
-			}
-			break;
-		case IDialogConstants.CANCEL_ID:
-			break;
-		}
+		devices.add(new ProxyWlanDevice());
 	}
 
 	@Override
@@ -88,26 +81,12 @@ public class WlanProxyLibrary implements WlanLibrary {
 		private TransportLayer transport;
 		private InetSocketAddress address;
 
-		public ProxyWlanDevice(TransportLayer transport, InetSocketAddress address) {
-			this.transport = transport;
-			this.address = address;
+		public ProxyWlanDevice() {
 		}
 
 		@Override
 		public String getName() {
-			StringBuilder sb = new StringBuilder();
-			sb.append("(");
-			switch (transport) {
-			case TCP:
-				sb.append("TCP");
-				break;
-			case UDP:
-				sb.append("UDP");
-				break;
-			}
-			sb.append(") ");
-			sb.append(address);
-			return sb.toString();
+			return "Proxyに接続";
 		}
 
 		@Override
@@ -117,6 +96,20 @@ public class WlanProxyLibrary implements WlanLibrary {
 
 		@Override
 		public void open() throws IOException {
+			ConnectAddressDialog dialog = new ConnectAddressDialog(application.getRoomWindow().getShell());
+			switch (dialog.open()) {
+			case IDialogConstants.OK_ID:
+				try {
+					address = new InetSocketAddress(dialog.getHostName(), dialog.getPort());
+					transport = dialog.getTransport();
+				} catch (Exception e) {
+					throw new IOException(e);
+				}
+				break;
+			case IDialogConstants.CANCEL_ID:
+				throw new IOException();
+			}
+
 			isSSIDEnabled = false;
 
 			switch (transport) {
@@ -140,8 +133,8 @@ public class WlanProxyLibrary implements WlanLibrary {
 			synchronized (captureLock) {
 				int remaining = captureBuffer.remaining();
 				if (remaining > 0) {
-					System.out.println("Capture2: " + captureBuffer);
-					//System.out.println("Capture3: " + buffer);
+					// System.out.println("Capture2: " + captureBuffer);
+					// System.out.println("Capture3: " + buffer);
 					buffer.put(captureBuffer);
 					return remaining;
 				}
@@ -203,7 +196,7 @@ public class WlanProxyLibrary implements WlanLibrary {
 	private class ProxyProtocol implements IProtocol {
 		@Override
 		public void log(String message) {
-			application.getLogWindow().appendLog(message, true, true);
+			application.getArenaWindow().appendLog(message, true);
 		}
 
 		@Override
@@ -213,7 +206,7 @@ public class WlanProxyLibrary implements WlanLibrary {
 
 		@Override
 		public IProtocolDriver createDriver(ISocketConnection connection) {
-			application.getLogWindow().appendLog("プロキシに接続しました: " + connection.getRemoteAddress(), true, false);
+			application.getArenaWindow().appendLog("プロキシに接続しました: " + connection.getRemoteAddress(), true);
 
 			activeConnection = connection;
 
@@ -235,7 +228,7 @@ public class WlanProxyLibrary implements WlanLibrary {
 		@Override
 		public boolean process(PacketData data) {
 			ByteBuffer buffer = data.getBuffer();
-			application.getLogWindow().appendLog(buffer.toString(), true, false);
+			application.getArenaWindow().appendLog(buffer.toString(), true);
 
 			int origLimit = buffer.limit();
 			buffer.limit(1);
@@ -251,7 +244,7 @@ public class WlanProxyLibrary implements WlanLibrary {
 						captureBuffer.clear();
 					}
 
-					System.out.println("Capture1: " + buffer);
+					// System.out.println("Capture1: " + buffer);
 					captureBuffer.put(buffer);
 					captureBuffer.flip();
 				}
@@ -297,7 +290,7 @@ public class WlanProxyLibrary implements WlanLibrary {
 
 		@Override
 		public void connectionDisconnected() {
-			application.getLogWindow().appendLog("プロキシと切断しました: " + connection.getRemoteAddress(), true, false);
+			application.getArenaWindow().appendLog("プロキシと切断しました: " + connection.getRemoteAddress(), true);
 		}
 
 		@Override

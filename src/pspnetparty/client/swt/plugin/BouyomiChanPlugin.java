@@ -37,7 +37,7 @@ import org.eclipse.swt.widgets.Label;
 import org.eclipse.swt.widgets.Listener;
 import org.eclipse.swt.widgets.Text;
 
-import pspnetparty.client.swt.IPlayClient;
+import pspnetparty.client.swt.PlayClient;
 import pspnetparty.client.swt.config.IPreferenceNodeProvider;
 import pspnetparty.client.swt.message.Chat;
 import pspnetparty.client.swt.message.IMessage;
@@ -56,7 +56,7 @@ public class BouyomiChanPlugin implements IPlugin, IPreferenceNodeProvider {
 	private static final String INI_READ_LOBBY_CHAT = "ReadLobbyChat";
 	private static final String INI_READ_PRIVATE_CHAT = "ReadPrivateChat";
 
-	private IPlayClient application;
+	private PlayClient application;
 	private IniSection iniSection;
 
 	private ByteBuffer headerBuffer;
@@ -105,7 +105,7 @@ public class BouyomiChanPlugin implements IPlugin, IPreferenceNodeProvider {
 			if (errorCount < 5) {
 				errorCount++;
 
-				application.getLogWindow().appendLog(Utility.stackTraceToString(e), true, true);
+				application.getArenaWindow().appendLog(Utility.stackTraceToString(e), true);
 				e.printStackTrace();
 			} else {
 				socketAddress = null;
@@ -113,13 +113,13 @@ public class BouyomiChanPlugin implements IPlugin, IPreferenceNodeProvider {
 				iniSection.set(INI_USE, false);
 
 				errorCount = 0;
-				application.getLogWindow().appendLog("棒読みちゃんに接続できませんでした。設定を見直してください。", true, true);
+				application.getArenaWindow().appendLog("棒読みちゃんに接続できませんでした。設定を見直してください。", true);
 			}
 		}
 	}
 
 	@Override
-	public void initPlugin(IPlayClient application) {
+	public void initPlugin(PlayClient application) {
 		this.application = application;
 		iniSection = application.getIniSection(SECTION_NAME);
 		application.addConfigPageProvider(this);
@@ -132,7 +132,7 @@ public class BouyomiChanPlugin implements IPlugin, IPreferenceNodeProvider {
 		readLobbyChat = iniSection.get(INI_READ_LOBBY_CHAT, true);
 		readPrivateChat = iniSection.get(INI_READ_PRIVATE_CHAT, true);
 
-		application.getRoomWindow().addMessageListener(new IMessageListener() {
+		application.addRoomMessageListener(new IMessageListener() {
 			@Override
 			public void messageReceived(IMessage message) {
 				if (socketAddress == null)
@@ -149,7 +149,7 @@ public class BouyomiChanPlugin implements IPlugin, IPreferenceNodeProvider {
 			}
 		});
 
-		application.getLobbyWindow(true).addMessageListener(new IMessageListener() {
+		application.addLobbyMessageListener(new IMessageListener() {
 			@Override
 			public void messageReceived(IMessage message) {
 				if (socketAddress == null)

@@ -32,14 +32,27 @@ import pspnetparty.lib.Utility;
 
 public class JnetPcapWlanDevice implements WlanDevice {
 
+	private static final boolean IS_READY;
 	static {
-		Pcap.libVersion();
+		boolean isReady = false;
+		try {
+			Pcap.libVersion();
+			isReady = true;
+		} catch (Error e) {
+		}
+		IS_READY = isReady;
 	}
 
+	public static final String LIBRARY_NAME = "jNetPcap";
 	public static final WlanLibrary LIBRARY = new WlanLibrary() {
 		@Override
+		public boolean isReady() {
+			return IS_READY;
+		};
+
+		@Override
 		public String getName() {
-			return "jNetPcap";
+			return LIBRARY_NAME;
 		}
 
 		@Override
@@ -49,6 +62,9 @@ public class JnetPcapWlanDevice implements WlanDevice {
 
 		@Override
 		public void findDevices(List<WlanDevice> devices) {
+			if (!IS_READY)
+				return;
+
 			ArrayList<PcapIf> list = new ArrayList<PcapIf>();
 			StringBuilder errbuf = new StringBuilder();
 
@@ -61,7 +77,7 @@ public class JnetPcapWlanDevice implements WlanDevice {
 				devices.add(new JnetPcapWlanDevice(pcapIf));
 			}
 		}
-	};
+	};;
 
 	private PcapIf pcapIf;
 	private Pcap pcapDevice;

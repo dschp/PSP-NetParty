@@ -27,15 +27,28 @@ import java.util.List;
 
 public class NativeWlanDevice implements WlanDevice {
 
+	private static final boolean IS_READY;
 	static {
-		System.loadLibrary("pnpwlan");
-		initialize();
+		boolean isReady = false;
+		try {
+			System.loadLibrary("pnpwlan");
+			initialize();
+			isReady = true;
+		} catch (Error e) {
+		}
+		IS_READY = isReady;
 	}
 
+	public static final String LIBRARY_NAME = "PnpWlan";
 	public static final WlanLibrary LIBRARY = new WlanLibrary() {
 		@Override
+		public boolean isReady() {
+			return IS_READY;
+		}
+
+		@Override
 		public String getName() {
-			return "PNPWLAN";
+			return LIBRARY_NAME;
 		}
 
 		@Override
@@ -45,6 +58,9 @@ public class NativeWlanDevice implements WlanDevice {
 
 		@Override
 		public void findDevices(List<WlanDevice> devices) {
+			if (!IS_READY)
+				return;
+
 			NativeWlanDevice.findDevices(devices);
 		}
 	};

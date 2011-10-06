@@ -24,9 +24,10 @@ public class ProtocolConstants {
 
 	public static final int TIMEOUT = 2000;
 
+	public static final String PROTOCOL_PORTAL = "PNP_PORTAL";
+	public static final String PROTOCOL_ROOM_LIST = "PNP_ROOM_LIST";
 	public static final String PROTOCOL_ROOM = "PNP_ROOM";
 	public static final String PROTOCOL_TUNNEL = "PNP_TUNNEL";
-	public static final String PROTOCOL_PORTAL = "PNP_PORTAL";
 	public static final String PROTOCOL_SEARCH = "PNP_SEARCH";
 	public static final String PROTOCOL_LOBBY = "PNP_LOBBY";
 
@@ -45,7 +46,18 @@ public class ProtocolConstants {
 		public static final String COMMAND_LIST_ROOM_SERVERS = "r";
 		public static final String COMMAND_FIND_SEARCH_SERVER = "S";
 		public static final String COMMAND_LIST_SEARCH_SERVERS = "s";
-		public static final String COMMAND_LIST_LOBBY_SERVERS = "L";
+		public static final String COMMAND_FIND_LOBBY_SERVERS = "L";
+	}
+
+	public class RoomList {
+		private RoomList() {
+		}
+
+		public static final String NOTIFY_ROOM_SERVER_REMOVED = "S";
+		public static final String NOTIFY_ROOM_CREATED = "C";
+		public static final String NOTIFY_ROOM_DELETED = "D";
+		public static final String NOTIFY_ROOM_UPDATED = "U";
+		public static final String NOTIFY_ROOM_PLAYER_COUNT_CHANGED = "H";
 	}
 
 	public class Room {
@@ -167,20 +179,26 @@ public class ProtocolConstants {
 		private Lobby() {
 		}
 
-		public static final String COMMAND_LOGIN = "I";
-		public static final String COMMAND_LOGOUT = "O";
+		public static final String COMMAND_LOGIN = "CI";
+		public static final String COMMAND_LOGOUT = "CO";
+
+		public static final String COMMAND_CHANGE_STATE = "CS";
+		public static final String COMMAND_UPDATE_PROFILE = "CU";
+
 		public static final String COMMAND_CHAT = "C";
 		public static final String COMMAND_PRIVATE_CHAT = "P";
-		public static final String COMMAND_CHANGE_STATE = "S";
-		public static final String COMMAND_CHANGE_NAME = "N";
+		public static final String COMMAND_CIRCLE_JOIN = "J";
+		public static final String COMMAND_CIRCLE_LEAVE = "L";
 
 		public static final String NOTIFY_FROM_ADMIN = "AN";
-		public static final String NOTIFY_LOBBY_INFO = "LI";
 
-		public static final String NOTIFY_USER_LIST = "UL";
-		public static final String NOTIFY_USER_INFO = "UI";
-		public static final String NOTIFY_USER_LOGOUT = "UO";
-		public static final String NOTIFY_USER_NAME_CHANGED = "UC";
+		public static final String NOTIFY_LOGIN = "UI";
+		public static final String NOTIFY_LOGOUT = "UO";
+		public static final String NOTIFY_STATE_CHANGE = "US";
+		public static final String NOTIFY_PROFILE_UPDATE = "UP";
+
+		public static final String NOTIFY_CIRCLE_JOIN = "NJ";
+		public static final String NOTIFY_CIRCLE_LEAVE = "NL";
 
 		public static final String ERROR_LOGIN_USER_BEYOND_CAPACITY = "ERR_LU_CAP";
 		public static final String ERROR_LOGIN_USER_DUPLICATED_NAME = "ERR_LU_DUP";
@@ -189,7 +207,5 @@ public class ProtocolConstants {
 	public class LobbyStatus {
 		private LobbyStatus() {
 		}
-
-		public static final String NOTIFY_LOBBY_INFO = "L";
 	}
 }
