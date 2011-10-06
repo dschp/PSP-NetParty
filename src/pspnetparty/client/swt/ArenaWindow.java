@@ -2200,6 +2200,10 @@ public class ArenaWindow implements IAppWindow {
 				tab.removeMember(user);
 			}
 
+			for (String circle : user.getCircles()) {
+				getCircleMemberMap(circle).remove(name);
+			}
+
 			updateLobbyUserCount();
 
 			if (profileWindow != null)
