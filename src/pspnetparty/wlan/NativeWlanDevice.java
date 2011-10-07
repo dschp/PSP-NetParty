@@ -34,7 +34,7 @@ public class NativeWlanDevice implements WlanDevice {
 			System.loadLibrary("pnpwlan");
 			initialize();
 			isReady = true;
-		} catch (Error e) {
+		} catch (Throwable th) {
 		}
 		IS_READY = isReady;
 	}

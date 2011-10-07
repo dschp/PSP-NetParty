@@ -2187,6 +2187,16 @@ public class ArenaWindow implements IAppWindow {
 			pmTab.userListTableViewer.remove(user);
 			pmTab.userListTableViewer.refresh(user);
 
+			for (String circle : user.getCircles()) {
+				LobbyCircleTab tab = myCircleTabs.get(circle);
+				if (tab == null) {
+					HashMap<String, LobbyUser> members = getCircleMemberMap(circle);
+					members.remove(user.getName());
+				} else {
+					tab.removeMember(user);
+				}
+			}
+
 			IniSettings settings = application.getSettings();
 			if (settings.isLogLobbyEnterExit()) {
 				InfoLog log = new InfoLog(name + " がログアウトしました");
@@ -2194,14 +2204,6 @@ public class ArenaWindow implements IAppWindow {
 
 				if (settings.isBallonNotifyLobby() && settings.isLogLobbyEnterExit())
 					application.balloonNotify(shell, log.getMessage());
-			}
-
-			for (LobbyCircleTab tab : myCircleTabs.values()) {
-				tab.removeMember(user);
-			}
-
-			for (String circle : user.getCircles()) {
-				getCircleMemberMap(circle).remove(name);
 			}
 
 			updateLobbyUserCount();

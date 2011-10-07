@@ -38,7 +38,7 @@ public class JnetPcapWlanDevice implements WlanDevice {
 		try {
 			Pcap.libVersion();
 			isReady = true;
-		} catch (Error e) {
+		} catch (Throwable th) {
 		}
 		IS_READY = isReady;
 	}
