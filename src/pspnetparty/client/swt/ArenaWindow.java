@@ -20,20 +20,31 @@ package pspnetparty.client.swt;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
+import java.nio.ByteBuffer;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Set;
 
+import org.eclipse.jface.dialogs.Dialog;
 import org.eclipse.jface.dialogs.IDialogConstants;
 import org.eclipse.jface.resource.ImageRegistry;
 import org.eclipse.jface.viewers.DoubleClickEvent;
 import org.eclipse.jface.viewers.IDoubleClickListener;
+import org.eclipse.jface.viewers.ILabelProviderListener;
+import org.eclipse.jface.viewers.ISelectionChangedListener;
+import org.eclipse.jface.viewers.IStructuredContentProvider;
 import org.eclipse.jface.viewers.IStructuredSelection;
+import org.eclipse.jface.viewers.ITableLabelProvider;
+import org.eclipse.jface.viewers.SelectionChangedEvent;
 import org.eclipse.jface.viewers.StructuredSelection;
 import org.eclipse.jface.viewers.TableViewer;
 import org.eclipse.jface.viewers.Viewer;
 import org.eclipse.jface.viewers.ViewerFilter;
+import org.eclipse.jface.viewers.ViewerSorter;
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.SWTException;
 import org.eclipse.swt.custom.SashForm;
@@ -59,6 +70,7 @@ import org.eclipse.swt.layout.GridLayout;
 import org.eclipse.swt.widgets.Button;
 import org.eclipse.swt.widgets.Combo;
 import org.eclipse.swt.widgets.Composite;
+import org.eclipse.swt.widgets.Control;
 import org.eclipse.swt.widgets.Event;
 import org.eclipse.swt.widgets.Label;
 import org.eclipse.swt.widgets.Listener;
@@ -80,6 +92,7 @@ import pspnetparty.client.swt.message.AdminNotify;
 import pspnetparty.client.swt.message.Chat;
 import pspnetparty.client.swt.message.ErrorLog;
 import pspnetparty.client.swt.message.InfoLog;
+import pspnetparty.client.swt.message.LobbyCircleChat;
 import pspnetparty.client.swt.message.LogViewer;
 import pspnetparty.client.swt.message.PrivateChat;
 import pspnetparty.client.swt.message.ServerLog;
@@ -108,7 +121,7 @@ public class ArenaWindow implements IAppWindow {
 
 	private final long lobbyInactivityInterval = 30 * 60 * 1000;
 
-	private boolean isActive;
+	private boolean isActiveWindow;
 
 	private RoomListProtocol roomListProtocol = new RoomListProtocol();
 	private ISocketConnection roomListConnection = ISocketConnection.NULL;
@@ -176,8 +189,8 @@ public class ArenaWindow implements IAppWindow {
 	private LobbyCircleTab pmTab;
 	private TabItem systemLogTab;
 
-	private HashMap<String, LobbyCircleTab> myCircleTabs = new HashMap<String, LobbyCircleTab>();
-	private HashMap<String, HashMap<String, LobbyUser>> circleMap = new HashMap<String, HashMap<String, LobbyUser>>();
+	private Map<String, LobbyCircleTab> myCircleTabs = new LinkedHashMap<String, LobbyCircleTab>();
+	private Map<String, Map<String, LobbyUser>> circleMap = new HashMap<String, Map<String, LobbyUser>>();
 
 	private Menu menuLobbyTab;
 	private MenuItem menuItemAddCircle;
@@ -404,9 +417,11 @@ public class ArenaWindow implements IAppWindow {
 		lobbyServerLoginButton.setText("ロビーログイン");
 		gridData = new GridData(SWT.CENTER, SWT.CENTER, false, false);
 		lobbyServerLoginButton.setLayoutData(gridData);
+		application.initControl(lobbyServerLoginButton);
 
 		lobbyServerAddressLabel = new Label(lobbyControlContainer, SWT.NONE);
 		lobbyServerAddressLabel.setText("サーバー: ");
+		application.initControl(lobbyServerAddressLabel);
 
 		gridData = new GridData(SWT.CENTER, SWT.CENTER, false, false);
 		gridData.heightHint = 15;
@@ -414,10 +429,12 @@ public class ArenaWindow implements IAppWindow {
 
 		lobbyUserCountLabel = new Label(lobbyControlContainer, SWT.NONE);
 		lobbyUserCountLabel.setText("ユーザー数: ");
+		application.initControl(lobbyUserCountLabel);
 
 		lobbyUserNameLabel = new Label(lobbyControlContainer, SWT.NONE);
 		lobbyUserNameLabel.setText("ユーザー名");
 		lobbyUserNameLabel.setLayoutData(new GridData(SWT.RIGHT, SWT.CENTER, true, false));
+		application.initControl(lobbyUserNameLabel);
 
 		lobbyUserStateCombo = new Combo(lobbyControlContainer, SWT.BORDER | SWT.READ_ONLY);
 		lobbyUserStateCombo.setItems(LOBBY_USER_STATES);
@@ -426,9 +443,11 @@ public class ArenaWindow implements IAppWindow {
 
 		lobbyProfileEdit = new Button(lobbyControlContainer, SWT.PUSH);
 		lobbyProfileEdit.setText("プロフィール編集");
+		application.initControl(lobbyProfileEdit);
 
 		lobbyCircleAdd = new Button(lobbyControlContainer, SWT.PUSH);
-		lobbyCircleAdd.setText("サークル追加");
+		lobbyCircleAdd.setText("サークル追加 / 一覧");
+		application.initControl(lobbyCircleAdd);
 
 		lobbyCircleTabFolder = new TabFolder(lobbyContainer, SWT.TOP);
 		lobbyCircleTabFolder.setLayoutData(new GridData(SWT.FILL, SWT.FILL, true, true, 1, 1));
@@ -480,6 +499,7 @@ public class ArenaWindow implements IAppWindow {
 		for (String circle : application.getUserProfile().getCircles()) {
 			requestCircleJoin(circle);
 		}
+		lobbyCircleTabFolder.setSelection(lobbyTab.tabItem);
 	}
 
 	private void initWidgetListeners() {
@@ -487,7 +507,7 @@ public class ArenaWindow implements IAppWindow {
 			@Override
 			public void handleEvent(Event event) {
 				if (roomListConnection.isConnected()) {
-					roomListConnection.send(ProtocolConstants.Search.COMMAND_LOGOUT);
+					roomListConnection.disconnect();
 				} else {
 					connectToRoomListServer();
 				}
@@ -626,7 +646,7 @@ public class ArenaWindow implements IAppWindow {
 			@Override
 			public void handleEvent(Event event) {
 				if (lobbyConnection.isConnected()) {
-					lobbyConnection.send(ProtocolConstants.Lobby.COMMAND_LOGOUT);
+					lobbyConnection.disconnect();
 				} else {
 					connectToLobbyServer();
 				}
@@ -680,7 +700,7 @@ public class ArenaWindow implements IAppWindow {
 					sb.append(TextProtocolDriver.ARGUMENT_SEPARATOR);
 					sb.append(profile.getProfile());
 
-					lobbyConnection.send(sb.toString());
+					lobbyConnection.send(Utility.encode(sb));
 				}
 				shell.setFocus();
 			}
@@ -761,22 +781,22 @@ public class ArenaWindow implements IAppWindow {
 
 			@Override
 			public void shellIconified(ShellEvent e) {
-				isActive = false;
+				isActiveWindow = false;
 			}
 
 			@Override
 			public void shellDeiconified(ShellEvent e) {
-				isActive = true;
+				isActiveWindow = true;
 			}
 
 			@Override
 			public void shellDeactivated(ShellEvent e) {
-				isActive = false;
+				isActiveWindow = false;
 			}
 
 			@Override
 			public void shellActivated(ShellEvent e) {
-				isActive = true;
+				isActiveWindow = true;
 			}
 		});
 		shell.addDisposeListener(new DisposeListener() {
@@ -820,8 +840,11 @@ public class ArenaWindow implements IAppWindow {
 	}
 
 	public void reflectAppearance() {
-		lobbyTab.chatLogViewer.applyAppearance();
-		pmTab.chatLogViewer.applyAppearance();
+		lobbyTab.reflectAppearance();
+		pmTab.reflectAppearance();
+		for (LobbyCircleTab tab : myCircleTabs.values())
+			tab.reflectAppearance();
+
 		shell.layout(true, true);
 	}
 
@@ -854,7 +877,7 @@ public class ArenaWindow implements IAppWindow {
 		changeLobbyStateTo(LobbyUserState.INACTIVE);
 	}
 
-	public void appendLog(final String message, final boolean timestamp) {
+	public void appendToSystemLog(final String message, final boolean timestamp) {
 		if (Utility.isEmpty(message))
 			return;
 
@@ -863,7 +886,7 @@ public class ArenaWindow implements IAppWindow {
 				SwtUtils.DISPLAY.asyncExec(new Runnable() {
 					@Override
 					public void run() {
-						appendLog(message, timestamp);
+						appendToSystemLog(message, timestamp);
 					}
 				});
 				return;
@@ -1008,7 +1031,7 @@ public class ArenaWindow implements IAppWindow {
 	private void connectToRoomListServer() {
 		InetSocketAddress address = application.getPortalServer();
 		if (address == null) {
-			appendLog("サーバーリストが設定されていません", true);
+			appendToSystemLog("サーバーリストが設定されていません", true);
 			return;
 		}
 
@@ -1022,7 +1045,7 @@ public class ArenaWindow implements IAppWindow {
 
 		if (list.length == 0) {
 			ErrorLog log = new ErrorLog("サーバーリストが設定されていません");
-			appendLog(log.getMessage(), true);
+			appendToSystemLog(log.getMessage(), true);
 
 			roomListServerLoginButton.setEnabled(true);
 		} else {
@@ -1032,7 +1055,7 @@ public class ArenaWindow implements IAppWindow {
 				String selected = dialog.getSelectedServer();
 				InetSocketAddress address = Utility.parseSocketAddress(selected);
 				if (address == null) {
-					appendLog("選択されたアドレスにエラーがあります", true);
+					appendToSystemLog("選択されたアドレスにエラーがあります", true);
 				} else {
 					connectToRoomListServer(address);
 				}
@@ -1062,7 +1085,7 @@ public class ArenaWindow implements IAppWindow {
 				} catch (IOException e) {
 					roomListSession = RoomListSessionState.OFFLINE;
 					updateRoomListServerLoginButton(false);
-					appendLog(e.getMessage(), true);
+					appendToSystemLog(e.getMessage(), true);
 				}
 			}
 		};
@@ -1081,8 +1104,6 @@ public class ArenaWindow implements IAppWindow {
 				return;
 			}
 
-			// roomSearchServerLoginButton.setText(loginSuccess ? "検索ログイン中" :
-			// "部屋検索開始");
 			roomListServerLoginButton.setText(loginSuccess ? "リスト閲覧中" : "部屋リスト閲覧");
 			roomListServerLoginButton.setSelection(loginSuccess);
 			roomListServerLoginButton.setEnabled(true);
@@ -1222,7 +1243,7 @@ public class ArenaWindow implements IAppWindow {
 	private class RoomListProtocol implements IProtocol {
 		@Override
 		public void log(String message) {
-			appendLog(message, true);
+			appendToSystemLog(message, true);
 		}
 
 		@Override
@@ -1243,7 +1264,7 @@ public class ArenaWindow implements IAppWindow {
 				}
 
 				updateRoomListServerLoginButton(true);
-				appendLog("部屋リストの閲覧を開始しました", true);
+				appendToSystemLog("部屋リストの閲覧を開始しました", true);
 			} catch (SWTException e) {
 			}
 		}
@@ -1268,13 +1289,13 @@ public class ArenaWindow implements IAppWindow {
 
 		@Override
 		public void log(String message) {
-			appendLog(message, true);
+			appendToSystemLog(message, true);
 		}
 
 		@Override
 		public void errorProtocolNumber(String number) {
 			String error = String.format("サーバーとのプロトコルナンバーが一致しないので接続できません サーバー:%s クライアント:%s", number, IProtocol.NUMBER);
-			appendLog(error, true);
+			appendToSystemLog(error, true);
 		}
 
 		@Override
@@ -1292,10 +1313,10 @@ public class ArenaWindow implements IAppWindow {
 
 				switch (roomListSession) {
 				case CONNECTING:
-					appendLog("部屋リストにアクセスできません", true);
+					appendToSystemLog("部屋リストにアクセスできません", true);
 					break;
 				case LOGIN:
-					appendLog("部屋リストの閲覧を終了しました", true);
+					appendToSystemLog("部屋リストの閲覧を終了しました", true);
 					break;
 				}
 
@@ -1462,21 +1483,21 @@ public class ArenaWindow implements IAppWindow {
 		roomListHandlers.put(ProtocolConstants.Search.NOTIFY_FROM_ADMIN, new IProtocolMessageHandler() {
 			@Override
 			public boolean process(IProtocolDriver driver, String argument) {
-				appendLog(argument, true);
+				appendToSystemLog(argument, true);
 				return true;
 			}
 		});
 		roomListHandlers.put(ProtocolConstants.Search.ERROR_LOGIN_BEYOND_CAPACITY, new IProtocolMessageHandler() {
 			@Override
 			public boolean process(IProtocolDriver driver, String argument) {
-				appendLog("サーバーのログイン上限人数に達したのでログインできません", true);
+				appendToSystemLog("サーバーのログイン上限人数に達したのでログインできません", true);
 				return true;
 			}
 		});
 	}
 
-	private HashMap<String, LobbyUser> getCircleMemberMap(String circle) {
-		HashMap<String, LobbyUser> members = circleMap.get(circle);
+	private Map<String, LobbyUser> getCircleMemberMap(String circle) {
+		Map<String, LobbyUser> members = circleMap.get(circle);
 		if (members == null) {
 			members = new HashMap<String, LobbyUser>();
 			circleMap.put(circle, members);
@@ -1491,6 +1512,7 @@ public class ArenaWindow implements IAppWindow {
 
 		private SashForm mainSash;
 		private TabItem tabItem;
+		private LogViewer infoLogViewer;
 		private LogViewer chatLogViewer;
 		private Text userSearchName;
 		private Text userSearchProfile;
@@ -1504,14 +1526,13 @@ public class ArenaWindow implements IAppWindow {
 		private MenuItem menuViewProfile;
 		private MenuItem menuPrivateChat;
 
-		private HashMap<String, LobbyUser> memberMap;
+		private Map<String, LobbyUser> memberMap;
 
 		private UserNameFilter nameFilter = new UserNameFilter();
 		private UserProfileFilter profileFilter = new UserProfileFilter();
 		private UserStateFilter stateFilter = new UserStateFilter();
 
-		private LobbyCircleTab(final String tabText, HashMap<String, LobbyUser> memberMap, Image icon, Image iconNotify,
-				boolean showChatInput) {
+		private LobbyCircleTab(final String tabText, Map<String, LobbyUser> memberMap, Image icon, Image iconNotify, boolean showChatInput) {
 			this.circleName = tabText;
 			this.memberMap = memberMap;
 			this.icon = icon;
@@ -1535,7 +1556,15 @@ public class ArenaWindow implements IAppWindow {
 			mainSash = new SashForm(contents, SWT.HORIZONTAL);
 			mainSash.setLayoutData(new GridData(SWT.FILL, SWT.FILL, true, true));
 
-			chatLogViewer = new LogViewer(mainSash, application.getSettings().getMaxLogCount(), application);
+			if (showChatInput) {
+				SashForm logSash = new SashForm(mainSash, SWT.VERTICAL);
+				logSash.setSashWidth(1);
+				infoLogViewer = new LogViewer(logSash, application.getSettings().getMaxLogCount(), application);
+				chatLogViewer = new LogViewer(logSash, application.getSettings().getMaxLogCount(), application);
+				logSash.setWeights(new int[] { 2, 8 });
+			} else {
+				chatLogViewer = new LogViewer(mainSash, application.getSettings().getMaxLogCount(), application);
+			}
 
 			Composite userListContainer = new Composite(mainSash, SWT.NONE);
 			gridLayout = new GridLayout(4, false);
@@ -1548,6 +1577,7 @@ public class ArenaWindow implements IAppWindow {
 			Label userSearchNameLabel = new Label(userListContainer, SWT.NONE);
 			userSearchNameLabel.setText("ユーザー名");
 			userSearchNameLabel.setLayoutData(new GridData(SWT.RIGHT, SWT.CENTER, false, false));
+			application.initControl(userSearchNameLabel);
 
 			userSearchName = new Text(userListContainer, SWT.SINGLE | SWT.BORDER);
 			userSearchName.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false, 3, 1));
@@ -1556,6 +1586,7 @@ public class ArenaWindow implements IAppWindow {
 			Label userSearchProfileLabel = new Label(userListContainer, SWT.NONE);
 			userSearchProfileLabel.setText("プロフィール");
 			userSearchProfileLabel.setLayoutData(new GridData(SWT.RIGHT, SWT.CENTER, false, false));
+			application.initControl(userSearchProfileLabel);
 
 			userSearchProfile = new Text(userListContainer, SWT.SINGLE | SWT.BORDER);
 			userSearchProfile.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false, 3, 1));
@@ -1564,6 +1595,7 @@ public class ArenaWindow implements IAppWindow {
 			Label userSearchStateLabel = new Label(userListContainer, SWT.NONE);
 			userSearchStateLabel.setText("状態");
 			userSearchStateLabel.setLayoutData(new GridData(SWT.RIGHT, SWT.CENTER, false, false));
+			application.initControl(userSearchStateLabel);
 
 			userSearchStateCombo = new Combo(userListContainer, SWT.BORDER | SWT.READ_ONLY);
 			userSearchStateCombo.setItems(LOBBY_USER_STATES);
@@ -1576,11 +1608,13 @@ public class ArenaWindow implements IAppWindow {
 			userSearchClear.setText("クリア");
 			userSearchClear.setEnabled(false);
 			userSearchClear.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, false, false));
+			application.initControl(userSearchClear);
 
 			userSearchFilter = new Button(userListContainer, SWT.TOGGLE);
 			userSearchFilter.setText("絞り込む");
 			userSearchFilter.setEnabled(false);
 			userSearchFilter.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, false, false));
+			application.initControl(userSearchFilter);
 
 			userListTableViewer = new TableViewer(userListContainer, SWT.SINGLE | SWT.BORDER | SWT.FULL_SELECTION);
 			Table userListTable = userListTableViewer.getTable();
@@ -1763,7 +1797,7 @@ public class ArenaWindow implements IAppWindow {
 			userListTableViewer.refresh(member);
 
 			InfoLog log = new InfoLog(member.getName() + " が参加しました");
-			chatLogViewer.appendMessage(log);
+			infoLogViewer.appendMessage(log);
 		}
 
 		private void removeMember(LobbyUser member) {
@@ -1773,7 +1807,7 @@ public class ArenaWindow implements IAppWindow {
 			userListTableViewer.refresh(member);
 
 			InfoLog log = new InfoLog(member.getName() + " が退出しました");
-			chatLogViewer.appendMessage(log);
+			infoLogViewer.appendMessage(log);
 		}
 
 		private void filterUserList() {
@@ -1804,6 +1838,12 @@ public class ArenaWindow implements IAppWindow {
 			}
 
 			userListTableViewer.refresh();
+		}
+
+		private void reflectAppearance() {
+			if (infoLogViewer != null)
+				infoLogViewer.applyAppearance();
+			chatLogViewer.applyAppearance();
 		}
 	}
 
@@ -1934,7 +1974,7 @@ public class ArenaWindow implements IAppWindow {
 				resetLobbyControllers();
 
 				ErrorLog log = new ErrorLog(e);
-				lobbyTab.chatLogViewer.appendMessage(log);
+				lobbyTab.infoLogViewer.appendMessage(log);
 			}
 		} catch (SWTException e) {
 		}
@@ -1966,20 +2006,17 @@ public class ArenaWindow implements IAppWindow {
 		}
 	}
 
-	private void initializeLobbySession(final String[] userInfoList) {
+	private void initializeLobbySession() {
 		try {
 			if (SwtUtils.isNotUIThread()) {
 				SwtUtils.DISPLAY.asyncExec(new Runnable() {
 					@Override
 					public void run() {
-						initializeLobbySession(userInfoList);
+						initializeLobbySession();
 					}
 				});
 				return;
 			}
-			allLobbyUsers.clear();
-			lobbyTab.userListTableViewer.refresh();
-			pmTab.userListTableViewer.refresh();
 
 			setLobbyLoginUserName(myself.getName());
 
@@ -2010,45 +2047,21 @@ public class ArenaWindow implements IAppWindow {
 			}
 
 			ServerLog log = new ServerLog(myself.getName() + " としてログインしました");
-			lobbyTab.chatLogViewer.appendMessage(log);
+			lobbyTab.infoLogViewer.appendMessage(log);
 
-			for (int i = 0; i < userInfoList.length - 1; i++) {
-				String name = userInfoList[i];
-				LobbyUserState state = LobbyUserState.findState(userInfoList[++i]);
-
-				if (Utility.isEmpty(name) || state == null)
-					continue;
-
-				String url = userInfoList[++i];
-				String iconUrl = userInfoList[++i];
-				String profile = userInfoList[++i];
-				String[] circleList = userInfoList[++i].split("\n");
-
-				LobbyUser user = new LobbyUser(name, state);
-				user.setUrl(url);
-				user.setIconUrl(iconUrl);
-				user.setProfile(profile);
-
-				for (String circle : circleList) {
-					if (Utility.isEmpty(circle))
-						continue;
-
-					user.addCircle(circle);
-
-					HashMap<String, LobbyUser> members = getCircleMemberMap(circle);
-					members.put(user.getName(), user);
-
-					LobbyCircleTab tab = myCircleTabs.get(circle);
-					if (tab != null) {
-						tab.memberMap.put(user.getName(), user);
+			updateLobbyUserCount();
+			processTab(new LobbyCircleTabProcessor() {
+				@Override
+				public void process(LobbyCircleTab tab) {
+					for (LobbyUser user : tab.memberMap.values()) {
 						tab.userListTableViewer.add(user);
 					}
-				}
 
-				allLobbyUsers.put(name, user);
-				lobbyTab.userListTableViewer.add(user);
-				pmTab.userListTableViewer.add(user);
-			}
+					tab.userListTableViewer.refresh();
+					tab.userSearchFilter.setEnabled(true);
+					tab.userSearchClear.setEnabled(true);
+				}
+			});
 
 			if (!myCircleTabs.isEmpty()) {
 				StringBuilder sb = new StringBuilder();
@@ -2060,21 +2073,11 @@ public class ArenaWindow implements IAppWindow {
 				}
 				sb.deleteCharAt(sb.length() - 1);
 
-				lobbyConnection.send(sb.toString());
+				lobbyConnection.send(Utility.encode(sb));
 			}
-
-			updateLobbyUserCount();
-			processTab(new LobbyCircleTabProcessor() {
-				@Override
-				public void process(LobbyCircleTab tab) {
-					tab.userListTableViewer.refresh();
-					tab.userSearchFilter.setEnabled(true);
-					tab.userSearchClear.setEnabled(true);
-				}
-			});
 		} catch (SWTException e) {
 		} catch (RuntimeException e) {
-			appendLog(Utility.stackTraceToString(e), true);
+			appendToSystemLog(Utility.stackTraceToString(e), true);
 		}
 	}
 
@@ -2153,11 +2156,11 @@ public class ArenaWindow implements IAppWindow {
 			pmTab.userListTableViewer.refresh(user);
 
 			IniSettings settings = application.getSettings();
-			if (!name.equals(lobbyUserNameLabel.getText()) && settings.isLogLobbyEnterExit()) {
+			if (!name.equals(lobbyUserNameLabel.getText())) {
 				InfoLog log = new InfoLog(name + " がログインしました");
-				lobbyTab.chatLogViewer.appendMessage(log);
+				lobbyTab.infoLogViewer.appendMessage(log);
 
-				if (settings.isBallonNotifyLobby())
+				if (!isActiveWindow && settings.isBallonNotifyLobby() && settings.isBalloonLobbyEnterExit())
 					application.balloonNotify(shell, log.getMessage());
 			}
 
@@ -2190,7 +2193,7 @@ public class ArenaWindow implements IAppWindow {
 			for (String circle : user.getCircles()) {
 				LobbyCircleTab tab = myCircleTabs.get(circle);
 				if (tab == null) {
-					HashMap<String, LobbyUser> members = getCircleMemberMap(circle);
+					Map<String, LobbyUser> members = getCircleMemberMap(circle);
 					members.remove(user.getName());
 				} else {
 					tab.removeMember(user);
@@ -2198,13 +2201,11 @@ public class ArenaWindow implements IAppWindow {
 			}
 
 			IniSettings settings = application.getSettings();
-			if (settings.isLogLobbyEnterExit()) {
-				InfoLog log = new InfoLog(name + " がログアウトしました");
-				lobbyTab.chatLogViewer.appendMessage(log);
+			InfoLog log = new InfoLog(name + " がログアウトしました");
+			lobbyTab.infoLogViewer.appendMessage(log);
 
-				if (settings.isBallonNotifyLobby() && settings.isLogLobbyEnterExit())
-					application.balloonNotify(shell, log.getMessage());
-			}
+			if (!isActiveWindow && settings.isBallonNotifyLobby() && settings.isBalloonLobbyEnterExit())
+				application.balloonNotify(shell, log.getMessage());
 
 			updateLobbyUserCount();
 
@@ -2230,7 +2231,7 @@ public class ArenaWindow implements IAppWindow {
 
 			LobbyCircleTab tab = myCircleTabs.get(circle);
 			if (tab == null) {
-				HashMap<String, LobbyUser> members = getCircleMemberMap(circle);
+				Map<String, LobbyUser> members = getCircleMemberMap(circle);
 				members.put(user.getName(), user);
 			} else {
 				tab.addMember(user);
@@ -2258,7 +2259,7 @@ public class ArenaWindow implements IAppWindow {
 
 			LobbyCircleTab tab = myCircleTabs.get(circle);
 			if (tab == null) {
-				HashMap<String, LobbyUser> members = getCircleMemberMap(circle);
+				Map<String, LobbyUser> members = getCircleMemberMap(circle);
 				members.remove(user.getName());
 			} else {
 				tab.removeMember(user);
@@ -2270,11 +2271,225 @@ public class ArenaWindow implements IAppWindow {
 		}
 	}
 
+	private static final IStructuredContentProvider CIRCLE_CONTENT_PROVIDER = new IStructuredContentProvider() {
+		@Override
+		public void inputChanged(Viewer arg0, Object arg1, Object arg2) {
+		}
+
+		@Override
+		public void dispose() {
+		}
+
+		@Override
+		public Object[] getElements(Object input) {
+			@SuppressWarnings("unchecked")
+			HashMap<String, HashMap<String, LobbyUser>> map = (HashMap<String, HashMap<String, LobbyUser>>) input;
+			return map.entrySet().toArray();
+		}
+	};
+	private static final ITableLabelProvider CIRCLE_LABEL_PROVIDER = new ITableLabelProvider() {
+		@Override
+		public void addListener(ILabelProviderListener arg0) {
+		}
+
+		@Override
+		public void removeListener(ILabelProviderListener arg0) {
+		}
+
+		@Override
+		public void dispose() {
+		}
+
+		@Override
+		public boolean isLabelProperty(Object arg0, String arg1) {
+			return false;
+		}
+
+		@Override
+		public Image getColumnImage(Object element, int index) {
+			return null;
+		}
+
+		@Override
+		public String getColumnText(Object element, int index) {
+			@SuppressWarnings("unchecked")
+			Entry<String, HashMap<String, LobbyUser>> entry = (Entry<String, HashMap<String, LobbyUser>>) element;
+
+			switch (index) {
+			case 0:
+				return entry.getKey();
+			case 1:
+				return Integer.toString(entry.getValue().size());
+			}
+			return "";
+		}
+	};
+	private static final ViewerSorter CIRCLE_NAME_SORTER = new ViewerSorter() {
+		@SuppressWarnings("unchecked")
+		@Override
+		public int compare(Viewer viewer, Object e1, Object e2) {
+			Entry<String, HashMap<String, LobbyUser>> entry1 = (Entry<String, HashMap<String, LobbyUser>>) e1;
+			Entry<String, HashMap<String, LobbyUser>> entry2 = (Entry<String, HashMap<String, LobbyUser>>) e2;
+			return entry1.getKey().compareTo(entry2.getKey());
+		}
+	};
+	private static final ViewerSorter CIRCLE_COUNT_SORTER = new ViewerSorter() {
+		@SuppressWarnings("unchecked")
+		@Override
+		public int compare(Viewer viewer, Object e1, Object e2) {
+			Entry<String, HashMap<String, LobbyUser>> entry1 = (Entry<String, HashMap<String, LobbyUser>>) e1;
+			Entry<String, HashMap<String, LobbyUser>> entry2 = (Entry<String, HashMap<String, LobbyUser>>) e2;
+			return Utility.compare(entry1.getValue().size(), entry2.getValue().size());
+		}
+	};
+	private static final ViewerFilter CIRCLE_EMPTY_FILTER = new ViewerFilter() {
+		@Override
+		public boolean select(Viewer viewer, Object parent, Object element) {
+			@SuppressWarnings("unchecked")
+			Entry<String, HashMap<String, LobbyUser>> entry = (Entry<String, HashMap<String, LobbyUser>>) element;
+			return !entry.getValue().isEmpty();
+		}
+	};
+
+	private class LobbyCircleDialog extends Dialog {
+		private String circleName;
+
+		public LobbyCircleDialog() {
+			super(shell);
+			setShellStyle(getShellStyle() | SWT.RESIZE);
+		}
+
+		@Override
+		protected void configureShell(Shell newShell) {
+			super.configureShell(newShell);
+			newShell.setText("サークル追加 / 一覧");
+		}
+
+		@Override
+		protected Control createDialogArea(Composite parent) {
+			GridData gridData;
+
+			Composite composite = new Composite(parent, SWT.NONE);
+			composite.setLayout(new GridLayout(1, false));
+
+			gridData = new GridData(SWT.FILL, SWT.FILL, true, true);
+			composite.setLayoutData(gridData);
+
+			Label label = new Label(composite, SWT.NONE);
+			label.setText("サークル名を入力するか、一覧から選択してください");
+
+			final Text text = new Text(composite, SWT.BORDER | SWT.SINGLE);
+			gridData = new GridData(GridData.FILL, GridData.CENTER, true, false);
+			text.setLayoutData(gridData);
+
+			TableViewer circleTableViewer = new TableViewer(composite, SWT.SINGLE | SWT.BORDER | SWT.FULL_SELECTION);
+			Table circleTable = circleTableViewer.getTable();
+			circleTable.setHeaderVisible(true);
+
+			TableColumn nameColumn = new TableColumn(circleTable, SWT.LEFT);
+			nameColumn.setText("サークル名");
+			nameColumn.setWidth(200);
+
+			TableColumn countColumn = new TableColumn(circleTable, SWT.RIGHT);
+			countColumn.setText("所属人数");
+			countColumn.setWidth(60);
+
+			gridData = new GridData(SWT.FILL, SWT.FILL, true, true);
+			gridData.minimumHeight = 150;
+			circleTable.setLayoutData(gridData);
+
+			final Label errorLabel = new Label(composite, SWT.NONE);
+			errorLabel.setForeground(application.getColorRegistry().get(PlayClient.COLOR_NG));
+			gridData = new GridData(SWT.FILL, SWT.CENTER, true, false);
+			errorLabel.setLayoutData(gridData);
+
+			circleTableViewer.setContentProvider(CIRCLE_CONTENT_PROVIDER);
+			circleTableViewer.setLabelProvider(CIRCLE_LABEL_PROVIDER);
+			circleTableViewer.setInput(circleMap);
+
+			SwtUtils.installSorter(circleTableViewer, nameColumn, CIRCLE_NAME_SORTER);
+			SwtUtils.installSorter(circleTableViewer, countColumn, CIRCLE_COUNT_SORTER);
+
+			circleTableViewer.setSorter(CIRCLE_NAME_SORTER);
+			circleTable.setSortColumn(nameColumn);
+			circleTable.setSortDirection(SWT.UP);
+
+			circleTableViewer.addFilter(CIRCLE_EMPTY_FILTER);
+
+			text.addModifyListener(new ModifyListener() {
+				@Override
+				public void modifyText(ModifyEvent e) {
+					String name = text.getText();
+					if (myCircleTabs.containsKey(name)) {
+						getButton(OK).setEnabled(false);
+						errorLabel.setText("すでに所属しているサークルです");
+					} else {
+						getButton(OK).setEnabled(!Utility.isEmpty(name));
+						errorLabel.setText("");
+
+						circleName = name;
+					}
+				}
+			});
+
+			circleTableViewer.addSelectionChangedListener(new ISelectionChangedListener() {
+				@Override
+				public void selectionChanged(SelectionChangedEvent e) {
+					IStructuredSelection sel = (IStructuredSelection) e.getSelection();
+					@SuppressWarnings("unchecked")
+					Entry<String, HashMap<String, LobbyUser>> entry = (Entry<String, HashMap<String, LobbyUser>>) sel.getFirstElement();
+					if (entry == null)
+						return;
+					if (myCircleTabs.containsKey(entry.getKey())) {
+						getButton(OK).setEnabled(false);
+						errorLabel.setText("すでに所属しているサークルです");
+						return;
+					}
+
+					text.setText(entry.getKey());
+				}
+			});
+			circleTableViewer.addDoubleClickListener(new IDoubleClickListener() {
+				@Override
+				public void doubleClick(DoubleClickEvent e) {
+					IStructuredSelection sel = (IStructuredSelection) e.getSelection();
+					@SuppressWarnings("unchecked")
+					Entry<String, HashMap<String, LobbyUser>> entry = (Entry<String, HashMap<String, LobbyUser>>) sel.getFirstElement();
+					if (entry == null)
+						return;
+					if (myCircleTabs.containsKey(entry.getKey()))
+						return;
+
+					circleName = entry.getKey();
+					setReturnCode(OK);
+					close();
+				}
+			});
+
+			return composite;
+		}
+
+		@Override
+		protected Control createButtonBar(Composite parent) {
+			Control control = super.createButtonBar(parent);
+
+			Button button = getButton(OK);
+			button.setEnabled(false);
+			button.setText("追加");
+
+			return control;
+		}
+
+		private String getCircleName() {
+			return circleName;
+		}
+	}
+
 	private void openAddCircleDialog() {
-		TextDialog dialog = new TextDialog(shell, "サークル追加", "サークル名を入力してください", "参加", 200);
+		LobbyCircleDialog dialog = new LobbyCircleDialog();
 		switch (dialog.open()) {
 		case IDialogConstants.OK_ID:
-			String circle = dialog.getUserInput();
+			String circle = dialog.getCircleName();
 			if (Utility.isValidNameString(circle)) {
 				requestCircleJoin(circle);
 			} else {
@@ -2293,7 +2508,7 @@ public class ArenaWindow implements IAppWindow {
 
 		LobbyCircleTab tab = myCircleTabs.get(circle);
 		if (tab == null) {
-			HashMap<String, LobbyUser> memberMap = getCircleMemberMap(circle);
+			Map<String, LobbyUser> memberMap = getCircleMemberMap(circle);
 			Image icon = application.getImageRegistry().get(PlayClient.ICON_TAB_CIRCLE);
 			Image iconNotify = application.getImageRegistry().get(PlayClient.ICON_TAB_CIRCLE_NOTIFY);
 			tab = new LobbyCircleTab(circle, memberMap, icon, iconNotify, true);
@@ -2305,7 +2520,7 @@ public class ArenaWindow implements IAppWindow {
 				sb.append(TextProtocolDriver.ARGUMENT_SEPARATOR);
 				sb.append(circle);
 
-				lobbyConnection.send(sb.toString());
+				lobbyConnection.send(Utility.encode(sb));
 
 				tab.userSearchFilter.setEnabled(true);
 				tab.userSearchClear.setEnabled(true);
@@ -2331,7 +2546,7 @@ public class ArenaWindow implements IAppWindow {
 		sb.append(TextProtocolDriver.ARGUMENT_SEPARATOR);
 		sb.append(circle);
 
-		lobbyConnection.send(sb.toString());
+		lobbyConnection.send(Utility.encode(sb));
 	}
 
 	private void notifyTabUpdate(final LobbyCircleTab tab) {
@@ -2366,7 +2581,7 @@ public class ArenaWindow implements IAppWindow {
 				sb.append(tab == lobbyTab ? "" : tab.circleName);
 				sb.append(TextProtocolDriver.ARGUMENT_SEPARATOR);
 				sb.append(message);
-				lobbyConnection.send(sb.toString());
+				lobbyConnection.send(Utility.encode(sb));
 				return true;
 			}
 			default:
@@ -2384,13 +2599,13 @@ public class ArenaWindow implements IAppWindow {
 			String message = dialog.getUserInput();
 
 			StringBuilder sb = new StringBuilder();
-			sb.append(ProtocolConstants.Lobby.COMMAND_PRIVATE_CHAT);
+			sb.append(ProtocolConstants.Lobby.COMMAND_PRIVATE_MESSAGE);
 			sb.append(TextProtocolDriver.ARGUMENT_SEPARATOR);
 			sb.append(user.getName());
 			sb.append(TextProtocolDriver.ARGUMENT_SEPARATOR);
 			sb.append(message);
 
-			lobbyConnection.send(sb.toString());
+			lobbyConnection.send(Utility.encode(sb));
 
 			PrivateChat chat = new PrivateChat(myself.getName(), user.getName(), message, true);
 			pmTab.chatLogViewer.appendMessage(chat);
@@ -2460,8 +2675,9 @@ public class ArenaWindow implements IAppWindow {
 			return;
 		}
 
-		lobbyConnection.send(ProtocolConstants.Lobby.COMMAND_CHANGE_STATE + TextProtocolDriver.ARGUMENT_SEPARATOR
+		ByteBuffer buf = Utility.encode(ProtocolConstants.Lobby.COMMAND_CHANGE_STATE + TextProtocolDriver.ARGUMENT_SEPARATOR
 				+ lobbyUserState.getAbbreviation());
+		lobbyConnection.send(buf);
 	}
 
 	private class LobbyProtocol implements IProtocol {
@@ -2491,7 +2707,7 @@ public class ArenaWindow implements IAppWindow {
 			sb.append(TextProtocolDriver.ARGUMENT_SEPARATOR);
 			sb.append(myself.getProfile());
 
-			connection.send(sb.toString());
+			connection.send(Utility.encode(sb));
 
 			return new LobbyProtocolDriver(connection);
 		}
@@ -2547,16 +2763,17 @@ public class ArenaWindow implements IAppWindow {
 				pmTab.userListTableViewer.refresh();
 
 				ServerLog log = new ServerLog("ロビーサーバーからログアウトしました");
-				lobbyTab.chatLogViewer.appendMessage(log);
+				lobbyTab.infoLogViewer.appendMessage(log);
 
+				for (Map<String, LobbyUser> members : circleMap.values()) {
+					members.clear();
+				}
 				for (LobbyCircleTab tab : myCircleTabs.values()) {
-					tab.chatLogViewer.appendMessage(log);
-					tab.memberMap.clear();
+					tab.infoLogViewer.appendMessage(log);
 					tab.userListTableViewer.refresh();
 				}
-				circleMap.clear();
 
-				if (application.getSettings().isBallonNotifyLobby() && !isActive)
+				if (application.getSettings().isBallonNotifyLobby() && !isActiveWindow)
 					application.balloonNotify(shell, log.getMessage());
 
 				if (profileWindow != null)
@@ -2569,24 +2786,46 @@ public class ArenaWindow implements IAppWindow {
 	private HashMap<String, IProtocolMessageHandler> lobbyHandlers = new HashMap<String, IProtocolMessageHandler>();
 	{
 		lobbyHandlers.put(ProtocolConstants.Lobby.COMMAND_LOGIN, new IProtocolMessageHandler() {
-			private String[] EMPTY = new String[] {};
-
 			@Override
 			public boolean process(IProtocolDriver driver, String args) {
 				lobbySession = LobbySessionState.LOGIN;
 				lobbyUserState = LobbyUserState.LOGIN;
 
-				String[] userInfoList;
-				if (args.length() == 0)
-					userInfoList = EMPTY;
-				else {
-					userInfoList = args.split(TextProtocolDriver.ARGUMENT_SEPARATOR, -1);
-					if (userInfoList.length % 6 != 0)
+				if (args.length() > 0) {
+					String[] tokens = args.split(TextProtocolDriver.ARGUMENT_SEPARATOR, -1);
+					if (tokens.length != 6)
 						return false;
-				}
-				initializeLobbySession(userInfoList);
 
-				lobbyLastActivity = System.currentTimeMillis();
+					String name = tokens[0];
+					LobbyUserState state = LobbyUserState.findState(tokens[1]);
+					if (Utility.isEmpty(name) || state == null)
+						return false;
+
+					String url = tokens[2];
+					String iconUrl = tokens[3];
+					String profile = tokens[4];
+					String[] circleList = tokens[5].split("\n");
+
+					LobbyUser user = new LobbyUser(name, state);
+					user.setUrl(url);
+					user.setIconUrl(iconUrl);
+					user.setProfile(profile);
+
+					for (String circle : circleList) {
+						if (Utility.isEmpty(circle))
+							continue;
+
+						user.addCircle(circle);
+
+						Map<String, LobbyUser> members = getCircleMemberMap(circle);
+						members.put(user.getName(), user);
+					}
+
+					allLobbyUsers.put(name, user);
+				} else {
+					initializeLobbySession();
+					lobbyLastActivity = System.currentTimeMillis();
+				}
 				return true;
 			}
 		});
@@ -2600,37 +2839,57 @@ public class ArenaWindow implements IAppWindow {
 				String name = tokens[0];
 				String circle = tokens[1];
 				String message = tokens[2];
+				boolean isMine = name.equals(myself.getName());
 
 				LobbyCircleTab tab;
+				Chat chat;
 				if (Utility.isEmpty(circle)) {
 					tab = lobbyTab;
+					chat = new Chat(name, message, isMine);
 				} else {
 					tab = myCircleTabs.get(circle);
 					if (tab == null)
 						return true;
+
+					chat = new LobbyCircleChat(name, message, isMine, circle);
 				}
 
-				boolean isMine = name.equals(myself.getName());
-				for (String line : message.replace("\r", "").split("\n", -1)) {
-					Chat chat = new Chat(name, line, isMine);
-					tab.chatLogViewer.appendMessage(chat);
-					name = "";
-				}
-
-				if (!isMine)
-					notifyTabUpdate(tab);
-
-				name = tokens[0];
-				Chat chat = new Chat(name, message, isMine);
-
-				if (!isMine && !isActive && application.getSettings().isBallonNotifyLobby())
-					application.balloonNotify(shell, "<" + name + "> " + message);
+				chat(tab, message, name, isMine);
 
 				application.lobbyMessageReceived(chat);
 				return true;
 			}
+
+			private void chat(final LobbyCircleTab tab, final String message, final String name, final boolean isMine) {
+				try {
+					if (SwtUtils.isNotUIThread()) {
+						SwtUtils.DISPLAY.asyncExec(new Runnable() {
+							@Override
+							public void run() {
+								chat(tab, message, name, isMine);
+							}
+						});
+						return;
+					}
+
+					String rulerName = name;
+					for (String line : message.replace("\r", "").split("\n", -1)) {
+						Chat chat = new Chat(rulerName, line, isMine);
+						tab.chatLogViewer.appendMessage(chat);
+						rulerName = "";
+					}
+
+					if (!isMine) {
+						notifyTabUpdate(tab);
+
+						if (!isActiveWindow && application.getSettings().isBallonNotifyLobby())
+							application.balloonNotify(shell, "<" + name + "> " + message);
+					}
+				} catch (SWTException e) {
+				}
+			}
 		});
-		lobbyHandlers.put(ProtocolConstants.Lobby.COMMAND_PRIVATE_CHAT, new IProtocolMessageHandler() {
+		lobbyHandlers.put(ProtocolConstants.Lobby.COMMAND_PRIVATE_MESSAGE, new IProtocolMessageHandler() {
 			@Override
 			public boolean process(IProtocolDriver driver, String argument) {
 				String[] tokens = argument.split(TextProtocolDriver.ARGUMENT_SEPARATOR, 2);
@@ -2640,35 +2899,69 @@ public class ArenaWindow implements IAppWindow {
 				String sender = tokens[0];
 				String message = tokens[1];
 
-				String myName = myself.getName();
-				boolean isMine = sender.equals(myName);
-				for (String line : message.replace("\r", "").split("\n", -1)) {
-					PrivateChat chat = new PrivateChat(sender, myName, line, false);
-					pmTab.chatLogViewer.appendMessage(chat);
-				}
-
-				notifyTabUpdate(pmTab);
-
-				PrivateChat chat = new PrivateChat(sender, myName, message, isMine);
-
-				if (!isActive)
-					application.balloonNotify(shell, "(" + sender + " → " + myName + ") " + message);
-
-				application.lobbyMessageReceived(chat);
+				pm(sender, message);
 				return true;
+			}
+
+			private void pm(final String sender, final String message) {
+				try {
+					if (SwtUtils.isNotUIThread()) {
+						SwtUtils.DISPLAY.asyncExec(new Runnable() {
+							@Override
+							public void run() {
+								pm(sender, message);
+							}
+						});
+						return;
+					}
+
+					String myName = myself.getName();
+					boolean isMine = sender.equals(myName);
+					for (String line : message.replace("\r", "").split("\n", -1)) {
+						PrivateChat chat = new PrivateChat(sender, myName, line, false);
+						pmTab.chatLogViewer.appendMessage(chat);
+					}
+
+					notifyTabUpdate(pmTab);
+
+					PrivateChat chat = new PrivateChat(sender, myName, message, isMine);
+
+					if (!isActiveWindow)
+						application.balloonNotify(shell, "(" + sender + " → " + myName + ") " + message);
+
+					application.lobbyMessageReceived(chat);
+				} catch (SWTException e) {
+				}
 			}
 		});
 		lobbyHandlers.put(ProtocolConstants.Lobby.NOTIFY_FROM_ADMIN, new IProtocolMessageHandler() {
 			@Override
 			public boolean process(IProtocolDriver driver, String message) {
-				for (String line : message.replace("\r", "").split("\n", -1)) {
-					AdminNotify log = new AdminNotify(line);
-					lobbyTab.chatLogViewer.appendMessage(log);
-				}
-
-				if (!isActive)
-					application.balloonNotify(shell, message);
+				adminMessage(message);
 				return true;
+			}
+
+			private void adminMessage(final String message) {
+				try {
+					if (SwtUtils.isNotUIThread()) {
+						SwtUtils.DISPLAY.asyncExec(new Runnable() {
+							@Override
+							public void run() {
+								adminMessage(message);
+							}
+						});
+						return;
+					}
+
+					for (String line : message.replace("\r", "").split("\n", -1)) {
+						AdminNotify log = new AdminNotify(line);
+						lobbyTab.chatLogViewer.appendMessage(log);
+					}
+
+					if (!isActiveWindow)
+						application.balloonNotify(shell, "[サーバー告知] " + message);
+				} catch (SWTException e) {
+				}
 			}
 		});
 		lobbyHandlers.put(ProtocolConstants.Lobby.NOTIFY_STATE_CHANGE, new IProtocolMessageHandler() {

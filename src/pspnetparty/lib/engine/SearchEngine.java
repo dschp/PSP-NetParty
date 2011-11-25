@@ -18,9 +18,9 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 package pspnetparty.lib.engine;
 
-import java.io.File;
 import java.io.IOException;
 import java.net.InetSocketAddress;
+import java.nio.ByteBuffer;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map.Entry;
@@ -43,6 +43,7 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.RAMDirectory;
 import org.apache.lucene.util.Version;
 
+import pspnetparty.lib.FileContentCache;
 import pspnetparty.lib.ILogger;
 import pspnetparty.lib.Utility;
 import pspnetparty.lib.constants.IServerRegistry;
@@ -72,7 +73,7 @@ public class SearchEngine {
 	private ConcurrentSkipListMap<SearchStatusProtocolDriver, Object> portalConnections;
 	private SearchStatusProtocolDriver roomDataSource;
 
-	private File loginMessageFile;
+	private FileContentCache loginMessageFile = new FileContentCache();
 
 	private int maxUsers = 30;
 	private int descriptionMaxLength = 100;
@@ -150,11 +151,7 @@ public class SearchEngine {
 	}
 
 	public void setLoginMessageFile(String loginMessageFile) {
-		if (Utility.isEmpty(loginMessageFile)) {
-			this.loginMessageFile = null;
-		} else {
-			this.loginMessageFile = new File(loginMessageFile);
-		}
+		this.loginMessageFile.setFile(loginMessageFile);
 	}
 
 	public boolean isAcceptingPortal() {
@@ -253,25 +250,27 @@ public class SearchEngine {
 		sb.append(TextProtocolDriver.ARGUMENT_SEPARATOR);
 		sb.append(maxUsers);
 
-		String notify = sb.toString();
-
+		ByteBuffer buffer = Utility.encode(sb);
 		for (SearchProtocolDriver client : searchClientConnections.keySet()) {
-			client.getConnection().send(notify);
+			buffer.position(0);
+			client.getConnection().send(buffer);
 		}
 		for (SearchStatusProtocolDriver portal : portalConnections.keySet()) {
-			portal.getConnection().send(notify);
+			buffer.position(0);
+			portal.getConnection().send(buffer);
 		}
 	}
 
 	public void notifyAllClients(String message) {
-		final String notify = ProtocolConstants.Room.NOTIFY_FROM_ADMIN + TextProtocolDriver.ARGUMENT_SEPARATOR + message;
+		ByteBuffer buffer = Utility.encode(ProtocolConstants.Room.NOTIFY_FROM_ADMIN + TextProtocolDriver.ARGUMENT_SEPARATOR + message);
 		for (SearchProtocolDriver client : searchClientConnections.keySet()) {
-			client.getConnection().send(notify);
+			buffer.position(0);
+			client.getConnection().send(buffer);
 		}
 	}
 
 	private void appendLoginMessage(StringBuilder sb) {
-		String loginMessage = Utility.getFileContent(loginMessageFile);
+		String loginMessage = loginMessageFile.getContent();
 		if (!Utility.isEmpty(loginMessage)) {
 			sb.append(TextProtocolDriver.MESSAGE_SEPARATOR);
 			sb.append(ProtocolConstants.Room.NOTIFY_FROM_ADMIN);
@@ -300,7 +299,7 @@ public class SearchEngine {
 			logger.log("ポータルから接続されました: " + driver.address);
 
 			if (roomDataSource == null) {
-				connection.send(ProtocolConstants.SearchStatus.COMMAND_ASK_ROOM_DATA);
+				connection.send(Utility.encode(ProtocolConstants.SearchStatus.COMMAND_ASK_ROOM_DATA));
 				roomDataSource = driver;
 
 				logger.log("部屋情報ソースに設定: " + driver.address);
@@ -356,7 +355,7 @@ public class SearchEngine {
 					logger.log("部屋情報ソース: なし");
 				} else {
 					roomDataSource = portalConnections.firstKey();
-					roomDataSource.getConnection().send(ProtocolConstants.SearchStatus.COMMAND_ASK_ROOM_DATA);
+					roomDataSource.getConnection().send(Utility.encode(ProtocolConstants.SearchStatus.COMMAND_ASK_ROOM_DATA));
 
 					String remoteAddress = Utility.socketAddressToStringByIP(roomDataSource.getConnection().getRemoteAddress());
 					logger.log("部屋情報ソースに設定: " + remoteAddress);
@@ -575,7 +574,7 @@ public class SearchEngine {
 				SearchProtocolDriver client = (SearchProtocolDriver) driver;
 
 				if (searchClientConnections.size() >= maxUsers) {
-					client.getConnection().send(ProtocolConstants.Search.ERROR_LOGIN_BEYOND_CAPACITY);
+					client.getConnection().send(Utility.encode(ProtocolConstants.Search.ERROR_LOGIN_BEYOND_CAPACITY));
 					return false;
 				}
 
@@ -584,7 +583,7 @@ public class SearchEngine {
 
 				appendLoginMessage(sb);
 
-				client.getConnection().send(sb.toString());
+				client.getConnection().send(Utility.encode(sb));
 
 				searchClientConnections.put(client, this);
 				notifyServerStatus();
@@ -686,7 +685,7 @@ public class SearchEngine {
 					}
 
 					sb.append(ProtocolConstants.Search.COMMAND_SEARCH);
-					client.getConnection().send(sb.toString());
+					client.getConnection().send(Utility.encode(sb));
 
 				} catch (IOException e) {
 					logger.log(Utility.stackTraceToString(e));
@@ -694,12 +693,6 @@ public class SearchEngine {
 					logger.log(Utility.stackTraceToString(e));
 				}
 				return true;
-			}
-		});
-		searchHandlers.put(Search.COMMAND_LOGOUT, new IProtocolMessageHandler() {
-			@Override
-			public boolean process(IProtocolDriver driver, String argument) {
-				return false;
 			}
 		});
 	}

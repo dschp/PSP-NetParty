@@ -33,7 +33,7 @@ public class IniSettings {
 
 	private static final String STARTUP_WINDOW = "StartupWindow";
 	private static final String APP_CLOSE_CONFIRM = "AppCloseConfirm";
-	private static final String LOG_LOBBY_ENTER_EXIT = "LogLobbyEnterExit";
+	private static final String BALLOON_LOBBY_ENTER_EXIT = "LogLobbyEnterExit";
 	private static final String BALLOON_NOTIFY_LOBBY = "BalloonNotifyLobby";
 	private static final String BALLOON_NOTIFY_ROOM = "BalloonNotifyRoom";
 	private static final String ARENA_AUTO_LOGIN_ROOM_LIST = "ArenaAutoLoginSearch";
@@ -66,7 +66,7 @@ public class IniSettings {
 
 		startupWindowIsArena = !"Room".equals(section.get(STARTUP_WINDOW, "Arena"));
 		needAppCloseConfirm = section.get(APP_CLOSE_CONFIRM, true);
-		logLobbyEnterExit = section.get(LOG_LOBBY_ENTER_EXIT, true);
+		balloonLobbyEnterExit = section.get(BALLOON_LOBBY_ENTER_EXIT, true);
 		ballonNotifyLobby = section.get(BALLOON_NOTIFY_LOBBY, true);
 		ballonNotifyRoom = section.get(BALLOON_NOTIFY_ROOM, true);
 		arenaAutoLoginRoomList = section.get(ARENA_AUTO_LOGIN_ROOM_LIST, true);
@@ -80,8 +80,9 @@ public class IniSettings {
 		} else {
 			wlanLibrary = JnetPcapWlanDevice.LIBRARY;
 		}
+		if (!library.equals(wlanLibrary.getName()))
+			section.set(WLAN_LIBRARY, wlanLibrary.getName());
 
-		section.set(WLAN_LIBRARY, wlanLibrary.getName());
 		ssidAutoScan = section.get(SSID_AUTO_SCAN, false);
 		tunnelTransportLayer = UDP.equals(section.get(TUNNEL_TRANSPORT_LAYER, TCP)) ? TransportLayer.UDP : TransportLayer.TCP;
 
@@ -102,7 +103,7 @@ public class IniSettings {
 
 	private boolean startupWindowIsArena;
 	private boolean needAppCloseConfirm;
-	private boolean logLobbyEnterExit;
+	private boolean balloonLobbyEnterExit;
 	private boolean ballonNotifyLobby;
 	private boolean ballonNotifyRoom;
 	private boolean arenaAutoLoginRoomList;
@@ -141,13 +142,13 @@ public class IniSettings {
 		section.set(APP_CLOSE_CONFIRM, needAppCloseConfirm);
 	}
 
-	public boolean isLogLobbyEnterExit() {
-		return logLobbyEnterExit;
+	public boolean isBalloonLobbyEnterExit() {
+		return balloonLobbyEnterExit;
 	}
 
-	public void setLogLobbyEnterExit(boolean logLobbyEnterExit) {
-		this.logLobbyEnterExit = logLobbyEnterExit;
-		section.set(LOG_LOBBY_ENTER_EXIT, logLobbyEnterExit);
+	public void setBalloonLobbyEnterExit(boolean balloonLobbyEnterExit) {
+		this.balloonLobbyEnterExit = balloonLobbyEnterExit;
+		section.set(BALLOON_LOBBY_ENTER_EXIT, balloonLobbyEnterExit);
 	}
 
 	public boolean isBallonNotifyLobby() {

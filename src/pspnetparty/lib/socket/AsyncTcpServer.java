@@ -52,6 +52,7 @@ public class AsyncTcpServer implements IServer {
 
 	private ByteBuffer bufferProtocolOK = AppConstants.CHARSET.encode(IProtocol.PROTOCOL_OK);
 	private ByteBuffer bufferProtocolNG = AppConstants.CHARSET.encode(IProtocol.PROTOCOL_NG);
+	private ByteBuffer bufferProtocolNumber = AppConstants.CHARSET.encode(IProtocol.NUMBER);
 
 	private Thread selectorThread;
 	private Thread keepAliveThread;
@@ -131,36 +132,48 @@ public class AsyncTcpServer implements IServer {
 	private void selectorLoop() {
 		try {
 			while (serverChannel.isOpen())
-				while (selector.select() > 0) {
+				while (selector.select(1000) > 0) {
 					for (Iterator<SelectionKey> it = selector.selectedKeys().iterator(); it.hasNext();) {
 						SelectionKey key = it.next();
 						it.remove();
 
+						Connection conn = null;
 						try {
 							if (key.isAcceptable()) {
 								ServerSocketChannel channel = (ServerSocketChannel) key.channel();
-								try {
-									doAccept(channel);
-								} catch (IOException e) {
-									key.cancel();
-								}
+								doAccept(channel);
 							} else if (key.isReadable()) {
-								Connection conn = (Connection) key.attachment();
-								boolean success = false;
-								try {
-									success = conn.doRead();
-								} catch (IOException e) {
-									// e.fillInStackTrace();
-								} catch (RuntimeException e) {
-									// e.fillInStackTrace();
-								}
-
-								if (!success) {
+								conn = (Connection) key.attachment();
+								if (conn.doRead()) {
+								} else if (conn.sendBufferQueue.isEmpty() || !conn.channel.isOpen()) {
 									conn.disconnect();
 									key.cancel();
+								} else {
+									conn.toBeClosed = true;
+								}
+							} else if (key.isWritable()) {
+								conn = (Connection) key.attachment();
+								SendBufferQueue<Connection>.Allotment allot = conn.sendBufferQueue.poll();
+								if (allot == null) {
+									if (conn.toBeClosed) {
+										conn.disconnect();
+										key.cancel();
+									} else {
+										key.interestOps(SelectionKey.OP_READ);
+									}
+								} else {
+									conn.channel.write(allot.getBuffer());
 								}
 							}
 						} catch (CancelledKeyException e) {
+						} catch (IOException e) {
+							if (conn != null)
+								conn.disconnect();
+							key.cancel();
+						} catch (RuntimeException e) {
+							if (conn != null)
+								conn.disconnect();
+							key.cancel();
 						}
 					}
 				}
@@ -185,7 +198,7 @@ public class AsyncTcpServer implements IServer {
 						conn.disconnect();
 					} else {
 						keepAliveBuffer.clear();
-						conn.channel.write(keepAliveBuffer);
+						conn.addToSendQueue(keepAliveBuffer, false);
 					}
 				} catch (RuntimeException e) {
 					log(Utility.stackTraceToString(e));
@@ -225,20 +238,24 @@ public class AsyncTcpServer implements IServer {
 		Connection conn = new Connection(channel);
 
 		channel.configureBlocking(false);
-		channel.register(selector, SelectionKey.OP_READ, conn);
+		conn.selectionKey = channel.register(selector, SelectionKey.OP_READ | SelectionKey.OP_WRITE, conn);
 
 		establishedConnections.put(conn, valueObject);
 	}
 
 	private class Connection implements ISocketConnection {
 		private SocketChannel channel;
-		private long lastKeepAliveReceived;
-
+		private SelectionKey selectionKey;
 		private IProtocolDriver driver;
+
+		private long lastKeepAliveReceived;
+		private boolean toBeClosed = false;
 
 		private ByteBuffer headerReadBuffer = ByteBuffer.allocate(IProtocol.HEADER_BYTE_SIZE);
 		private ByteBuffer dataReadBuffer = ByteBuffer.allocateDirect(INITIAL_READ_BUFFER_SIZE);
 		private PacketData packetData = new PacketData(dataReadBuffer);
+
+		private SendBufferQueue<Connection> sendBufferQueue = new SendBufferQueue<Connection>(20000);
 
 		Connection(SocketChannel channel) {
 			this.channel = channel;
@@ -261,51 +278,30 @@ public class AsyncTcpServer implements IServer {
 		}
 
 		@Override
-		public void send(ByteBuffer buffer) {
-			if (!channel.isConnected())
-				return;
-
-			try {
-				ByteBuffer headerData = ByteBuffer.allocate(IProtocol.HEADER_BYTE_SIZE);
-				headerData.putInt(buffer.limit());
-				headerData.flip();
-
-				ByteBuffer[] array = new ByteBuffer[] { headerData, buffer };
-				channel.write(array);
-			} catch (IOException e) {
-			}
-		}
-
-		@Override
-		public void send(String message) {
-			ByteBuffer buffer = AppConstants.CHARSET.encode(message);
-			send(buffer);
-		}
-
-		@Override
-		public void send(byte[] data) {
-			ByteBuffer buffer = ByteBuffer.wrap(data);
-			send(buffer);
-		}
-
-		@Override
 		public void disconnect() {
 			if (establishedConnections.remove(this) == null)
 				return;
 
 			try {
+				if (driver != null) {
+					driver.connectionDisconnected();
+					driver = null;
+				}
+			} catch (RuntimeException e) {
+			}
+			selectionKey = null;
+			try {
 				if (channel.isOpen())
 					channel.close();
 			} catch (IOException e) {
 			}
-
-			if (driver != null) {
-				driver.connectionDisconnected();
-				driver = null;
-			}
 		}
 
 		private boolean doRead() throws IOException {
+			if (toBeClosed) {
+				int readBytes = channel.read(dataReadBuffer);
+				return readBytes != -1;
+			}
 			if (headerReadBuffer.remaining() != 0) {
 				if (channel.read(headerReadBuffer) < 0)
 					return false;
@@ -365,7 +361,8 @@ public class AsyncTcpServer implements IServer {
 				}
 
 				if (!number.equals(IProtocol.NUMBER)) {
-					send(IProtocol.NUMBER);
+					bufferProtocolNumber.position(0);
+					send(bufferProtocolNumber);
 					return false;
 				}
 
@@ -384,6 +381,25 @@ public class AsyncTcpServer implements IServer {
 			headerReadBuffer.position(0);
 			dataReadBuffer.clear();
 			return true;
+		}
+
+		@Override
+		public void send(ByteBuffer buffer) {
+			if (!channel.isConnected())
+				return;
+			addToSendQueue(buffer, true);
+		}
+
+		private void addToSendQueue(ByteBuffer buffer, boolean prependSizeHeader) {
+			sendBufferQueue.queue(buffer, prependSizeHeader, this);
+
+			try {
+				if (selectionKey != null) {
+					selector.wakeup();
+					selectionKey.interestOps(SelectionKey.OP_READ | SelectionKey.OP_WRITE);
+				}
+			} catch (CancelledKeyException e) {
+			}
 		}
 	}
 
@@ -431,7 +447,7 @@ public class AsyncTcpServer implements IServer {
 						String message = data.getMessage();
 
 						System.out.println(remoteAddress + " (" + message.length() + ")");
-						connection.send(message);
+						connection.send(Utility.encode(message));
 
 						return true;
 					}

@@ -215,7 +215,7 @@ public class PlayClient {
 		ILogger logger = new ILogger() {
 			@Override
 			public void log(String message) {
-				getArenaWindow().appendLog(message, true);
+				getArenaWindow().appendToSystemLog(message, true);
 			}
 		};
 		tcpClient = new AsyncTcpClient(logger, 1000000, 0);
@@ -340,16 +340,16 @@ public class PlayClient {
 			serverRegistry = new IniPublicServerRegistry();
 		} catch (IOException e) {
 			serverRegistry = IServerRegistry.NULL;
-			arenaWindow.appendLog(Utility.stackTraceToString(e), true);
+			arenaWindow.appendToSystemLog(Utility.stackTraceToString(e), true);
 		}
 		portalServerList = serverRegistry.getPortalRotator();
 
 		String software = String.format("%s プレイクライアント バージョン: %s", AppConstants.APP_NAME, AppConstants.VERSION);
-		arenaWindow.appendLog(software, false);
-		arenaWindow.appendLog("プロトコル: " + IProtocol.NUMBER, false);
+		arenaWindow.appendToSystemLog(software, false);
+		arenaWindow.appendToSystemLog("プロトコル: " + IProtocol.NUMBER, false);
 
 		for (String log : pendingLogs) {
-			arenaWindow.appendLog(log, false);
+			arenaWindow.appendToSystemLog(log, false);
 		}
 
 		Thread cronThread = new Thread(new Runnable() {
@@ -723,7 +723,7 @@ public class PlayClient {
 				updateWlanLibraryStatus();
 				return true;
 			} catch (IOException e) {
-				arenaWindow.appendLog(Utility.stackTraceToString(e), true);
+				arenaWindow.appendToSystemLog(Utility.stackTraceToString(e), true);
 				e.printStackTrace();
 			}
 		}
@@ -1010,7 +1010,7 @@ public class PlayClient {
 					tcpClient.connect(address, ProtocolConstants.TIMEOUT, new IProtocol() {
 						@Override
 						public void log(String message) {
-							arenaWindow.appendLog(message, true);
+							arenaWindow.appendToSystemLog(message, true);
 						}
 
 						@Override
@@ -1020,7 +1020,7 @@ public class PlayClient {
 
 						@Override
 						public IProtocolDriver createDriver(final ISocketConnection connection) {
-							connection.send(query.getCommand());
+							connection.send(Utility.encode(query.getCommand()));
 
 							return new IProtocolDriver() {
 								private String message;
@@ -1029,7 +1029,7 @@ public class PlayClient {
 								public void errorProtocolNumber(String number) {
 									String error = String.format("サーバーとのプロトコルナンバーが一致しないので接続できません サーバー:%s クライアント:%s", number,
 											IProtocol.NUMBER);
-									arenaWindow.appendLog(error, true);
+									arenaWindow.appendToSystemLog(error, true);
 								}
 
 								@Override
@@ -1040,7 +1040,7 @@ public class PlayClient {
 								@Override
 								public boolean process(PacketData data) {
 									message = data.getMessage();
-									return true;
+									return false;
 								}
 
 								@Override

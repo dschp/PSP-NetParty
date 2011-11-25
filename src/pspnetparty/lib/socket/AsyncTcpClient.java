@@ -32,7 +32,6 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 
 import pspnetparty.lib.ILogger;
 import pspnetparty.lib.Utility;
-import pspnetparty.lib.constants.AppConstants;
 
 public class AsyncTcpClient implements IClient {
 
@@ -43,7 +42,6 @@ public class AsyncTcpClient implements IClient {
 	private Selector selector;
 	private ConcurrentLinkedQueue<Connection> newConnectionQueue = new ConcurrentLinkedQueue<Connection>();
 	private ConcurrentHashMap<Connection, Object> establishedConnections;
-	private final Object valueObject = new Object();
 
 	public AsyncTcpClient(ILogger logger, int maxPacketSize, final int selectTimeout) {
 		this.logger = logger;
@@ -87,30 +85,48 @@ public class AsyncTcpClient implements IClient {
 					for (Iterator<SelectionKey> it = selector.selectedKeys().iterator(); it.hasNext();) {
 						SelectionKey key = it.next();
 						it.remove();
+
+						Connection conn = null;
 						try {
-							if (!key.isReadable())
-								continue;
+							conn = (Connection) key.attachment();
+							if (key.isReadable()) {
+								if (conn.doRead()) {
+								} else if (conn.sendBufferQueue.isEmpty() || !conn.channel.isOpen()) {
+									conn.disconnect();
+									key.cancel();
+								} else {
+									conn.toBeClosed = true;
+								}
+							} else if (key.isWritable()) {
+								SendBufferQueue<Connection>.Allotment allot = conn.sendBufferQueue.poll();
+								if (allot == null) {
+									if (conn.toBeClosed) {
+										conn.disconnect();
+										key.cancel();
+									} else {
+										key.interestOps(SelectionKey.OP_READ);
+									}
+								} else {
+									conn.channel.write(allot.getBuffer());
+								}
+							}
 						} catch (CancelledKeyException e) {
-						}
-
-						Connection connection = (Connection) key.attachment();
-						boolean success = false;
-						try {
-							success = connection.doRead();
 						} catch (IOException e) {
+							if (conn != null)
+								conn.disconnect();
+							key.cancel();
 						} catch (RuntimeException e) {
-						}
-
-						if (!success) {
-							connection.disconnect();
+							if (conn != null)
+								conn.disconnect();
 							key.cancel();
 						}
+
 					}
 				}
 
 				Connection conn;
 				while ((conn = newConnectionQueue.poll()) != null)
-					conn.channel.register(selector, SelectionKey.OP_READ, conn);
+					conn.selectionKey = conn.channel.register(selector, SelectionKey.OP_READ | SelectionKey.OP_WRITE, conn);
 			}
 		} catch (ClosedSelectorException e) {
 		} catch (IOException e) {
@@ -129,8 +145,8 @@ public class AsyncTcpClient implements IClient {
 						logger.log(Utility.makeKeepAliveDisconnectLog("TCP", conn.remoteAddress, deadline, conn.lastKeepAliveReceived));
 						conn.disconnect();
 					} else {
-						keepAliveBuffer.clear();
-						conn.channel.write(keepAliveBuffer);
+						keepAliveBuffer.position(0);
+						conn.addToSendQueue(keepAliveBuffer, false);
 					}
 				} catch (RuntimeException e) {
 					logger.log(Utility.stackTraceToString(e));
@@ -155,7 +171,8 @@ public class AsyncTcpClient implements IClient {
 
 			Connection conn = new Connection(channel);
 
-			conn.send(protocol.getProtocol() + IProtocol.SEPARATOR + IProtocol.NUMBER);
+			ByteBuffer buf = Utility.encode(protocol.getProtocol() + IProtocol.SEPARATOR + IProtocol.NUMBER);
+			conn.send(buf);
 
 			conn.driver = protocol.createDriver(conn);
 			if (conn.driver == null) {
@@ -163,7 +180,7 @@ public class AsyncTcpClient implements IClient {
 				return;
 			}
 
-			establishedConnections.put(conn, valueObject);
+			establishedConnections.put(conn, conn);
 
 			newConnectionQueue.add(conn);
 			selector.wakeup();
@@ -193,38 +210,33 @@ public class AsyncTcpClient implements IClient {
 		dispose();
 	}
 
-	private static void send(SocketChannel channel, ByteBuffer buffer) {
-		try {
-			ByteBuffer headerData = ByteBuffer.allocate(IProtocol.HEADER_BYTE_SIZE);
-			headerData.putInt(buffer.limit());
-			headerData.flip();
-
-			ByteBuffer[] array = new ByteBuffer[] { headerData, buffer };
-			channel.write(array);
-		} catch (IOException e) {
-		}
-	}
-
 	private class Connection implements ISocketConnection {
 		private SocketChannel channel;
+		private SelectionKey selectionKey;
 		private InetSocketAddress remoteAddress;
-		private long lastKeepAliveReceived;
-
 		private IProtocolDriver driver;
+
+		private long lastKeepAliveReceived;
+		private boolean toBeClosed = false;
 
 		private ByteBuffer headerReadBuffer = ByteBuffer.allocate(IProtocol.HEADER_BYTE_SIZE);
 		private ByteBuffer dataReadBuffer = ByteBuffer.allocateDirect(initialReadBufferSize);
 
 		private PacketData packetData = new PacketData(dataReadBuffer);
 		private boolean protocolMatched = false;
+		private SendBufferQueue<Connection> sendBufferQueue = new SendBufferQueue<AsyncTcpClient.Connection>(20000);
 
-		public Connection(SocketChannel channel) {
+		Connection(SocketChannel channel) {
 			this.channel = channel;
 			this.remoteAddress = (InetSocketAddress) channel.socket().getRemoteSocketAddress();
 			lastKeepAliveReceived = System.currentTimeMillis();
 		}
 
 		private boolean doRead() throws IOException {
+			if (toBeClosed) {
+				int readBytes = channel.read(dataReadBuffer);
+				return readBytes != -1;
+			}
 			if (headerReadBuffer.remaining() != 0) {
 				if (channel.read(headerReadBuffer) < 0)
 					return false;
@@ -260,7 +272,8 @@ public class AsyncTcpClient implements IClient {
 
 			dataReadBuffer.position(0);
 			if (protocolMatched) {
-				driver.process(packetData);
+				if (!driver.process(packetData))
+					return false;
 			} else {
 				String message = packetData.getMessage();
 				if (IProtocol.PROTOCOL_OK.equals(message)) {
@@ -300,6 +313,7 @@ public class AsyncTcpClient implements IClient {
 				}
 			} catch (RuntimeException re) {
 			}
+			selectionKey = null;
 			try {
 				if (channel.isOpen())
 					channel.close();
@@ -318,29 +332,22 @@ public class AsyncTcpClient implements IClient {
 		}
 
 		@Override
-		public void send(String data) {
-			if (!isConnected())
-				return;
-
-			ByteBuffer buffer = AppConstants.CHARSET.encode(data);
-			AsyncTcpClient.send(channel, buffer);
-		}
-
-		@Override
-		public void send(byte[] data) {
-			if (!isConnected())
-				return;
-
-			ByteBuffer buffer = ByteBuffer.wrap(data);
-			AsyncTcpClient.send(channel, buffer);
-		}
-
-		@Override
 		public void send(ByteBuffer buffer) {
 			if (!isConnected())
 				return;
+			addToSendQueue(buffer, true);
+		}
 
-			AsyncTcpClient.send(channel, buffer);
+		private void addToSendQueue(ByteBuffer buffer, boolean prependSizeHeader) {
+			sendBufferQueue.queue(buffer, prependSizeHeader, this);
+
+			try {
+				if (selectionKey != null) {
+					selector.wakeup();
+					selectionKey.interestOps(SelectionKey.OP_READ | SelectionKey.OP_WRITE);
+				}
+			} catch (CancelledKeyException e) {
+			}
 		}
 	}
 
@@ -388,7 +395,7 @@ public class AsyncTcpClient implements IClient {
 									if (!connection.isConnected())
 										break;
 
-									connection.send(text);
+									connection.send(Utility.encode(text));
 									Thread.sleep(1000);
 								}
 								Thread.sleep(100);

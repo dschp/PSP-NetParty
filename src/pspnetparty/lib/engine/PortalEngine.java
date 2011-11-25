@@ -20,6 +20,7 @@ package pspnetparty.lib.engine;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
+import java.nio.ByteBuffer;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -257,7 +258,7 @@ public class PortalEngine {
 				try {
 					// System.out.println("Query " + searchServers);
 					SearchServerStatusProtocolDriver status = searchServers.first();
-					driver.getConnection().send(status.address);
+					driver.getConnection().send(Utility.encode(status.address));
 				} catch (NoSuchElementException e) {
 				}
 				return false;
@@ -280,7 +281,7 @@ public class PortalEngine {
 					sb.append('\n');
 				}
 
-				driver.getConnection().send(sb.toString());
+				driver.getConnection().send(Utility.encode(sb));
 				return false;
 			}
 		});
@@ -290,7 +291,7 @@ public class PortalEngine {
 				try {
 					// System.out.println("Query " + roomServers);
 					RoomServerStatusProtocolDriver status = roomServers.first();
-					driver.getConnection().send(status.address);
+					driver.getConnection().send(Utility.encode(status.address));
 				} catch (NoSuchElementException e) {
 				}
 				return false;
@@ -313,7 +314,7 @@ public class PortalEngine {
 					sb.append('\n');
 				}
 
-				driver.getConnection().send(sb.toString());
+				driver.getConnection().send(Utility.encode(sb));
 				return false;
 			}
 		});
@@ -322,7 +323,7 @@ public class PortalEngine {
 			public boolean process(IProtocolDriver driver, String argument) {
 				try {
 					LobbyServerStatusProtocolDriver d = lobbyServers.first();
-					driver.getConnection().send(d.address);
+					driver.getConnection().send(Utility.encode(d.address));
 				} catch (NoSuchElementException e) {
 				}
 				return false;
@@ -337,9 +338,10 @@ public class PortalEngine {
 		sb.append(TextProtocolDriver.ARGUMENT_SEPARATOR);
 		sb.append(roomListClients.size());
 
-		String notify = sb.toString();
+		ByteBuffer buffer = Utility.encode(sb);
 		for (RoomListProtocolDriver d : roomListClients) {
-			d.getConnection().send(notify);
+			buffer.position(0);
+			d.getConnection().send(buffer);
 		}
 	}
 
@@ -371,7 +373,7 @@ public class PortalEngine {
 			}
 			if (sb.length() > 0) {
 				sb.deleteCharAt(sb.length() - 1);
-				connection.send(sb.toString());
+				connection.send(Utility.encode(sb));
 			}
 
 			return driver;
@@ -748,21 +750,25 @@ public class PortalEngine {
 				}
 				if (sb.length() > 0) {
 					sb.deleteCharAt(sb.length() - 1);
-					status.getConnection().send(sb.toString());
+					status.getConnection().send(Utility.encode(sb));
 				}
 				return true;
 			}
 		});
 	}
 
-	private void sendRoomDataNotify(String notify) {
+	private void sendRoomDataNotify(CharSequence notify) {
+		ByteBuffer buffer = Utility.encode(notify);
 		for (SearchServerStatusProtocolDriver s : searchServers) {
-			if (s.feedRoomData)
-				s.getConnection().send(notify);
+			if (s.feedRoomData) {
+				buffer.position(0);
+				s.getConnection().send(buffer);
+			}
 		}
 
 		for (RoomListProtocolDriver d : roomListClients) {
-			d.getConnection().send(notify);
+			buffer.position(0);
+			d.getConnection().send(buffer);
 		}
 	}
 
@@ -957,7 +963,7 @@ public class PortalEngine {
 					StringBuilder sb = new StringBuilder();
 					room.appendRoomCreated(sb, status.address);
 
-					sendRoomDataNotify(sb.toString());
+					sendRoomDataNotify(sb);
 				} catch (NumberFormatException e) {
 				}
 				return true;
@@ -1003,7 +1009,7 @@ public class PortalEngine {
 					sb.append(TextProtocolDriver.ARGUMENT_SEPARATOR);
 					sb.append(description);
 
-					sendRoomDataNotify(sb.toString());
+					sendRoomDataNotify(sb);
 				} catch (NumberFormatException e) {
 				}
 				return true;
@@ -1034,7 +1040,7 @@ public class PortalEngine {
 				sb.append(TextProtocolDriver.ARGUMENT_SEPARATOR);
 				sb.append(address);
 
-				sendRoomDataNotify(sb.toString());
+				sendRoomDataNotify(sb);
 				return true;
 			}
 		});
@@ -1065,7 +1071,7 @@ public class PortalEngine {
 					sb.append(TextProtocolDriver.ARGUMENT_SEPARATOR);
 					sb.append(playerCount);
 
-					sendRoomDataNotify(sb.toString());
+					sendRoomDataNotify(sb);
 				} catch (NumberFormatException e) {
 				}
 				return true;

@@ -130,7 +130,7 @@ public class RoomWindow implements IAppWindow {
 	private IniChatTextPresets chatTextPresets;
 
 	private Shell shell;
-	private boolean isActive;
+	private boolean isActiveWindow;
 
 	private SessionState sessionState;
 	private String roomLoginName;
@@ -948,7 +948,7 @@ public class RoomWindow implements IAppWindow {
 			shell.addShellListener(new ShellListener() {
 				@Override
 				public void shellActivated(ShellEvent e) {
-					isActive = true;
+					isActiveWindow = true;
 					switch (sessionState) {
 					case MY_ROOM_MASTER:
 					case ROOM_MASTER:
@@ -959,17 +959,17 @@ public class RoomWindow implements IAppWindow {
 
 				@Override
 				public void shellIconified(ShellEvent e) {
-					isActive = false;
+					isActiveWindow = false;
 				}
 
 				@Override
 				public void shellDeiconified(ShellEvent e) {
-					isActive = true;
+					isActiveWindow = true;
 				}
 
 				@Override
 				public void shellDeactivated(ShellEvent e) {
-					isActive = false;
+					isActiveWindow = false;
 				}
 
 				@Override
@@ -1013,7 +1013,7 @@ public class RoomWindow implements IAppWindow {
 				public void handleEvent(Event event) {
 					if (!application.getSettings().isChatPresetEnableKeyInput())
 						return;
-					if (!isActive)
+					if (!isActiveWindow)
 						return;
 
 					String msg = null;
@@ -1100,7 +1100,7 @@ public class RoomWindow implements IAppWindow {
 						confirmRoomDelete(false);
 						break;
 					case ROOM_PARTICIPANT:
-						roomConnection.send(ProtocolConstants.Room.COMMAND_LOGOUT);
+						roomConnection.disconnect();
 						break;
 					}
 				}
@@ -1210,7 +1210,7 @@ public class RoomWindow implements IAppWindow {
 					if (sessionState == SessionState.OFFLINE) {
 						manualConnectAsParticipant();
 					} else {
-						roomConnection.send(ProtocolConstants.Room.COMMAND_LOGOUT);
+						roomConnection.disconnect();
 					}
 				}
 			});
@@ -1226,7 +1226,7 @@ public class RoomWindow implements IAppWindow {
 							startMyRoomServer();
 						}
 					} catch (IOException e) {
-						application.getArenaWindow().appendLog(Utility.stackTraceToString(e), true);
+						application.getArenaWindow().appendToSystemLog(Utility.stackTraceToString(e), true);
 					}
 				}
 			});
@@ -1253,7 +1253,7 @@ public class RoomWindow implements IAppWindow {
 				@Override
 				public void handleEvent(Event event) {
 					if (myRoomEntryConnection.isConnected()) {
-						myRoomEntryConnection.send(ProtocolConstants.MyRoom.COMMAND_LOGOUT);
+						myRoomEntryConnection.disconnect();
 					} else {
 						autoConnectAsMyRoom();
 					}
@@ -1533,7 +1533,7 @@ public class RoomWindow implements IAppWindow {
 						sb.append(TextProtocolDriver.ARGUMENT_SEPARATOR);
 						sb.append(macFilteringWhiteListCheck.getSelection() ? "Y" : "N");
 
-						roomConnection.send(sb.toString());
+						roomConnection.send(Utility.encode(sb));
 						break;
 					}
 				}
@@ -1551,7 +1551,7 @@ public class RoomWindow implements IAppWindow {
 						sb.append(TextProtocolDriver.ARGUMENT_SEPARATOR);
 						sb.append(macFilteringBlackListCheck.getSelection() ? "Y" : "N");
 
-						roomConnection.send(sb.toString());
+						roomConnection.send(Utility.encode(sb));
 						break;
 					}
 				}
@@ -1586,7 +1586,7 @@ public class RoomWindow implements IAppWindow {
 
 						file.saveToIni();
 					} catch (IOException e) {
-						application.getArenaWindow().appendLog(Utility.stackTraceToString(e), true);
+						application.getArenaWindow().appendToSystemLog(Utility.stackTraceToString(e), true);
 					}
 				}
 			});
@@ -1616,7 +1616,7 @@ public class RoomWindow implements IAppWindow {
 						remarks = remarks.replace("\\n", formRemarksText.getLineDelimiter());
 						formRemarksText.setText(remarks);
 					} catch (IOException e) {
-						application.getArenaWindow().appendLog(Utility.stackTraceToString(e), true);
+						application.getArenaWindow().appendToSystemLog(Utility.stackTraceToString(e), true);
 					}
 				}
 			});
@@ -1722,8 +1722,9 @@ public class RoomWindow implements IAppWindow {
 						removeKickedRoomPlayer(kickedName);
 						break;
 					case ROOM_MASTER:
-						roomConnection.send(ProtocolConstants.Room.COMMAND_ROOM_KICK_PLAYER + TextProtocolDriver.ARGUMENT_SEPARATOR
-								+ kickedName);
+						ByteBuffer buf = Utility.encode(ProtocolConstants.Room.COMMAND_ROOM_KICK_PLAYER
+								+ TextProtocolDriver.ARGUMENT_SEPARATOR + kickedName);
+						roomConnection.send(buf);
 						break;
 					}
 				}
@@ -1744,10 +1745,12 @@ public class RoomWindow implements IAppWindow {
 					String newMasterName = player.getName();
 					switch (sessionState) {
 					case ROOM_MASTER:
-						roomConnection.send(ProtocolConstants.Room.COMMAND_ROOM_MASTER_TRANSFER + TextProtocolDriver.ARGUMENT_SEPARATOR
-								+ newMasterName);
-						if (myRoomEntryConnection.isConnected())
-							myRoomEntryConnection.send(ProtocolConstants.Search.COMMAND_LOGOUT);
+						ByteBuffer buf = Utility.encode(ProtocolConstants.Room.COMMAND_ROOM_MASTER_TRANSFER
+								+ TextProtocolDriver.ARGUMENT_SEPARATOR + newMasterName);
+						roomConnection.send(buf);
+						if (myRoomEntryConnection.isConnected()) {
+							myRoomEntryConnection.disconnect();
+						}
 						break;
 					}
 				}
@@ -2168,7 +2171,7 @@ public class RoomWindow implements IAppWindow {
 								}
 							}
 						} catch (Exception e) {
-							application.getArenaWindow().appendLog(Utility.stackTraceToString(e), true);
+							application.getArenaWindow().appendToSystemLog(Utility.stackTraceToString(e), true);
 							isPacketCapturing = false;
 						}
 
@@ -2179,7 +2182,7 @@ public class RoomWindow implements IAppWindow {
 					}
 				} catch (SWTException e) {
 				} catch (Exception e) {
-					application.getArenaWindow().appendLog(Utility.stackTraceToString(e), true);
+					application.getArenaWindow().appendToSystemLog(Utility.stackTraceToString(e), true);
 				}
 			}
 		}, "PacketCaptureThread");
@@ -2376,7 +2379,8 @@ public class RoomWindow implements IAppWindow {
 			if (now < nextPingTime)
 				return;
 
-			roomConnection.send(ProtocolConstants.Room.COMMAND_PING + TextProtocolDriver.ARGUMENT_SEPARATOR + now);
+			ByteBuffer buf = Utility.encode(ProtocolConstants.Room.COMMAND_PING + TextProtocolDriver.ARGUMENT_SEPARATOR + now);
+			roomConnection.send(buf);
 
 			nextPingTime = now + 5000;
 			break;
@@ -2708,7 +2712,7 @@ public class RoomWindow implements IAppWindow {
 			ErrorLog log = new ErrorLog("すでに同じポートが使用されています");
 			widgets.logViewer.appendMessage(log);
 		} catch (RuntimeException e) {
-			application.getArenaWindow().appendLog(Utility.stackTraceToString(e), true);
+			application.getArenaWindow().appendToSystemLog(Utility.stackTraceToString(e), true);
 		}
 	}
 
@@ -2831,7 +2835,7 @@ public class RoomWindow implements IAppWindow {
 			sb.append(ProtocolConstants.Room.COMMAND_WHITELIST_ADD);
 			sb.append(TextProtocolDriver.ARGUMENT_SEPARATOR);
 			sb.append(macAddress);
-			roomConnection.send(sb.toString());
+			roomConnection.send(Utility.encode(sb));
 			break;
 		}
 		}
@@ -2849,7 +2853,7 @@ public class RoomWindow implements IAppWindow {
 			sb.append(ProtocolConstants.Room.COMMAND_WHITELIST_REMOVE);
 			sb.append(TextProtocolDriver.ARGUMENT_SEPARATOR);
 			sb.append(macAddress);
-			roomConnection.send(sb.toString());
+			roomConnection.send(Utility.encode(sb));
 			break;
 		}
 		}
@@ -2867,7 +2871,7 @@ public class RoomWindow implements IAppWindow {
 			sb.append(ProtocolConstants.Room.COMMAND_BLACKLIST_ADD);
 			sb.append(TextProtocolDriver.ARGUMENT_SEPARATOR);
 			sb.append(macAddress);
-			roomConnection.send(sb.toString());
+			roomConnection.send(Utility.encode(sb));
 			break;
 		}
 		}
@@ -2885,7 +2889,7 @@ public class RoomWindow implements IAppWindow {
 			sb.append(ProtocolConstants.Room.COMMAND_BLACKLIST_REMOVE);
 			sb.append(TextProtocolDriver.ARGUMENT_SEPARATOR);
 			sb.append(macAddress);
-			roomConnection.send(sb.toString());
+			roomConnection.send(Utility.encode(sb));
 			break;
 		}
 		}
@@ -2926,7 +2930,7 @@ public class RoomWindow implements IAppWindow {
 				if (onExit) {
 					return -1;
 				} else {
-					roomConnection.send(ProtocolConstants.Room.COMMAND_LOGOUT);
+					roomConnection.disconnect();
 					return 1;
 				}
 			}
@@ -2935,10 +2939,10 @@ public class RoomWindow implements IAppWindow {
 			dialog.open();
 			switch (dialog.getSelection()) {
 			case LOGOUT:
-				roomConnection.send(ProtocolConstants.Room.COMMAND_LOGOUT);
+				roomConnection.disconnect();
 				return 1;
 			case DESTROY:
-				roomConnection.send(ProtocolConstants.Room.COMMAND_ROOM_DELETE);
+				roomConnection.send(Utility.encode(ProtocolConstants.Room.COMMAND_ROOM_DELETE));
 				return 1;
 			case CANCEL:
 				return 0;
@@ -3005,7 +3009,7 @@ public class RoomWindow implements IAppWindow {
 			sb.append(ProtocolConstants.Room.COMMAND_ROOM_UPDATE);
 			appendRoomInfo(sb);
 
-			roomConnection.send(sb.toString());
+			roomConnection.send(Utility.encode(sb));
 
 			break;
 		}
@@ -3021,7 +3025,8 @@ public class RoomWindow implements IAppWindow {
 				return true;
 			case ROOM_MASTER:
 			case ROOM_PARTICIPANT:
-				roomConnection.send(ProtocolConstants.Room.COMMAND_CHAT + TextProtocolDriver.ARGUMENT_SEPARATOR + message);
+				ByteBuffer buf = Utility.encode(ProtocolConstants.Room.COMMAND_CHAT + TextProtocolDriver.ARGUMENT_SEPARATOR + message);
+				roomConnection.send(buf);
 				return true;
 			default:
 				InfoLog log = new InfoLog("サーバーにログインしていません");
@@ -3043,7 +3048,7 @@ public class RoomWindow implements IAppWindow {
 
 		Chat chat = new Chat(player, message, roomLoginName.equals(player));
 
-		if (!isMine && !isActive && application.getSettings().isBallonNotifyRoom()) {
+		if (!isMine && !isActiveWindow && application.getSettings().isBallonNotifyRoom()) {
 			application.balloonNotify(shell, "<" + player + "> " + message);
 		}
 
@@ -3056,7 +3061,7 @@ public class RoomWindow implements IAppWindow {
 			widgets.logViewer.appendMessage(log);
 		}
 
-		if (!isActive)
+		if (!isActiveWindow)
 			application.balloonNotify(shell, message);
 	}
 
@@ -3099,8 +3104,11 @@ public class RoomWindow implements IAppWindow {
 			break;
 		case ROOM_MASTER:
 		case ROOM_PARTICIPANT:
-			if (roomConnection.isConnected())
-				roomConnection.send(ProtocolConstants.Room.COMMAND_INFORM_SSID + TextProtocolDriver.ARGUMENT_SEPARATOR + latestSSID);
+			if (roomConnection.isConnected()) {
+				ByteBuffer buf = Utility.encode(ProtocolConstants.Room.COMMAND_INFORM_SSID + TextProtocolDriver.ARGUMENT_SEPARATOR
+						+ latestSSID);
+				roomConnection.send(buf);
+			}
 			break;
 		}
 	}
@@ -3257,7 +3265,7 @@ public class RoomWindow implements IAppWindow {
 			InfoLog log = new InfoLog(name + " が入室しました");
 			widgets.logViewer.appendMessage(log);
 
-			if (!isActive && application.getSettings().isBallonNotifyRoom())
+			if (!isActiveWindow && application.getSettings().isBallonNotifyRoom())
 				application.balloonNotify(shell, log.getMessage());
 
 			Player player = new Player(name);
@@ -3299,7 +3307,7 @@ public class RoomWindow implements IAppWindow {
 	private void removeExitingRoomPlayer(String name) {
 		InfoLog log = new InfoLog(name + " が退室しました");
 		widgets.logViewer.appendMessage(log);
-		if (!isActive && application.getSettings().isBallonNotifyRoom())
+		if (!isActiveWindow && application.getSettings().isBallonNotifyRoom())
 			application.balloonNotify(shell, log.getMessage());
 		removeRoomPlayer(name);
 	}
@@ -3310,14 +3318,14 @@ public class RoomWindow implements IAppWindow {
 		case ROOM_MASTER: {
 			RoomLog log = new RoomLog(name + " を部屋から追い出しました");
 			widgets.logViewer.appendMessage(log);
-			if (!isActive && application.getSettings().isBallonNotifyRoom())
+			if (!isActiveWindow && application.getSettings().isBallonNotifyRoom())
 				application.balloonNotify(shell, log.getMessage());
 			break;
 		}
 		case ROOM_PARTICIPANT: {
 			RoomLog log = new RoomLog(name + " は部屋から追い出されました");
 			widgets.logViewer.appendMessage(log);
-			if (!isActive && application.getSettings().isBallonNotifyRoom())
+			if (!isActiveWindow && application.getSettings().isBallonNotifyRoom())
 				application.balloonNotify(shell, log.getMessage());
 			break;
 		}
@@ -3420,7 +3428,7 @@ public class RoomWindow implements IAppWindow {
 				log = new RoomLog("部屋主が " + roomMasterName + " に変更されました");
 				widgets.logViewer.appendMessage(log);
 
-				if (!isActive && application.getSettings().isBallonNotifyRoom())
+				if (!isActiveWindow && application.getSettings().isBallonNotifyRoom())
 					application.balloonNotify(shell, log.getMessage());
 
 				updateLoginStatus();
@@ -3561,7 +3569,7 @@ public class RoomWindow implements IAppWindow {
 						sb.append(TextProtocolDriver.ARGUMENT_SEPARATOR);
 						sb.append(mac);
 					}
-					roomConnection.send(sb.toString());
+					roomConnection.send(Utility.encode(sb));
 				}
 				if (widgets.macFilteringBlackList.getItemCount() > 0) {
 					StringBuilder sb = new StringBuilder();
@@ -3570,7 +3578,7 @@ public class RoomWindow implements IAppWindow {
 						sb.append(TextProtocolDriver.ARGUMENT_SEPARATOR);
 						sb.append(mac);
 					}
-					roomConnection.send(sb.toString());
+					roomConnection.send(Utility.encode(sb));
 				}
 
 				widgets.chatText.setFocus();
@@ -3695,15 +3703,16 @@ public class RoomWindow implements IAppWindow {
 			sb.append(TextProtocolDriver.ARGUMENT_SEPARATOR);
 			sb.append(widgets.formDescriptionText.getText());
 
-			myRoomEntryConnection.send(sb.toString());
+			myRoomEntryConnection.send(Utility.encode(sb));
 		} catch (SWTException e) {
 		}
 	}
 
 	private void sendMyRoomPlayerCountChange() {
 		if (myRoomEntryConnection.isConnected()) {
-			myRoomEntryConnection.send(ProtocolConstants.MyRoom.COMMAND_UPDATE_PLAYER_COUNT + TextProtocolDriver.ARGUMENT_SEPARATOR
+			ByteBuffer buf = Utility.encode(ProtocolConstants.MyRoom.COMMAND_UPDATE_PLAYER_COUNT + TextProtocolDriver.ARGUMENT_SEPARATOR
 					+ roomPlayerMap.size());
+			myRoomEntryConnection.send(buf);
 		}
 	}
 
@@ -3748,7 +3757,7 @@ public class RoomWindow implements IAppWindow {
 			sb.append(TextProtocolDriver.ARGUMENT_SEPARATOR);
 			sb.append(myRoomEngine.getDescription());
 
-			connection.send(sb.toString());
+			connection.send(Utility.encode(sb));
 		}
 	}
 
@@ -3846,7 +3855,7 @@ public class RoomWindow implements IAppWindow {
 	private class MyRoomServerHandler implements IMyRoomMasterHandler {
 		@Override
 		public void log(String message) {
-			application.getArenaWindow().appendLog(message, true);
+			application.getArenaWindow().appendToSystemLog(message, true);
 		}
 
 		@Override
@@ -3922,7 +3931,7 @@ public class RoomWindow implements IAppWindow {
 					return;
 				}
 				if (myRoomEntryConnection.isConnected())
-					myRoomEntryConnection.send(ProtocolConstants.MyRoom.COMMAND_LOGOUT);
+					myRoomEntryConnection.disconnect();
 				changeStateTo(SessionState.OFFLINE);
 
 				RoomLog log = new RoomLog("マイルームを停止しました");
@@ -3935,7 +3944,7 @@ public class RoomWindow implements IAppWindow {
 	private class RoomProtocol implements IProtocol {
 		@Override
 		public void log(String message) {
-			application.getArenaWindow().appendLog(message, true);
+			application.getArenaWindow().appendToSystemLog(message, true);
 		}
 
 		@Override
@@ -3976,7 +3985,7 @@ public class RoomWindow implements IAppWindow {
 					sb.append(roomLoginName);
 					appendRoomInfo(sb);
 
-					roomConnection.send(sb.toString());
+					roomConnection.send(Utility.encode(sb));
 
 					widgets.formManualModeRoomServerCombo.setText(roomServerAddressPort);
 					sessionState = SessionState.NEGOTIATING;
@@ -3997,7 +4006,7 @@ public class RoomWindow implements IAppWindow {
 					sb.append(TextProtocolDriver.ARGUMENT_SEPARATOR);
 					sb.append(widgets.ssidCurrentSsidText.getText());
 
-					roomConnection.send(sb.toString());
+					roomConnection.send(Utility.encode(sb));
 
 					widgets.formManualModeRoomAddressCombo.setText(roomServerAddressPort + ":" + roomMasterName);
 					sessionState = SessionState.NEGOTIATING;
@@ -4038,7 +4047,7 @@ public class RoomWindow implements IAppWindow {
 
 		@Override
 		public void log(String message) {
-			application.getArenaWindow().appendLog(message, true);
+			application.getArenaWindow().appendToSystemLog(message, true);
 		}
 
 		@Override
@@ -4075,12 +4084,12 @@ public class RoomWindow implements IAppWindow {
 				sb.append(TextProtocolDriver.ARGUMENT_SEPARATOR);
 				sb.append(password);
 
-				roomConnection.send(sb.toString());
+				roomConnection.send(Utility.encode(sb));
 				break;
 			case IDialogConstants.CANCEL_ID:
 				RoomLog log = new RoomLog("入室をキャンセルしました");
 				widgets.logViewer.appendMessage(log);
-				roomConnection.send(ProtocolConstants.Room.COMMAND_LOGOUT);
+				roomConnection.disconnect();
 				break;
 			}
 		} catch (SWTException e) {
@@ -4177,7 +4186,9 @@ public class RoomWindow implements IAppWindow {
 
 					updateRoomPlayerPing(roomLoginName, ping);
 
-					roomConnection.send(ProtocolConstants.Room.COMMAND_INFORM_PING + TextProtocolDriver.ARGUMENT_SEPARATOR + ping);
+					ByteBuffer buf = Utility.encode(ProtocolConstants.Room.COMMAND_INFORM_PING + TextProtocolDriver.ARGUMENT_SEPARATOR
+							+ ping);
+					roomConnection.send(buf);
 				} catch (NumberFormatException e) {
 				}
 				return true;
@@ -4206,7 +4217,7 @@ public class RoomWindow implements IAppWindow {
 			@Override
 			public boolean process(IProtocolDriver client, String argument) {
 				updateTunnelStatus(true);
-				application.getArenaWindow().appendLog("トンネル通信の接続が開始しました", true);
+				application.getArenaWindow().appendToSystemLog("トンネル通信の接続が開始しました", true);
 				return true;
 			}
 		});
@@ -4286,8 +4297,6 @@ public class RoomWindow implements IAppWindow {
 
 					RoomLog log = new RoomLog("部屋から追い出されました");
 					widgets.logViewer.appendMessage(log);
-					// appendLogTo(window.roomLogText, "部屋から追い出されました",
-					// iniAppearance.getColorLogRoom(), true);
 				} else {
 					removeKickedRoomPlayer(kickedPlayer);
 				}
@@ -4313,7 +4322,7 @@ public class RoomWindow implements IAppWindow {
 			public boolean process(IProtocolDriver client, String argument) {
 				RoomLog log = new RoomLog("部屋が削除されました");
 				widgets.logViewer.appendMessage(log);
-				if (!isActive && application.getSettings().isBallonNotifyRoom())
+				if (!isActiveWindow && application.getSettings().isBallonNotifyRoom())
 					application.balloonNotify(shell, log.getMessage());
 				return true;
 			}
@@ -4422,18 +4431,18 @@ public class RoomWindow implements IAppWindow {
 		} catch (IOException e) {
 			ErrorLog log = new ErrorLog(e);
 			widgets.logViewer.appendMessage(log);
-			application.getArenaWindow().appendLog(Utility.stackTraceToString(e), true);
+			application.getArenaWindow().appendToSystemLog(Utility.stackTraceToString(e), true);
 		} catch (RuntimeException e) {
 			ErrorLog log = new ErrorLog(e);
 			widgets.logViewer.appendMessage(log);
-			application.getArenaWindow().appendLog(Utility.stackTraceToString(e), true);
+			application.getArenaWindow().appendToSystemLog(Utility.stackTraceToString(e), true);
 		}
 	}
 
 	private class TunnelProtocol implements IProtocol {
 		@Override
 		public void log(String message) {
-			application.getArenaWindow().appendLog(message, true);
+			application.getArenaWindow().appendToSystemLog(message, true);
 		}
 
 		@Override
@@ -4462,7 +4471,7 @@ public class RoomWindow implements IAppWindow {
 				public void run() {
 					try {
 						while (localPort == 0) {
-							connection.send(ProtocolConstants.Tunnel.DUMMY_PACKET);
+							connection.send(Utility.encode(ProtocolConstants.Tunnel.DUMMY_PACKET));
 							Thread.sleep(10000);
 						}
 					} catch (InterruptedException e) {
@@ -4486,8 +4495,10 @@ public class RoomWindow implements IAppWindow {
 				try {
 					String port = data.getMessage();
 					localPort = Integer.parseInt(port);
-					roomConnection.send(ProtocolConstants.Room.COMMAND_INFORM_TUNNEL_PORT + TextProtocolDriver.ARGUMENT_SEPARATOR
-							+ localPort);
+
+					ByteBuffer buf = Utility.encode(ProtocolConstants.Room.COMMAND_INFORM_TUNNEL_PORT
+							+ TextProtocolDriver.ARGUMENT_SEPARATOR + localPort);
+					roomConnection.send(buf);
 				} catch (NumberFormatException e) {
 				}
 			}
@@ -4498,7 +4509,7 @@ public class RoomWindow implements IAppWindow {
 		public void connectionDisconnected() {
 			updateTunnelStatus(false);
 			tunnelConnection = ISocketConnection.NULL;
-			application.getArenaWindow().appendLog("トンネル通信の接続が終了しました", true);
+			application.getArenaWindow().appendToSystemLog("トンネル通信の接続が終了しました", true);
 
 			if (roomConnection.isConnected())
 				switch (sessionState) {
@@ -4511,7 +4522,7 @@ public class RoomWindow implements IAppWindow {
 		@Override
 		public void errorProtocolNumber(String number) {
 			String message = String.format("サーバーとのプロトコルナンバーが一致しないので接続できません サーバー:%s クライアント:%s", number, IProtocol.NUMBER);
-			application.getArenaWindow().appendLog(message, true);
+			application.getArenaWindow().appendToSystemLog(message, true);
 		}
 	}
 
@@ -4531,10 +4542,10 @@ public class RoomWindow implements IAppWindow {
 			wlanAdapterList.clear();
 			currentWlanLibrary.findDevices(wlanAdapterList);
 		} catch (RuntimeException e) {
-			application.getArenaWindow().appendLog(Utility.stackTraceToString(e), true);
+			application.getArenaWindow().appendToSystemLog(Utility.stackTraceToString(e), true);
 			return;
 		} catch (UnsatisfiedLinkError e) {
-			application.getArenaWindow().appendLog(Utility.stackTraceToString(e), true);
+			application.getArenaWindow().appendToSystemLog(Utility.stackTraceToString(e), true);
 			return;
 		}
 
@@ -4624,7 +4635,9 @@ public class RoomWindow implements IAppWindow {
 		if (!Utility.isEmpty(playerName)) {
 			srcStats.playerName = playerName;
 		} else if (Utility.isEmpty(srcStats.playerName) && !Utility.isMacBroadCastAddress(srcMac)) {
-			roomConnection.send(ProtocolConstants.Room.COMMAND_MAC_ADDRESS_PLAYER + TextProtocolDriver.ARGUMENT_SEPARATOR + srcMac);
+			ByteBuffer buf = Utility.encode(ProtocolConstants.Room.COMMAND_MAC_ADDRESS_PLAYER + TextProtocolDriver.ARGUMENT_SEPARATOR
+					+ srcMac);
+			roomConnection.send(buf);
 		}
 		if (destStats.isMine)
 			destStats.playerName = roomLoginName;
@@ -4677,9 +4690,11 @@ public class RoomWindow implements IAppWindow {
 		srcStats.lastModified = destStats.lastModified = System.currentTimeMillis();
 		srcStats.playerName = roomLoginName;
 
-		if (Utility.isEmpty(destStats.playerName) && !Utility.isMacBroadCastAddress(destMac))
-			roomConnection.send(ProtocolConstants.Room.COMMAND_MAC_ADDRESS_PLAYER + TextProtocolDriver.ARGUMENT_SEPARATOR + destMac);
-
+		if (Utility.isEmpty(destStats.playerName) && !Utility.isMacBroadCastAddress(destMac)) {
+			ByteBuffer buf = Utility.encode(ProtocolConstants.Room.COMMAND_MAC_ADDRESS_PLAYER + TextProtocolDriver.ARGUMENT_SEPARATOR
+					+ destMac);
+			roomConnection.send(buf);
+		}
 		actualSentBytes += packetLength;
 
 		srcStats.currentOutBytes += packetLength;
@@ -4721,10 +4736,10 @@ public class RoomWindow implements IAppWindow {
 
 			return true;
 		} catch (RuntimeException e) {
-			application.getArenaWindow().appendLog(Utility.stackTraceToString(e), true);
+			application.getArenaWindow().appendToSystemLog(Utility.stackTraceToString(e), true);
 			return false;
 		} catch (Exception e) {
-			application.getArenaWindow().appendLog(Utility.stackTraceToString(e), true);
+			application.getArenaWindow().appendToSystemLog(Utility.stackTraceToString(e), true);
 			return false;
 		}
 	}

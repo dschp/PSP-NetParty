@@ -440,7 +440,8 @@ public class WlanProxyApp {
 							while (isPacketCapturing) {
 								String ssid = currentDevice.getSSID();
 								if (!ssid.equals(lastSSID)) {
-									proxyClient.send(WlanProxyConstants.COMMAND_GET_SSID + ssid);
+									ByteBuffer buf = Utility.encode(WlanProxyConstants.COMMAND_GET_SSID + ssid);
+									proxyClient.send(buf);
 									lastSSID = ssid;
 								}
 
@@ -548,7 +549,7 @@ public class WlanProxyApp {
 			// System.out.println(featureBuffer);
 			connection.send(featureBuffer);
 
-			connection.send(WlanProxyConstants.COMMAND_GET_SSID + lastSSID);
+			connection.send(Utility.encode(WlanProxyConstants.COMMAND_GET_SSID + lastSSID));
 
 			proxyClient = connection;
 
@@ -603,7 +604,7 @@ public class WlanProxyApp {
 					sb.append('\f');
 				}
 
-				connection.send(sb.toString());
+				connection.send(Utility.encode(sb));
 				break;
 			default:
 				return false;

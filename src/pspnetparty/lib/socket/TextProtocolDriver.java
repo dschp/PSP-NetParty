@@ -53,7 +53,9 @@ public abstract class TextProtocolDriver implements IProtocolDriver, ILogger {
 		boolean sessionContinue = false;
 
 		String messages = data.getMessage();
+		//System.out.println("<<<Message Bytes>>> " + messages.length());
 		for (String message : messages.split(MESSAGE_SEPARATOR)) {
+			//System.out.println(message);
 			int commandEndIndex = message.indexOf(ARGUMENT_SEPARATOR);
 			String command, argument;
 			if (commandEndIndex > 0) {
@@ -76,6 +78,7 @@ public abstract class TextProtocolDriver implements IProtocolDriver, ILogger {
 			if (!sessionContinue)
 				break;
 		}
+		//System.out.println("##########################################");
 
 		return sessionContinue;
 	}

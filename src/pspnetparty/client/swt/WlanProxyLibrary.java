@@ -170,18 +170,18 @@ public class WlanProxyLibrary implements WlanLibrary {
 		@Override
 		public void setSSID(String ssid) {
 			WlanProxyLibrary.this.ssid = ssid;
-			activeConnection.send(WlanProxyConstants.COMMAND_SET_SSID + ssid);
+			activeConnection.send(Utility.encode(WlanProxyConstants.COMMAND_SET_SSID + ssid));
 		}
 
 		@Override
 		public boolean scanNetwork() {
-			activeConnection.send(String.valueOf(WlanProxyConstants.COMMAND_SCAN_NETWORK));
+			activeConnection.send(Utility.encode(String.valueOf(WlanProxyConstants.COMMAND_SCAN_NETWORK)));
 			return true;
 		}
 
 		@Override
 		public boolean findNetworks(List<WlanNetwork> networkList) {
-			activeConnection.send(String.valueOf(WlanProxyConstants.COMMAND_FIND_NETWORK));
+			activeConnection.send(Utility.encode(String.valueOf(WlanProxyConstants.COMMAND_FIND_NETWORK)));
 			networkList.addAll(networks);
 			return true;
 		}
@@ -196,7 +196,7 @@ public class WlanProxyLibrary implements WlanLibrary {
 	private class ProxyProtocol implements IProtocol {
 		@Override
 		public void log(String message) {
-			application.getArenaWindow().appendLog(message, true);
+			application.getArenaWindow().appendToSystemLog(message, true);
 		}
 
 		@Override
@@ -206,7 +206,7 @@ public class WlanProxyLibrary implements WlanLibrary {
 
 		@Override
 		public IProtocolDriver createDriver(ISocketConnection connection) {
-			application.getArenaWindow().appendLog("プロキシに接続しました: " + connection.getRemoteAddress(), true);
+			application.getArenaWindow().appendToSystemLog("プロキシに接続しました: " + connection.getRemoteAddress(), true);
 
 			activeConnection = connection;
 
@@ -228,7 +228,7 @@ public class WlanProxyLibrary implements WlanLibrary {
 		@Override
 		public boolean process(PacketData data) {
 			ByteBuffer buffer = data.getBuffer();
-			application.getArenaWindow().appendLog(buffer.toString(), true);
+			application.getArenaWindow().appendToSystemLog(buffer.toString(), true);
 
 			int origLimit = buffer.limit();
 			buffer.limit(1);
@@ -290,7 +290,7 @@ public class WlanProxyLibrary implements WlanLibrary {
 
 		@Override
 		public void connectionDisconnected() {
-			application.getArenaWindow().appendLog("プロキシと切断しました: " + connection.getRemoteAddress(), true);
+			application.getArenaWindow().appendToSystemLog("プロキシと切断しました: " + connection.getRemoteAddress(), true);
 		}
 
 		@Override

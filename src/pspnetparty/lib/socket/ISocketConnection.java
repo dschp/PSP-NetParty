@@ -26,11 +26,7 @@ public interface ISocketConnection {
 
 	public InetSocketAddress getLocalAddress();
 
-	public void send(byte[] data);
-
 	public void send(ByteBuffer buffer);
-
-	public void send(String data);
 
 	public void disconnect();
 
@@ -53,15 +49,7 @@ public interface ISocketConnection {
 		}
 
 		@Override
-		public void send(String data) {
-		}
-
-		@Override
 		public void send(ByteBuffer buffer) {
-		}
-
-		@Override
-		public void send(byte[] data) {
 		}
 
 		@Override

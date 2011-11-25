@@ -165,6 +165,26 @@ public class LogViewer {
 				LogViewer.this.application.putClipboard(sb.toString());
 			}
 		});
+
+		new MenuItem(menu, SWT.SEPARATOR);
+
+		MenuItem menuClearLog = new MenuItem(menu, SWT.PUSH);
+		menuClearLog.setText("ログをクリア");
+		menuClearLog.addListener(SWT.Selection, new Listener() {
+			@Override
+			public void handleEvent(Event event) {
+				messageList.clear();
+
+				if (!styleRanges.isEmpty()) {
+					styleRanges.clear();
+					StyleRange[] ranges = new StyleRange[0];
+					logWidget.setStyleRanges(ranges);
+				}
+
+				logWidget.setText("");
+				ruler.update();
+			}
+		});
 	}
 
 	public void applyAppearance() {

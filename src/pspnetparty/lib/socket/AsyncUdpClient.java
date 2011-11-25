@@ -44,7 +44,6 @@ public class AsyncUdpClient implements IClient {
 	private Selector selector;
 	private ConcurrentLinkedQueue<Connection> newConnectionQueue = new ConcurrentLinkedQueue<Connection>();
 	private ConcurrentHashMap<Connection, Object> establishedConnections;
-	private final Object valueObject = new Object();
 
 	public AsyncUdpClient(ILogger logger) {
 		this.logger = logger;
@@ -85,31 +84,47 @@ public class AsyncUdpClient implements IClient {
 					for (Iterator<SelectionKey> it = selector.selectedKeys().iterator(); it.hasNext();) {
 						SelectionKey key = it.next();
 						it.remove();
+
+						Connection conn = null;
 						try {
-							if (!key.isReadable())
-								continue;
+							conn = (Connection) key.attachment();
+							if (key.isReadable()) {
+								if (conn.doRead()) {
+								} else if (conn.sendBufferQueue.isEmpty() || conn.serverDisconnected) {
+									conn.disconnect();
+									key.cancel();
+								} else {
+									conn.toBeClosed = true;
+								}
+							} else if (key.isWritable()) {
+								SendBufferQueue<Connection>.Allotment allot = conn.sendBufferQueue.poll();
+								if (allot == null) {
+									if (conn.toBeClosed) {
+										conn.disconnect();
+										key.cancel();
+									} else {
+										key.interestOps(SelectionKey.OP_READ);
+									}
+								} else if (!conn.serverDisconnected) {
+									conn.channel.write(allot.getBuffer());
+								}
+							}
 						} catch (CancelledKeyException e) {
-						}
-
-						Connection connection = (Connection) key.attachment();
-
-						boolean success = false;
-						try {
-							success = connection.doRead();
 						} catch (IOException e) {
-						} catch (RuntimeException e) {
-						}
-
-						if (!success) {
+							if (conn != null)
+								conn.disconnect();
 							key.cancel();
-							connection.disconnect();
+						} catch (RuntimeException e) {
+							if (conn != null)
+								conn.disconnect();
+							key.cancel();
 						}
 					}
 				}
 
 				Connection conn;
 				while ((conn = newConnectionQueue.poll()) != null)
-					conn.channel.register(selector, SelectionKey.OP_READ, conn);
+					conn.selectionKey = conn.channel.register(selector, SelectionKey.OP_READ | SelectionKey.OP_WRITE, conn);
 			}
 		} catch (ClosedSelectorException e) {
 		} catch (IOException e) {
@@ -150,9 +165,10 @@ public class AsyncUdpClient implements IClient {
 			DatagramChannel channel = DatagramChannel.open();
 			channel.connect(address);
 
-			Connection conn = new Connection(channel, protocol);
+			Connection conn = new Connection(channel);
 
-			conn.send(protocol.getProtocol() + IProtocol.SEPARATOR + IProtocol.NUMBER);
+			ByteBuffer data = AppConstants.CHARSET.encode(protocol.getProtocol() + IProtocol.SEPARATOR + IProtocol.NUMBER);
+			channel.write(data);
 
 			channel.socket().setSoTimeout(timeout);
 
@@ -168,7 +184,7 @@ public class AsyncUdpClient implements IClient {
 
 			String message = Utility.decode(ByteBuffer.wrap(buffer, 0, packet.getLength()));
 			if (IProtocol.PROTOCOL_OK.equals(message)) {
-				establishedConnections.put(conn, valueObject);
+				establishedConnections.put(conn, conn);
 
 				channel.configureBlocking(false);
 
@@ -211,30 +227,36 @@ public class AsyncUdpClient implements IClient {
 
 	private class Connection implements ISocketConnection {
 		private DatagramChannel channel;
+		private SelectionKey selectionKey;
 		private InetSocketAddress remoteAddress;
-		private long lastKeepAliveReceived;
-
-		private IProtocol protocol;
 		private IProtocolDriver driver;
+
+		private long lastKeepAliveReceived;
+		private boolean toBeClosed = false;
+		private boolean serverDisconnected = false;
 
 		private ByteBuffer readBuffer = ByteBuffer.allocateDirect(BUFFER_SIZE);
 		private PacketData packetData = new PacketData(readBuffer);
 
-		public Connection(DatagramChannel channel, IProtocol protocol) {
+		private SendBufferQueue<Connection> sendBufferQueue = new SendBufferQueue<Connection>(20000);
+
+		public Connection(DatagramChannel channel) {
 			this.channel = channel;
 			this.remoteAddress = (InetSocketAddress) channel.socket().getRemoteSocketAddress();
-			this.protocol = protocol;
 			lastKeepAliveReceived = System.currentTimeMillis();
 		}
 
 		private boolean doRead() throws IOException {
 			readBuffer.clear();
 			channel.read(readBuffer);
+			if (toBeClosed || serverDisconnected)
+				return true;
 			readBuffer.flip();
 
 			if (readBuffer.limit() == 1) {
 				switch (readBuffer.get(0)) {
 				case 0:
+					serverDisconnected = true;
 					return false;
 				case 1:
 					lastKeepAliveReceived = System.currentTimeMillis();
@@ -284,24 +306,19 @@ public class AsyncUdpClient implements IClient {
 		public void send(ByteBuffer buffer) {
 			if (!isConnected())
 				return;
+			addToSendQueue(buffer);
+		}
+
+		private void addToSendQueue(ByteBuffer buffer) {
+			sendBufferQueue.queue(buffer, false, this);
 
 			try {
-				channel.send(buffer, remoteAddress);
-			} catch (IOException e) {
-				protocol.log(buffer.toString());
-				protocol.log(Utility.stackTraceToString(e));
+				if (selectionKey != null) {
+					selector.wakeup();
+					selectionKey.interestOps(SelectionKey.OP_READ | SelectionKey.OP_WRITE);
+				}
+			} catch (CancelledKeyException e) {
 			}
-		}
-
-		@Override
-		public void send(byte[] data) {
-			send(ByteBuffer.wrap(data));
-		}
-
-		@Override
-		public void send(String data) {
-			ByteBuffer buffer = AppConstants.CHARSET.encode(data);
-			send(buffer);
 		}
 	}
 
@@ -334,7 +351,7 @@ public class AsyncUdpClient implements IClient {
 						for (int i = 0; i < 3; i++)
 							try {
 								Thread.sleep(500);
-								connection.send("TEST " + i);
+								connection.send(Utility.encode("TEST " + i));
 								Thread.sleep(500);
 							} catch (InterruptedException e) {
 							}

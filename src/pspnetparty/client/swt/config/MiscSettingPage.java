@@ -47,9 +47,9 @@ public class MiscSettingPage extends PreferencePage {
 	private Button arenaAutoLoginRoomList;
 	private Button arenaAutoLoginLobby;
 	private Button appCloseConfirmCheck;
-	private Button logLobbyEnterExitCheck;
-	private Button balloonNotifyLobbyCheck;
 	private Button balloonNotifyRoomCheck;
+	private Button balloonNotifyLobbyCheck;
+	private Button balloonLobbyEnterExitCheck;
 	private Button privatePortalServerUseCheck;
 	private Text privatePortalServerAddress;
 	private Button myRoomAllowEmptyMasterNameCheck;
@@ -118,19 +118,22 @@ public class MiscSettingPage extends PreferencePage {
 		appCloseConfirmCheck = new Button(configContainer, SWT.CHECK | SWT.FLAT);
 		appCloseConfirmCheck.setText("アプリケーションを閉じる時に確認する");
 
-		logLobbyEnterExitCheck = new Button(configContainer, SWT.CHECK | SWT.FLAT);
-		logLobbyEnterExitCheck.setText("ロビーの入退室ログを表示する");
-
 		Group configTaskTrayBalloonGroup = new Group(configContainer, SWT.SHADOW_IN);
 		configTaskTrayBalloonGroup.setText("タスクトレイからバルーンで通知");
 		configTaskTrayBalloonGroup.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, false, false));
 		configTaskTrayBalloonGroup.setLayout(new GridLayout(1, false));
 
+		balloonNotifyRoomCheck = new Button(configTaskTrayBalloonGroup, SWT.CHECK | SWT.FLAT);
+		balloonNotifyRoomCheck.setText("プレイルームのログメッセージ");
+
 		balloonNotifyLobbyCheck = new Button(configTaskTrayBalloonGroup, SWT.CHECK | SWT.FLAT);
 		balloonNotifyLobbyCheck.setText("ロビーのログメッセージ");
 
-		balloonNotifyRoomCheck = new Button(configTaskTrayBalloonGroup, SWT.CHECK | SWT.FLAT);
-		balloonNotifyRoomCheck.setText("プレイルームのログメッセージ");
+		balloonLobbyEnterExitCheck = new Button(configTaskTrayBalloonGroup, SWT.CHECK | SWT.FLAT);
+		balloonLobbyEnterExitCheck.setText("ロビー全体の入退室ログも通知");
+		gridData = new GridData(SWT.LEFT, SWT.CENTER, true, false);
+		gridData.horizontalIndent = 15;
+		balloonLobbyEnterExitCheck.setLayoutData(gridData);
 
 		Group ssidGroup = new Group(configContainer, SWT.SHADOW_IN);
 		ssidGroup.setText("SSID機能");
@@ -220,9 +223,9 @@ public class MiscSettingPage extends PreferencePage {
 		else
 			startupWindowRoom.setSelection(true);
 		appCloseConfirmCheck.setSelection(settings.isNeedAppCloseConfirm());
-		logLobbyEnterExitCheck.setSelection(settings.isLogLobbyEnterExit());
-		balloonNotifyLobbyCheck.setSelection(settings.isBallonNotifyLobby());
 		balloonNotifyRoomCheck.setSelection(settings.isBallonNotifyRoom());
+		balloonNotifyLobbyCheck.setSelection(settings.isBallonNotifyLobby());
+		balloonLobbyEnterExitCheck.setSelection(settings.isBalloonLobbyEnterExit());
 		arenaAutoLoginRoomList.setSelection(settings.isArenaAutoLoginRoomList());
 		arenaAutoLoginLobby.setSelection(settings.isArenaAutoLoginLobby());
 
@@ -267,9 +270,9 @@ public class MiscSettingPage extends PreferencePage {
 
 		settings.setStartupWindowArena(startupWindowArena.getSelection());
 		settings.setNeedAppCloseConfirm(appCloseConfirmCheck.getSelection());
-		settings.setLogLobbyEnterExit(logLobbyEnterExitCheck.getSelection());
-		settings.setBallonNotifyLobby(balloonNotifyLobbyCheck.getSelection());
 		settings.setBallonNotifyRoom(balloonNotifyRoomCheck.getSelection());
+		settings.setBallonNotifyLobby(balloonNotifyLobbyCheck.getSelection());
+		settings.setBalloonLobbyEnterExit(balloonLobbyEnterExitCheck.getSelection());
 		settings.setArenaAutoLoginSearch(arenaAutoLoginRoomList.getSelection());
 		settings.setArenaAutoLoginLobby(arenaAutoLoginLobby.getSelection());
 		settings.setPrivatePortalServerUse(privatePortalServerUseCheck.getSelection());

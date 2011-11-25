@@ -224,11 +224,11 @@ public class MyRoomEngine {
 		sb.append(ProtocolConstants.Room.NOTIFY_ROOM_UPDATED);
 		appendRoomInfo(sb);
 
-		final String notify = sb.toString();
-
+		ByteBuffer buffer = Utility.encode(sb);
 		for (Entry<String, RoomProtocolDriver> entry : playersByName.entrySet()) {
 			RoomProtocolDriver p = entry.getValue();
-			p.getConnection().send(notify);
+			buffer.position(0);
+			p.getConnection().send(buffer);
 		}
 	}
 
@@ -236,17 +236,19 @@ public class MyRoomEngine {
 		RoomProtocolDriver kickedPlayer = playersByName.remove(name);
 		if (kickedPlayer == null)
 			return;
-		final String notify = ProtocolConstants.Room.NOTIFY_ROOM_PLAYER_KICKED + TextProtocolDriver.ARGUMENT_SEPARATOR + name;
 
+		ByteBuffer buffer = Utility.encode(ProtocolConstants.Room.NOTIFY_ROOM_PLAYER_KICKED + TextProtocolDriver.ARGUMENT_SEPARATOR + name);
 		for (Entry<String, RoomProtocolDriver> entry : playersByName.entrySet()) {
 			RoomProtocolDriver p = entry.getValue();
-			p.getConnection().send(notify);
+			buffer.position(0);
+			p.getConnection().send(buffer);
 		}
 
 		if (kickedPlayer.tunnel != null)
 			notYetLinkedTunnels.remove(kickedPlayer.tunnel.getConnection().getRemoteAddress());
 
-		kickedPlayer.getConnection().send(ProtocolConstants.Room.NOTIFY_ROOM_PLAYER_KICKED + TextProtocolDriver.ARGUMENT_SEPARATOR + name);
+		buffer = Utility.encode(ProtocolConstants.Room.NOTIFY_ROOM_PLAYER_KICKED + TextProtocolDriver.ARGUMENT_SEPARATOR + name);
+		kickedPlayer.getConnection().send(buffer);
 		kickedPlayer.getConnection().disconnect();
 	}
 
@@ -264,10 +266,12 @@ public class MyRoomEngine {
 		sb.append(TextProtocolDriver.ARGUMENT_SEPARATOR);
 		sb.append(masterSsid);
 
-		final String message = sb.toString();
+		ByteBuffer buffer = Utility.encode(sb);
 		for (Entry<String, RoomProtocolDriver> entry : playersByName.entrySet()) {
 			RoomProtocolDriver p = entry.getValue();
-			p.getConnection().send(message);
+
+			buffer.position(0);
+			p.getConnection().send(buffer);
 		}
 	}
 
@@ -279,10 +283,12 @@ public class MyRoomEngine {
 		sb.append(TextProtocolDriver.ARGUMENT_SEPARATOR);
 		sb.append(chat);
 
-		String message = sb.toString();
+		ByteBuffer buffer = Utility.encode(sb);
 		for (Entry<String, RoomProtocolDriver> entry : playersByName.entrySet()) {
 			RoomProtocolDriver p = entry.getValue();
-			p.getConnection().send(message);
+
+			buffer.position(0);
+			p.getConnection().send(buffer);
 		}
 		myRoomMasterHandler.chatReceived(player, chat);
 	}
@@ -394,10 +400,13 @@ public class MyRoomEngine {
 			if (!Utility.isEmpty(name)) {
 				playersByName.remove(name);
 
-				final String notify = ProtocolConstants.Room.NOTIFY_USER_EXITED + TextProtocolDriver.ARGUMENT_SEPARATOR + name;
+				ByteBuffer buffer = Utility
+						.encode(ProtocolConstants.Room.NOTIFY_USER_EXITED + TextProtocolDriver.ARGUMENT_SEPARATOR + name);
 				for (Entry<String, RoomProtocolDriver> entry : playersByName.entrySet()) {
 					RoomProtocolDriver p = entry.getValue();
-					p.getConnection().send(notify);
+
+					buffer.position(0);
+					p.getConnection().send(buffer);
 				}
 				myRoomMasterHandler.playerExited(name);
 			}
@@ -436,39 +445,42 @@ public class MyRoomEngine {
 				String sentPassword = tokens.length == 2 ? null : tokens[2];
 				if (!Utility.isEmpty(MyRoomEngine.this.password)) {
 					if (sentPassword == null) {
-						player.getConnection().send(ProtocolConstants.Room.NOTIFY_ROOM_PASSWORD_REQUIRED);
+						player.getConnection().send(Utility.encode(ProtocolConstants.Room.NOTIFY_ROOM_PASSWORD_REQUIRED));
 						return true;
 					}
 					if (!MyRoomEngine.this.password.equals(sentPassword)) {
-						player.getConnection().send(ProtocolConstants.Room.ERROR_LOGIN_PASSWORD_FAIL);
+						player.getConnection().send(Utility.encode(ProtocolConstants.Room.ERROR_LOGIN_PASSWORD_FAIL));
 						return true;
 					}
 				}
 
 				if (masterName.equals(loginName)) {
-					player.getConnection().send(ProtocolConstants.Room.ERROR_LOGIN_DUPLICATED_NAME);
+					player.getConnection().send(Utility.encode(ProtocolConstants.Room.ERROR_LOGIN_DUPLICATED_NAME));
 					return false;
 				}
 
 				if (playersByName.size() >= maxPlayers - 1) {
 					// 最大人数を超えたので接続を拒否します
-					player.getConnection().send(ProtocolConstants.Room.ERROR_LOGIN_BEYOND_CAPACITY);
+					player.getConnection().send(Utility.encode(ProtocolConstants.Room.ERROR_LOGIN_BEYOND_CAPACITY));
 					return false;
 				}
 
 				if (playersByName.putIfAbsent(loginName, player) != null) {
 					// 同名のユーザーが存在するので接続を拒否します
-					player.getConnection().send(ProtocolConstants.Room.ERROR_LOGIN_DUPLICATED_NAME);
+					player.getConnection().send(Utility.encode(ProtocolConstants.Room.ERROR_LOGIN_DUPLICATED_NAME));
 					return false;
 				}
 				player.setMessageHandlers(sessionHandlers);
 				player.name = loginName;
 
-				final String notify = ProtocolConstants.Room.NOTIFY_USER_ENTERED + TextProtocolDriver.ARGUMENT_SEPARATOR + loginName;
+				ByteBuffer buffer = Utility.encode(ProtocolConstants.Room.NOTIFY_USER_ENTERED + TextProtocolDriver.ARGUMENT_SEPARATOR
+						+ loginName);
 				for (Entry<String, RoomProtocolDriver> entry : playersByName.entrySet()) {
 					RoomProtocolDriver p = entry.getValue();
-					if (p != player)
-						p.getConnection().send(notify);
+					if (p != player) {
+						buffer.position(0);
+						p.getConnection().send(buffer);
+					}
 				}
 				myRoomMasterHandler.playerEntered(loginName);
 
@@ -480,15 +492,9 @@ public class MyRoomEngine {
 				sb.append(TextProtocolDriver.MESSAGE_SEPARATOR);
 				appendNotifyUserList(sb);
 
-				player.getConnection().send(sb.toString());
+				player.getConnection().send(Utility.encode(sb));
 
 				return true;
-			}
-		});
-		loginHandlers.put(ProtocolConstants.Room.COMMAND_LOGOUT, new IProtocolMessageHandler() {
-			@Override
-			public boolean process(IProtocolDriver driver, String argument) {
-				return false;
 			}
 		});
 		loginHandlers.put(ProtocolConstants.Room.COMMAND_CONFIRM_AUTH_CODE, new IProtocolMessageHandler() {
@@ -502,20 +508,14 @@ public class MyRoomEngine {
 				String masterName = tokens[0];
 				String authCode = tokens[1];
 				if (masterName.equals(MyRoomEngine.this.masterName) && authCode.equals(roomMasterAuthCode)) {
-					driver.getConnection().send(ProtocolConstants.Room.COMMAND_CONFIRM_AUTH_CODE);
+					driver.getConnection().send(Utility.encode(ProtocolConstants.Room.COMMAND_CONFIRM_AUTH_CODE));
 				} else {
-					driver.getConnection().send(ProtocolConstants.Room.ERROR_CONFIRM_INVALID_AUTH_CODE);
+					driver.getConnection().send(Utility.encode(ProtocolConstants.Room.ERROR_CONFIRM_INVALID_AUTH_CODE));
 				}
 				return false;
 			}
 		});
 
-		sessionHandlers.put(ProtocolConstants.Room.COMMAND_LOGOUT, new IProtocolMessageHandler() {
-			@Override
-			public boolean process(IProtocolDriver driver, String argument) {
-				return false;
-			}
-		});
 		sessionHandlers.put(ProtocolConstants.Room.COMMAND_CHAT, new IProtocolMessageHandler() {
 			@Override
 			public boolean process(IProtocolDriver driver, String argument) {
@@ -528,7 +528,8 @@ public class MyRoomEngine {
 		sessionHandlers.put(ProtocolConstants.Room.COMMAND_PING, new IProtocolMessageHandler() {
 			@Override
 			public boolean process(IProtocolDriver driver, String argument) {
-				driver.getConnection().send(ProtocolConstants.Room.COMMAND_PINGBACK + TextProtocolDriver.ARGUMENT_SEPARATOR + argument);
+				driver.getConnection().send(
+						Utility.encode(ProtocolConstants.Room.COMMAND_PINGBACK + TextProtocolDriver.ARGUMENT_SEPARATOR + argument));
 				return true;
 			}
 		});
@@ -539,12 +540,14 @@ public class MyRoomEngine {
 
 				try {
 					int ping = Integer.parseInt(argument);
-					final String message = ProtocolConstants.Room.COMMAND_INFORM_PING + TextProtocolDriver.ARGUMENT_SEPARATOR + state.name
-							+ TextProtocolDriver.ARGUMENT_SEPARATOR + argument;
+					ByteBuffer buffer = Utility.encode(ProtocolConstants.Room.COMMAND_INFORM_PING + TextProtocolDriver.ARGUMENT_SEPARATOR
+							+ state.name + TextProtocolDriver.ARGUMENT_SEPARATOR + argument);
 					for (Entry<String, RoomProtocolDriver> entry : playersByName.entrySet()) {
 						RoomProtocolDriver p = entry.getValue();
-						if (p != state)
-							p.getConnection().send(message);
+						if (p != state) {
+							buffer.position(0);
+							p.getConnection().send(buffer);
+						}
 					}
 					myRoomMasterHandler.pingInformed(state.name, ping);
 				} catch (NumberFormatException e) {
@@ -564,7 +567,7 @@ public class MyRoomEngine {
 					TunnelProtocolDriver tunnel = notYetLinkedTunnels.remove(remoteEP);
 					player.tunnel = tunnel;
 					if (tunnel != null) {
-						player.getConnection().send(ProtocolConstants.Room.COMMAND_INFORM_TUNNEL_PORT);
+						player.getConnection().send(Utility.encode(ProtocolConstants.Room.COMMAND_INFORM_TUNNEL_PORT));
 						tunnel.player = player;
 					}
 				} catch (NumberFormatException e) {
@@ -596,7 +599,7 @@ public class MyRoomEngine {
 				sb.append(TextProtocolDriver.ARGUMENT_SEPARATOR);
 				sb.append(playerName);
 
-				driver.getConnection().send(sb.toString());
+				driver.getConnection().send(Utility.encode(sb));
 				return true;
 			}
 		});
@@ -616,11 +619,13 @@ public class MyRoomEngine {
 				sb.append(TextProtocolDriver.ARGUMENT_SEPARATOR);
 				sb.append(player.ssid);
 
-				final String notify = sb.toString();
+				ByteBuffer buffer = Utility.encode(sb);
 				for (Entry<String, RoomProtocolDriver> entry : playersByName.entrySet()) {
 					RoomProtocolDriver p = entry.getValue();
-					if (p != player)
-						p.getConnection().send(notify);
+					if (p != player) {
+						buffer.position(0);
+						p.getConnection().send(buffer);
+					}
 				}
 
 				return true;
@@ -672,7 +677,7 @@ public class MyRoomEngine {
 			if (!Utility.isPspPacket(packet)) {
 				InetSocketAddress remoteAddress = connection.getRemoteAddress();
 				if (notYetLinkedTunnels.containsKey(remoteAddress)) {
-					connection.send(Integer.toString(remoteAddress.getPort()));
+					connection.send(Utility.encode(Integer.toString(remoteAddress.getPort())));
 				}
 				return true;
 			}

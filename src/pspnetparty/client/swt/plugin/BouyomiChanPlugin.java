@@ -42,6 +42,7 @@ import pspnetparty.client.swt.config.IPreferenceNodeProvider;
 import pspnetparty.client.swt.message.Chat;
 import pspnetparty.client.swt.message.IMessage;
 import pspnetparty.client.swt.message.IMessageListener;
+import pspnetparty.client.swt.message.LobbyCircleChat;
 import pspnetparty.client.swt.message.PrivateChat;
 import pspnetparty.lib.IniSection;
 import pspnetparty.lib.Utility;
@@ -54,6 +55,7 @@ public class BouyomiChanPlugin implements IPlugin, IPreferenceNodeProvider {
 	private static final String INI_READ_MY_CHAT = "ReadMyChat";
 	private static final String INI_READ_ROOM_CHAT = "ReadRoomChat";
 	private static final String INI_READ_LOBBY_CHAT = "ReadLobbyChat";
+	private static final String INI_READ_CIRCLE_CHAT = "ReadCircleChat";
 	private static final String INI_READ_PRIVATE_CHAT = "ReadPrivateChat";
 
 	private PlayClient application;
@@ -67,6 +69,7 @@ public class BouyomiChanPlugin implements IPlugin, IPreferenceNodeProvider {
 	private boolean readMyChat;
 	private boolean readRoomChat;
 	private boolean readLobbyChat;
+	private boolean readCircleChat;
 	private boolean readPrivateChat;
 
 	private int errorCount = 0;
@@ -105,7 +108,7 @@ public class BouyomiChanPlugin implements IPlugin, IPreferenceNodeProvider {
 			if (errorCount < 5) {
 				errorCount++;
 
-				application.getArenaWindow().appendLog(Utility.stackTraceToString(e), true);
+				application.getArenaWindow().appendToSystemLog(Utility.stackTraceToString(e), true);
 				e.printStackTrace();
 			} else {
 				socketAddress = null;
@@ -113,7 +116,7 @@ public class BouyomiChanPlugin implements IPlugin, IPreferenceNodeProvider {
 				iniSection.set(INI_USE, false);
 
 				errorCount = 0;
-				application.getArenaWindow().appendLog("棒読みちゃんに接続できませんでした。設定を見直してください。", true);
+				application.getArenaWindow().appendToSystemLog("棒読みちゃんに接続できませんでした。設定を見直してください。", true);
 			}
 		}
 	}
@@ -130,6 +133,7 @@ public class BouyomiChanPlugin implements IPlugin, IPreferenceNodeProvider {
 		readMyChat = iniSection.get(INI_READ_MY_CHAT, false);
 		readRoomChat = iniSection.get(INI_READ_ROOM_CHAT, true);
 		readLobbyChat = iniSection.get(INI_READ_LOBBY_CHAT, true);
+		readCircleChat = iniSection.get(INI_READ_CIRCLE_CHAT, true);
 		readPrivateChat = iniSection.get(INI_READ_PRIVATE_CHAT, true);
 
 		application.addRoomMessageListener(new IMessageListener() {
@@ -155,14 +159,19 @@ public class BouyomiChanPlugin implements IPlugin, IPreferenceNodeProvider {
 				if (socketAddress == null)
 					return;
 
-				if (!readLobbyChat)
-					return;
-
 				if (message instanceof PrivateChat) {
 					PrivateChat chat = (PrivateChat) message;
 					if (!chat.isMine() && readPrivateChat)
 						sendMessage(socketAddress, chat.getMessage());
+				} else if (message instanceof LobbyCircleChat) {
+					if (!readCircleChat)
+						return;
+					LobbyCircleChat chat = (LobbyCircleChat) message;
+					if (!chat.isMine() || readMyChat)
+						sendMessage(socketAddress, chat.getMessage());
 				} else if (message instanceof Chat) {
+					if (!readLobbyChat)
+						return;
 					Chat chat = (Chat) message;
 					if (!chat.isMine() || readMyChat)
 						sendMessage(socketAddress, chat.getMessage());
@@ -196,6 +205,7 @@ public class BouyomiChanPlugin implements IPlugin, IPreferenceNodeProvider {
 		private Button readMyChatCheck;
 		private Button readRoomChatCheck;
 		private Button readLobbyChatCheck;
+		private Button readCircleChatCheck;
 		private Button readPrivateChatCheck;
 
 		public BouyomiChanPage() {
@@ -242,9 +252,14 @@ public class BouyomiChanPlugin implements IPlugin, IPreferenceNodeProvider {
 			readRoomChatCheck.setSelection(readRoomChat);
 
 			readLobbyChatCheck = new Button(container, SWT.CHECK | SWT.FLAT);
-			readLobbyChatCheck.setText("ロビーのチャットを読み上げる");
+			readLobbyChatCheck.setText("ロビー全体のチャットを読み上げる");
 			readLobbyChatCheck.setLayoutData(new GridData(SWT.LEAD, SWT.CENTER, false, false, 2, 1));
 			readLobbyChatCheck.setSelection(readLobbyChat);
+
+			readCircleChatCheck = new Button(container, SWT.CHECK | SWT.FLAT);
+			readCircleChatCheck.setText("サークルのチャットを読み上げる");
+			readCircleChatCheck.setLayoutData(new GridData(SWT.LEAD, SWT.CENTER, false, false, 2, 1));
+			readCircleChatCheck.setSelection(readCircleChat);
 
 			readPrivateChatCheck = new Button(container, SWT.CHECK | SWT.FLAT);
 			readPrivateChatCheck.setText("プライベートメッセージを読み上げる");
@@ -285,6 +300,9 @@ public class BouyomiChanPlugin implements IPlugin, IPreferenceNodeProvider {
 
 			readLobbyChat = readLobbyChatCheck.getSelection();
 			iniSection.set(INI_READ_LOBBY_CHAT, readLobbyChat);
+
+			readCircleChat = readCircleChatCheck.getSelection();
+			iniSection.set(INI_READ_CIRCLE_CHAT, readCircleChat);
 
 			readPrivateChat = readPrivateChatCheck.getSelection();
 			iniSection.set(INI_READ_PRIVATE_CHAT, readPrivateChat);

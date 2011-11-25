@@ -67,7 +67,6 @@ public class ProtocolConstants {
 		public static final int MAX_ROOM_PLAYERS = 16;
 
 		public static final String COMMAND_LOGIN = "I";
-		public static final String COMMAND_LOGOUT = "O";
 		public static final String COMMAND_CHAT = "C";
 		public static final String COMMAND_ROOM_CREATE = "RC";
 		public static final String COMMAND_ROOM_UPDATE = "RU";
@@ -133,7 +132,6 @@ public class ProtocolConstants {
 		public static final String COMMAND_ENTRY = "E";
 		public static final String COMMAND_UPDATE = "U";
 		public static final String COMMAND_UPDATE_PLAYER_COUNT = "C";
-		public static final String COMMAND_LOGOUT = "O";
 
 		public static final String ERROR_TCP_PORT_NOT_OPEN = "ERR_TCP";
 		public static final String ERROR_UDP_PORT_NOT_OPEN = "ERR_UDP";
@@ -155,7 +153,6 @@ public class ProtocolConstants {
 		}
 
 		public static final String COMMAND_LOGIN = "I";
-		public static final String COMMAND_LOGOUT = "O";
 		public static final String COMMAND_SEARCH = "S";
 
 		public static final String NOTIFY_FROM_ADMIN = "A";
@@ -180,13 +177,12 @@ public class ProtocolConstants {
 		}
 
 		public static final String COMMAND_LOGIN = "CI";
-		public static final String COMMAND_LOGOUT = "CO";
 
 		public static final String COMMAND_CHANGE_STATE = "CS";
 		public static final String COMMAND_UPDATE_PROFILE = "CU";
 
 		public static final String COMMAND_CHAT = "C";
-		public static final String COMMAND_PRIVATE_CHAT = "P";
+		public static final String COMMAND_PRIVATE_MESSAGE = "P";
 		public static final String COMMAND_CIRCLE_JOIN = "J";
 		public static final String COMMAND_CIRCLE_LEAVE = "L";
 

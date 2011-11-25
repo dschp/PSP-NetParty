@@ -45,11 +45,16 @@ public class AsyncUdpServer implements IServer {
 	private ByteBuffer readBuffer = ByteBuffer.allocateDirect(READ_BUFFER_SIZE);
 	private PacketData data = new PacketData(readBuffer);
 
+	private SelectionKey selectionKey;
+	private SendBufferQueue<InetSocketAddress> sendBufferQueue = new SendBufferQueue<InetSocketAddress>(100000);
+
 	private HashMap<String, IProtocol> protocolHandlers = new HashMap<String, IProtocol>();
 	private ConcurrentHashMap<InetSocketAddress, Connection> establishedConnections;
+	private ConcurrentHashMap<Connection, Connection> toBeClosedConnections;
 
 	private ByteBuffer bufferProtocolOK = AppConstants.CHARSET.encode(IProtocol.PROTOCOL_OK);
 	private ByteBuffer bufferProtocolNG = AppConstants.CHARSET.encode(IProtocol.PROTOCOL_NG);
+	private ByteBuffer bufferProtocolNumber = AppConstants.CHARSET.encode(IProtocol.NUMBER);
 	private ByteBuffer terminateBuffer = ByteBuffer.wrap(new byte[] { 0 });
 
 	private Thread selectorThread;
@@ -58,6 +63,7 @@ public class AsyncUdpServer implements IServer {
 	public AsyncUdpServer() {
 		serverListeners = new ConcurrentHashMap<IServerListener, Object>();
 		establishedConnections = new ConcurrentHashMap<InetSocketAddress, Connection>(30, 0.75f, 3);
+		toBeClosedConnections = new ConcurrentHashMap<Connection, Connection>();
 	}
 
 	@Override
@@ -90,7 +96,7 @@ public class AsyncUdpServer implements IServer {
 		serverChannel = DatagramChannel.open();
 		serverChannel.configureBlocking(false);
 		serverChannel.socket().bind(bindAddress);
-		serverChannel.register(selector, SelectionKey.OP_READ);
+		selectionKey = serverChannel.register(selector, SelectionKey.OP_READ | SelectionKey.OP_WRITE);
 
 		log("UDP: Listening on " + bindAddress);
 
@@ -135,8 +141,8 @@ public class AsyncUdpServer implements IServer {
 						SelectionKey key = it.next();
 						it.remove();
 
-						if (key.isReadable()) {
-							try {
+						try {
+							if (key.isReadable()) {
 								readBuffer.clear();
 								InetSocketAddress remoteAddress = (InetSocketAddress) serverChannel.receive(readBuffer);
 								if (remoteAddress == null) {
@@ -150,7 +156,7 @@ public class AsyncUdpServer implements IServer {
 									String[] tokens = message.split(IProtocol.SEPARATOR);
 									if (tokens.length != 2) {
 										bufferProtocolNG.position(0);
-										serverChannel.send(bufferProtocolNG, remoteAddress);
+										addToSendQueue(bufferProtocolNG, remoteAddress);
 										continue;
 									}
 
@@ -160,13 +166,14 @@ public class AsyncUdpServer implements IServer {
 									IProtocol handler = protocolHandlers.get(protocol);
 									if (handler == null) {
 										bufferProtocolNG.position(0);
-										serverChannel.send(bufferProtocolNG, remoteAddress);
+										addToSendQueue(bufferProtocolNG, remoteAddress);
 										continue;
 									}
 
 									conn = new Connection(remoteAddress);
 									if (!number.equals(IProtocol.NUMBER)) {
-										conn.send(IProtocol.NUMBER);
+										bufferProtocolNumber.position(0);
+										conn.send(bufferProtocolNumber);
 										continue;
 									}
 
@@ -181,11 +188,23 @@ public class AsyncUdpServer implements IServer {
 									}
 
 									establishedConnections.put(remoteAddress, conn);
-								} else {
+								} else if (!toBeClosedConnections.containsKey(conn)) {
 									conn.processData();
 								}
-							} catch (Exception e) {
+							} else if (key.isWritable()) {
+								SendBufferQueue<InetSocketAddress>.Allotment allot = sendBufferQueue.poll();
+								if (allot == null) {
+									for (Connection conn : toBeClosedConnections.keySet()) {
+										conn.disconnect();
+									}
+									toBeClosedConnections.clear();
+
+									key.interestOps(SelectionKey.OP_READ);
+								} else {
+									serverChannel.send(allot.getBuffer(), allot.getAttachment());
+								}
 							}
+						} catch (Exception e) {
 						}
 					}
 				}
@@ -246,11 +265,23 @@ public class AsyncUdpServer implements IServer {
 		}
 	}
 
+	private void addToSendQueue(ByteBuffer buffer, InetSocketAddress address) {
+		sendBufferQueue.queue(buffer, false, address);
+
+		try {
+			if (selectionKey != null) {
+				selector.wakeup();
+				selectionKey.interestOps(SelectionKey.OP_READ | SelectionKey.OP_WRITE);
+			}
+		} catch (CancelledKeyException e) {
+		}
+	}
+
 	private class Connection implements ISocketConnection {
 		private InetSocketAddress remoteAddress;
 		private IProtocolDriver driver;
 
-		public long lastKeepAliveReceived;
+		private long lastKeepAliveReceived;
 
 		public Connection(InetSocketAddress remoteAddress) {
 			this.remoteAddress = remoteAddress;
@@ -273,26 +304,6 @@ public class AsyncUdpServer implements IServer {
 		}
 
 		@Override
-		public void send(String message) {
-			ByteBuffer buffer = AppConstants.CHARSET.encode(message);
-			send(buffer);
-		}
-
-		@Override
-		public void send(ByteBuffer buffer) {
-			try {
-				serverChannel.send(buffer, remoteAddress);
-			} catch (IOException e) {
-			}
-		}
-
-		@Override
-		public void send(byte[] data) {
-			ByteBuffer buffer = ByteBuffer.wrap(data);
-			send(buffer);
-		}
-
-		@Override
 		public void disconnect() {
 			if (establishedConnections.remove(remoteAddress) == null)
 				return;
@@ -312,7 +323,10 @@ public class AsyncUdpServer implements IServer {
 			if (readBuffer.limit() == 1) {
 				switch (readBuffer.get(0)) {
 				case 0:
-					disconnect();
+					if (sendBufferQueue.isEmpty())
+						disconnect();
+					else
+						toBeClosedConnections.put(this, this);
 					return;
 				case 1:
 					lastKeepAliveReceived = System.currentTimeMillis();
@@ -329,6 +343,11 @@ public class AsyncUdpServer implements IServer {
 			if (!sessionContinue) {
 				disconnect();
 			}
+		}
+
+		@Override
+		public void send(ByteBuffer buffer) {
+			addToSendQueue(buffer, remoteAddress);
 		}
 	}
 
@@ -371,7 +390,7 @@ public class AsyncUdpServer implements IServer {
 						try {
 							Thread.sleep(20000);
 							System.out.println("Send PING");
-							connection.send("PING");
+							connection.send(Utility.encode("PING"));
 						} catch (InterruptedException e) {
 						}
 					}
@@ -386,7 +405,7 @@ public class AsyncUdpServer implements IServer {
 						String message = data.getMessage();
 
 						System.out.println(remoteAddress + " >" + message);
-						connection.send(message);
+						connection.send(Utility.encode(message));
 
 						return true;
 					}

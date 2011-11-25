@@ -18,15 +18,11 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 package pspnetparty.lib;
 
-import java.io.File;
-import java.io.FileNotFoundException;
-import java.io.IOException;
 import java.io.PrintWriter;
-import java.io.RandomAccessFile;
 import java.io.StringWriter;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
-import java.nio.channels.FileChannel;
+import java.nio.CharBuffer;
 import java.util.Date;
 
 import org.jnetpcap.protocol.lan.Ethernet;
@@ -56,8 +52,22 @@ public class Utility {
 			return 0;
 	}
 
+	public static ByteBuffer encode(CharSequence cs) {
+		return AppConstants.CHARSET.encode(CharBuffer.wrap(cs));
+	}
+
 	public static String decode(ByteBuffer buffer) {
 		return AppConstants.CHARSET.decode(buffer).toString();
+	}
+
+	public static String toHexString(ByteBuffer buffer) {
+		StringWriter sw = new StringWriter();
+		PrintWriter pw = new PrintWriter(sw);
+		for (int i = buffer.position(); i < buffer.limit(); i++) {
+			byte b = buffer.get(i);
+			pw.format("%02X ", b);
+		}
+		return sw.toString();
 	}
 
 	public static String stackTraceToString(Throwable exception) {
@@ -186,24 +196,6 @@ public class Utility {
 	public static String makeAuthCode() {
 		long val = (long) (Math.random() * 1000000000);
 		return Long.toString(val);
-	}
-
-	public static String getFileContent(File file) {
-		if (file == null || !file.isFile())
-			return "";
-		try {
-			RandomAccessFile raf = new RandomAccessFile(file, "r");
-			FileChannel fc = raf.getChannel();
-			ByteBuffer buffer = ByteBuffer.allocate((int) fc.size());
-			fc.read(buffer);
-			raf.close();
-			return new String(buffer.array(), AppConstants.CHARSET);
-		} catch (FileNotFoundException e) {
-			e.printStackTrace();
-		} catch (IOException e) {
-			e.printStackTrace();
-		}
-		return "";
 	}
 
 	public static String makeKeepAliveLog(String transport, InetSocketAddress local, InetSocketAddress remote, long time) {

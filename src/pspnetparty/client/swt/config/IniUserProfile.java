@@ -1,7 +1,7 @@
 package pspnetparty.client.swt.config;
 
 import java.util.Collections;
-import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.Set;
 
 import pspnetparty.lib.IniSection;
@@ -30,7 +30,7 @@ public class IniUserProfile {
 		String profileEscaped = section.get(PROFILE, "");
 		profile = profileEscaped.replace("\\n", "\n");
 
-		circles = new HashSet<String>();
+		circles = new LinkedHashSet<String>();
 		String circlesEscaped = section.get(CIRCLES, "");
 		for (String circle : circlesEscaped.split("\\\\n")) {
 			circles.add(circle);
@@ -41,7 +41,7 @@ public class IniUserProfile {
 	private String url;
 	private String iconUrl;
 	private String profile;
-	private HashSet<String> circles;
+	private Set<String> circles;
 
 	public String getUserName() {
 		return userName;

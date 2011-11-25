@@ -85,6 +85,13 @@ public class FixedSizeList<T> {
 		return buffer.length;
 	}
 
+	public void clear() {
+		for (int i = 0; i < buffer.length; i++) {
+			buffer[i] = null;
+		}
+		offset = position = 0;
+	}
+
 	public static void main(String[] args) {
 		int testCount = 10;
 
