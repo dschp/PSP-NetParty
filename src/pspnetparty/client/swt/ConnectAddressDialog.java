@@ -97,6 +97,13 @@ public class ConnectAddressDialog extends Dialog {
 			hostnameText.setLayoutData(gridData);
 
 			hostnameText.setFocus();
+			hostnameText.addModifyListener(new ModifyListener() {
+				@Override
+				public void modifyText(ModifyEvent e) {
+					Text hostnameText = (Text) e.widget;
+					hostname = hostnameText.getText();
+				}
+			});
 		}
 		{
 			Label label = new Label(composite, SWT.NONE);
