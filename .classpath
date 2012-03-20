@@ -2,7 +2,7 @@
 <classpath>
 	<classpathentry kind="src" path="src"/>
 	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER/org.eclipse.jdt.internal.debug.ui.launcher.StandardVMType/JavaSE-1.6"/>
-	<classpathentry combineaccessrules="false" kind="src" path="/org.eclipse.swt"/>
+	<classpathentry kind="lib" path="lib_swt/swt.jar"/>
 	<classpathentry kind="lib" path="lib_swt/jface_3.6.1.jar"/>
 	<classpathentry kind="lib" path="lib_swt/org.eclipse.core.commands_3.6.0.jar"/>
 	<classpathentry kind="lib" path="jnetpcap.jar"/>
@@ -14,5 +14,6 @@
 	<classpathentry kind="lib" path="lib_swt/org.eclipse.jface.text_3.6.1.r361_v20100825-0800.jar"/>
 	<classpathentry kind="lib" path="lib_swt/org.eclipse.text_3.5.0.v20100601-1300.jar"/>
 	<classpathentry kind="lib" path="lib_swt/org.eclipse.core.runtime_3.6.0.v20100505.jar"/>
+	<classpathentry combineaccessrules="false" kind="src" path="/org.eclipse.swt"/>
 	<classpathentry kind="output" path="bin"/>
 </classpath>

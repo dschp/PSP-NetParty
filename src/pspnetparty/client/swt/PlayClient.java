@@ -511,7 +511,7 @@ public class PlayClient {
 		wikiItem.addListener(SWT.Selection, new Listener() {
 			@Override
 			public void handleEvent(Event event) {
-				Program.launch("http://wiki.team-monketsu.net/");
+				Program.launch("http://pnpwiki.monkets.org/");
 			}
 		});
 
