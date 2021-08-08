@@ -1,8 +1,0 @@
-﻿SWTとjNetPcapについては、それぞれのOS用のものをDLしてください
-jNetPcapはプロジェクトルートに、SWTはlib_swtへ配置してください
-
-Eclipseで開発する場合は、ダウンロードしたSWTのZipをプロジェクトとしてインポートするか
-lib_swtにあるswt.jarへクラスパスを設定しなおしてください
-
-antのビルドでは、build.propertiesを各自用意して、
-publish_directoryをPSP NetPartyのjarを書き出すディレクトリに指定してください
