@@ -25,18 +25,10 @@ PSP NetParty (ネトパ・PNP) は、XLink KaiやMHP Tunnelのように\
 
 \[ [バージョン更新履歴](https://github.com/montehunter/PSP-NetParty/releases) \]
 
-
-### 旧バージョン (プロトコル3以前)
-旧バージョンのダウンロードについては、以下のページからダウンロードしてください。\
-[ 旧バージョンについて ]
-
 ### 開発について
 
 実装予定・要望リストについてはまとめてますので、先にこちらをご覧ください。\
-[ 実装予定・要望リストのまとめ ]
-
-テスト版用に設定済みのWebインストーラーを用意しました\
-PspNetParty_Test.zip
+[ [実装予定・要望リストのまとめ](https://github.com/montehunter/PSP-NetParty/wiki/%E8%A6%81%E6%9C%9B%E3%81%BE%E3%81%A8%E3%82%81) ]
 
 ## ビルド方法
 
