@@ -23,7 +23,7 @@ PSP NetParty (ネトパ・PNP) は、XLink KaiやMHP Tunnelのように\
 
 最新リリースバージョンは **0.8** です (2011/10/6)
 
-[ バージョン更新履歴 ]
+\[ [バージョン更新履歴](https://github.com/montehunter/PSP-NetParty/releases) \]
 
 
 ### 旧バージョン (プロトコル3以前)
