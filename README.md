@@ -13,7 +13,7 @@ PSP NetParty (ネトパ・PNP) は、XLink KaiやMHP Tunnelのように\
 - 配布、転載などは自由に行なってかまいません。
 
 ## 公式サイト Official Site
-https://github.com/montehunter/PSP-NetParty/wiki
+https://github.com/dschp/PSP-NetParty/wiki
 
 
 ## ビルド方法
